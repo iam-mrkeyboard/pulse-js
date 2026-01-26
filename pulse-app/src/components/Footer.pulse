@@ -1,0 +1,65 @@
+<script>
+  const year = new Date().getFullYear();
+</script>
+
+<footer class="footer">
+  <div class="container">
+    <div class="content">
+      <div class="logo">⚡ Pulse</div>
+      <p class="copyright">© {year} Pulse Framework. Open Source.</p>
+    </div>
+    <div class="links">
+        <a href="https://github.com/pulse-framework/pulse" target="_blank">GitHub</a>
+        <a href="/docs">Docs</a>
+        <a href="/blog">Blog</a>
+    </div>
+  </div>
+</footer>
+
+<style>
+  .footer {
+    border-top: 1px solid #e5e7eb;
+    background: #f9fafb;
+    padding: 40px 0;
+    margin-top: auto;
+  }
+
+  .container {
+    max-width: 1000px;
+    margin: 0 auto;
+    padding: 0 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 20px;
+  }
+
+  .logo {
+    font-weight: 800;
+    font-size: 1.2rem;
+    color: #1f2937;
+    margin-bottom: 5px;
+  }
+
+  .copyright {
+    color: #6b7280;
+    font-size: 0.9rem;
+  }
+
+  .links {
+    display: flex;
+    gap: 20px;
+  }
+
+  a {
+    color: #4b5563;
+    text-decoration: none;
+    font-weight: 500;
+    transition: color 0.2s;
+  }
+
+  a:hover {
+    color: #6b46c1;
+  }
+</style>

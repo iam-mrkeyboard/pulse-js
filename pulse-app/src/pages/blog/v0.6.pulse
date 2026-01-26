@@ -1,0 +1,109 @@
+<script>
+  import Navbar from '../../components/Navbar.pulse';
+</script>
+
+<Navbar />
+
+<main class="page">
+  <div class="content">
+    <a href="/blog" class="back">← Back to Blog</a>
+    
+    <h1>Pulse v0.6.0: The Beginning</h1>
+    <span class="date">January 15, 2025</span>
+    
+    <div class="body">
+      <p class="lead">Pulse was born out of a desire for a web framework that leverages the raw performance of modern runtimes while keeping the developer experience simple. v0.6 is our first public preview.</p>
+      
+      <h3>⚡ Built on Bun</h3>
+      <p>Pulse relies entirely on the <strong>Bun</strong> runtime. By skipping the Node.js legacy compatibility layer, we achieve build times that are measured in milliseconds, not seconds. The bundler, dev server, and test runner are all unified into a single native binary workflow.</p>
+
+      <h3>📡 Signal-Based Reactivity</h3>
+      <p>At the heart of Pulse is a fine-grained reactivity system based on Signals. Similar to SolidJS, our signals track their own dependencies. This means components only re-run when their specific data changes. There is no Virtual DOM diffing overhead.</p>
+
+      <div class="code-block">
+        <code>const [count, setCount] = createSignal(0);</code>
+      </div>
+
+      <h3>📄 File Structure</h3>
+      <p>We introduced the <code>.pulse</code> file format. It combines HTML, logic, and scoped CSS into a single cohesive unit, inspired by Svelte and Vue, but stripped down to the bare essentials needed for high performance.</p>
+    </div>
+  </div>
+</main>
+
+<style>
+  body {
+    background: #f9fafb;
+    font-family: system-ui, sans-serif;
+    margin: 0;
+  }
+  
+  .page {
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 60px 20px;
+  }
+  
+  .content {
+    background: white;
+    padding: 40px;
+    border-radius: 12px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+  }
+  
+  h1 {
+    color: #333;
+    font-size: 2.2rem;
+    margin-bottom: 5px;
+  }
+  
+  h3 {
+    color: #6b46c1;
+    margin-top: 30px;
+    margin-bottom: 15px;
+    font-size: 1.4rem;
+  }
+  
+  .date {
+    color: #999;
+    display: block;
+    margin-bottom: 40px;
+    font-weight: 500;
+  }
+  
+  .lead {
+    font-size: 1.2rem;
+    color: #444;
+    line-height: 1.6;
+    border-left: 4px solid #6b46c1;
+    padding-left: 20px;
+    margin-bottom: 40px;
+  }
+  
+  p {
+    color: #555;
+    line-height: 1.8;
+    margin-bottom: 20px;
+  }
+  
+  .code-block {
+    background: #f4f4f5;
+    padding: 15px;
+    border-radius: 6px;
+    font-family: monospace;
+    color: #333;
+    margin: 20px 0;
+  }
+  
+  .back {
+    display: inline-block;
+    color: #666;
+    text-decoration: none;
+    font-weight: 600;
+    margin-bottom: 30px;
+    transition: color 0.2s;
+  }
+  
+  .back:hover {
+    color: #6b46c1;
+  }
+</style>

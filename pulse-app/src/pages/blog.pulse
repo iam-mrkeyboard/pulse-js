@@ -1,0 +1,113 @@
+<script>
+  import Navbar from '../components/Navbar.pulse';
+  
+  const [posts, setPosts] = createSignal([
+    { id: -4, title: 'v0.13.0 - The Performance Update', date: '2026-01-25', excerpt: "Introducing 'Treasure Map' Path Walker, Keyed Reconciliation, and Template Hoisting for SolidJS-like performance.", link: '/blog/v0.13.0' },
+    { id: -3, title: 'Pulse v0.12.0 Released', date: '2026-01-25', excerpt: 'Critical stability update: Unified Reactivity, Scoped Hydration, and Robust Primitives.', link: '/blog/v0.12.0' },
+    { id: -2, title: 'Pulse v0.11.0: Signal Hydration & Two-Way Binding', date: '2025-01-24', excerpt: 'Major release fixing signal getter hydration and two-way form binding. List/Show primitives now work correctly with createSignal.', link: '/blog/v0.11' },
+    { id: -1, title: 'Pulse v0.10.0: The Eval Exorcism', date: '2025-01-24', excerpt: 'Critical security update removing eval() and enabling minification.', link: '/blog/v0.10' },
+    { id: 0, title: 'Pulse v0.9 Released', date: '2025-01-24', excerpt: 'Refactored runtime architecture and modular DOM helpers.', link: '/blog/v0.9' },
+    { id: 1, title: 'Pulse v0.8 Released', date: '2025-01-24', excerpt: 'Full regex removal, strict parsing, and robust component mounting.', link: '/blog/v0.8' },
+    { id: 2, title: 'Pulse v0.7 Update', date: '2025-01-20', excerpt: 'Islands architecture and partial hydration improvements.', link: '/blog/v0.7' },
+    { id: 3, title: 'Pulse v0.6 Initial', date: '2025-01-15', excerpt: 'The beginning: Core reactivity and signal primitives.', link: '/blog/v0.6' }
+  ]);
+</script>
+
+<Navbar />
+
+<main class="page">
+  <div class="header">
+    <h1>Latest Updates</h1>
+    <p class="subtitle">Stay tuned with the framework progress.</p>
+  </div>
+  
+  <div class="grid">
+    <List each={posts} as="post">
+      <article class="card">
+        <h2>{post.title}</h2>
+        <span class="date">{post.date}</span>
+        <p>{post.excerpt}</p>
+        <a href={post.link} class="read-more">Read Article →</a>
+      </article>
+    </List>
+  </div>
+</main>
+
+<style>
+  body {
+    background: #f9fafb;
+    font-family: system-ui, sans-serif;
+    margin: 0;
+  }
+
+  .page {
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 60px 20px;
+  }
+  
+  .header {
+    text-align: center;
+    margin-bottom: 60px;
+  }
+  
+  h1 {
+    font-size: 2.5rem;
+    margin-bottom: 10px;
+    color: #333;
+  }
+  
+  .subtitle {
+    color: #666;
+    font-size: 1.1rem;
+  }
+  
+  .grid {
+    display: flex;
+    flex-direction: column;
+    gap: 30px;
+  }
+  
+  .card {
+    background: white;
+    padding: 30px;
+    border-radius: 12px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    transition: transform 0.2s;
+  }
+  
+  .card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
+  }
+  
+  .card h2 {
+    margin-top: 0;
+    margin-bottom: 10px;
+    color: #6b46c1;
+  }
+  
+  .date {
+    display: block;
+    font-size: 0.9rem;
+    color: #999;
+    margin-bottom: 15px;
+  }
+  
+  p {
+    color: #555;
+    line-height: 1.6;
+    margin-bottom: 20px;
+  }
+  
+  .read-more {
+    display: inline-block;
+    color: #6b46c1;
+    text-decoration: none;
+    font-weight: 600;
+  }
+  
+  .read-more:hover {
+    text-decoration: underline;
+  }
+</style>

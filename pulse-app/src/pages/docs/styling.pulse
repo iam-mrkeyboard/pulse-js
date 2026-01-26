@@ -1,0 +1,269 @@
+<script>
+  import Navbar from '../../components/Navbar.pulse';
+</script>
+
+<Navbar />
+
+<main class="docs-page">
+  <aside class="sidebar">
+    <h3>Styling</h3>
+    <nav>
+      <a href="/docs/styling" class="active">Overview</a>
+      <a href="/docs/styling#scoped">Scoped Styles</a>
+      <a href="/docs/styling#global">Global Styles</a>
+      <a href="/docs/styling#dynamic">Dynamic Styles</a>
+    </nav>
+    <a href="/docs" class="back">← All Docs</a>
+  </aside>
+  
+  <article class="content">
+    <h1>Styling</h1>
+    <p class="lead">Style your components with scoped CSS. Styles are automatically isolated to prevent conflicts and enable tree-shaking.</p>
+
+    <section id="scoped">
+      <h2>Scoped Styles</h2>
+      <p>By default, all styles in a <code>&lt;style&gt;</code> block are scoped to the component.</p>
+      
+      <div class="demo-box">
+        <div class="demo-label">Component A</div>
+        <div class="demo-content">
+          <button class="demo-btn-a">Primary Button</button>
+        </div>
+      </div>
+      
+      <div class="demo-box">
+        <div class="demo-label">Component B (same class name, different styles)</div>
+        <div class="demo-content">
+          <button class="demo-btn-b">Primary Button</button>
+        </div>
+      </div>
+
+      <div class="code-block">
+        <div class="code-header">
+          <span class="label">Scoped CSS Example</span>
+        </div>
+        <pre><code>&lt;!-- ComponentA.pulse --&gt;
+&lt;button class="btn"&gt;Click Me&lt;/button&gt;
+
+&lt;style&gt;
+  .btn {
+    background: #6b46c1;
+    color: white;
+  }
+&lt;/style&gt;
+
+&lt;!-- ComponentB.pulse --&gt;
+&lt;button class="btn"&gt;Different Button&lt;/button&gt;
+
+&lt;style&gt;
+  .btn {
+    background: #ef4444;
+    color: white;
+  }
+&lt;/style&gt;
+
+&lt;!-- Both use ".btn" but styles don't conflict! --&gt;</code></pre>
+      </div>
+
+      <div class="info-box">
+        <h4>🔒 How Scoping Works</h4>
+        <p>Pulse adds a unique hash to each component's selectors (e.g., <code>.btn[data-p-abc123]</code>), preventing style conflicts between components.</p>
+      </div>
+    </section>
+
+    <section id="global">
+      <h2>Global Styles</h2>
+      <p>Use <code>:global()</code> to apply styles globally.</p>
+
+      <div class="code-block">
+        <div class="code-header">
+          <span class="label">Global Selectors</span>
+        </div>
+        <pre><code>&lt;style&gt;
+  /* Global body styles */
+  :global(body) {
+    margin: 0;
+    font-family: system-ui, sans-serif;
+    background: #f9fafb;
+  }
+  
+  /* Global reset */
+  :global(*) {
+    box-sizing: border-box;
+  }
+  
+  /* Global utility classes */
+  :global(.container) {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 0 20px;
+  }
+&lt;/style&gt;</code></pre>
+      </div>
+
+      <h3>CSS Variables</h3>
+      <div class="code-block">
+        <pre><code>&lt;style&gt;
+  :global(:root) {
+    /* Colors */
+    --primary: #6b46c1;
+    --primary-dark: #5a3ba8;
+    --secondary: #e5e7eb;
+    --text: #374151;
+    --text-muted: #6b7280;
+    
+    /* Spacing */
+    --spacing-sm: 8px;
+    --spacing-md: 16px;
+    --spacing-lg: 24px;
+    
+    /* Radii */
+    --radius-sm: 4px;
+    --radius-md: 8px;
+    --radius-lg: 16px;
+  }
+  
+  .btn {
+    background: var(--primary);
+    padding: var(--spacing-md);
+    border-radius: var(--radius-md);
+  }
+  
+  .btn:hover {
+    background: var(--primary-dark);
+  }
+&lt;/style&gt;</code></pre>
+      </div>
+    </section>
+
+    <section id="dynamic">
+      <h2>Dynamic Styles</h2>
+      <p>Use expressions to apply styles dynamically based on state.</p>
+
+      <div class="code-block">
+        <div class="code-header">
+          <span class="label">Dynamic Classes</span>
+        </div>
+        <pre><code>&lt;script&gt;
+  const [isActive, setIsActive] = createSignal(false);
+  const [size, setSize] = createSignal('medium');
+&lt;/script&gt;
+
+&lt;!-- Ternary for conditional class --&gt;
+&lt;button class={isActive() ? 'btn active' : 'btn'}&gt;
+  Toggle Me
+&lt;/button&gt;
+
+&lt;!-- Template literal for dynamic class --&gt;
+&lt;button class={`btn btn-${size()}`}&gt;
+  Sized Button
+&lt;/button&gt;
+
+&lt;style&gt;
+  .btn { padding: 10px 20px; }
+  .btn.active { background: #10b981; }
+  .btn-small { padding: 6px 12px; font-size: 0.85rem; }
+  .btn-medium { padding: 10px 20px; font-size: 1rem; }
+  .btn-large { padding: 14px 28px; font-size: 1.15rem; }
+&lt;/style&gt;</code></pre>
+      </div>
+
+      <h3>Inline Styles</h3>
+      <div class="code-block">
+        <pre><code>&lt;script&gt;
+  const [width, setWidth] = createSignal(50);
+  const [color, setColor] = createSignal('#6b46c1');
+&lt;/script&gt;
+
+&lt;!-- Dynamic inline styles --&gt;
+&lt;div 
+  class="progress-bar"
+  style={`width: ${width()}%; background: ${color()}`}
+&gt;&lt;/div&gt;
+
+&lt;input 
+  type="range" 
+  min="0" 
+  max="100" 
+  value={width}
+  onInput={e => setWidth(e.target.value)}
+/&gt;</code></pre>
+      </div>
+    </section>
+
+    <section id="best-practices">
+      <h2>Best Practices</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Practice</th>
+            <th>Description</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Use Scoped Styles</td>
+            <td>Keep styles inside components for isolation</td>
+          </tr>
+          <tr>
+            <td>CSS Variables</td>
+            <td>Define design tokens globally for consistency</td>
+          </tr>
+          <tr>
+            <td>Avoid !important</td>
+            <td>Scoping eliminates specificity wars</td>
+          </tr>
+          <tr>
+            <td>Semantic Classes</td>
+            <td>Name classes descriptively (.card, .header)</td>
+          </tr>
+          <tr>
+            <td>Mobile First</td>
+            <td>Start with mobile styles, add breakpoints up</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+  </article>
+</main>
+
+<style>
+  body { background: #f8fafc; font-family: system-ui, sans-serif; margin: 0; }
+  .docs-page { display: flex; min-height: 100vh; }
+  .sidebar { width: 220px; background: white; border-right: 1px solid #e5e7eb; padding: 30px 20px; position: sticky; top: 0; height: 100vh; display: flex; flex-direction: column; }
+  .sidebar h3 { color: #6b46c1; margin-bottom: 15px; font-size: 1.1rem; }
+  .sidebar nav { display: flex; flex-direction: column; gap: 6px; flex: 1; }
+  .sidebar a { color: #4b5563; text-decoration: none; padding: 8px 12px; border-radius: 6px; font-size: 0.9rem; transition: all 0.2s; }
+  .sidebar a:hover, .sidebar a.active { background: #f3e8ff; color: #6b46c1; }
+  .sidebar .back { margin-top: auto; color: #9ca3af; font-size: 0.85rem; }
+  .content { flex: 1; padding: 40px 60px; max-width: 800px; }
+  h1 { color: #1f2937; font-size: 2.2rem; margin-bottom: 10px; }
+  h2 { color: #6b46c1; font-size: 1.6rem; margin-top: 50px; margin-bottom: 15px; padding-top: 20px; border-top: 1px solid #e5e7eb; }
+  h3 { color: #374151; font-size: 1.2rem; margin-top: 30px; }
+  .lead { font-size: 1.15rem; color: #6b7280; line-height: 1.6; margin-bottom: 30px; }
+  p { color: #4b5563; line-height: 1.7; margin-bottom: 15px; }
+
+  .demo-box { background: white; border: 2px solid #e5e7eb; border-radius: 12px; overflow: hidden; margin: 20px 0; }
+  .demo-label { background: #f3f4f6; padding: 10px 15px; font-size: 0.85rem; font-weight: 600; color: #6b7280; border-bottom: 1px solid #e5e7eb; }
+  .demo-content { padding: 20px; }
+  .demo-btn-a { background: #6b46c1; color: white; padding: 12px 24px; border: none; border-radius: 8px; font-weight: 600; cursor: pointer; }
+  .demo-btn-b { background: #ef4444; color: white; padding: 12px 24px; border: none; border-radius: 8px; font-weight: 600; cursor: pointer; }
+
+  .code-block { background: #1f2937; border-radius: 10px; overflow: hidden; margin: 20px 0; }
+  .code-header { background: #374151; padding: 10px 15px; border-bottom: 1px solid #4b5563; }
+  .code-header .label { color: #9ca3af; font-size: 0.85rem; font-weight: 600; }
+  pre { margin: 0; padding: 20px; overflow-x: auto; }
+  code { font-family: 'Fira Code', monospace; font-size: 0.9rem; color: #e5e7eb; }
+  p code { background: #f3f4f6; color: #6b46c1; padding: 2px 8px; border-radius: 4px; }
+
+  .info-box { background: #eef2ff; border: 1px solid #c7d2fe; border-radius: 10px; padding: 20px; margin: 25px 0; }
+  .info-box h4 { color: #4338ca; margin: 0 0 10px 0; }
+  .info-box p { color: #4f46e5; margin: 0; }
+
+  table { width: 100%; background: white; border-collapse: separate; border-spacing: 0; border-radius: 10px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.1); margin: 20px 0; }
+  th, td { padding: 12px 16px; text-align: left; border-bottom: 1px solid #f3f4f6; }
+  th { background: #6b46c1; color: white; font-weight: 600; }
+  tr:last-child td { border-bottom: none; }
+
+  section { scroll-margin-top: 20px; }
+</style>

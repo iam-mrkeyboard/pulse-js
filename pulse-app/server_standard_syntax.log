@@ -1,0 +1,82 @@
+nohup: ignoring input
+
+⚡ Pulse v5.0 Development Server
+
+👀 Watching: /home/ibuu/Desktop/pulse-0.6/pulse-app/src
+
+⚡ Pulse v0.6.0 Dev Server running
+
+  Local:    http://localhost:3000
+  Network:  http://0.0.0.0:3000
+  HMR:      ✓ Enabled
+  Cache:    ✓ Enabled
+
+  Ready in 0ms
+
+  Local:    http://localhost:3000
+  Network:  http://0.0.0.0:3000
+  HMR:      Enabled
+  Source:   ./src
+
+Press Ctrl+C to stop
+
+🔨 Compiling: blog.pulse
+🔨 Compiling: list.pulse
+📦 Cache hit: blog.pulse
+🔨 Compiling component: Navbar.pulse
+🔌 HMR client connected (1 total)
+🔌 HMR client connected (2 total)
+🔌 HMR client connected (3 total)
+🔨 Compiling: todo.pulse
+🔨 Compiling component: TodoList.pulse
+🔌 HMR client connected (4 total)
+🔨 Compiling: index.pulse
+🔌 HMR client disconnected (3 remaining)
+🔌 HMR client connected (4 total)
+📦 Cache hit: todo.pulse
+🔌 HMR client disconnected (3 remaining)
+🔌 HMR client connected (4 total)
+🔨 Compiling: attributes.pulse
+🔌 HMR client disconnected (3 remaining)
+🔌 HMR client connected (4 total)
+📦 Cache hit: blog.pulse
+🔌 HMR client disconnected (3 remaining)
+🔌 HMR client connected (4 total)
+🔨 Compiling: profile.pulse
+🔌 HMR client disconnected (3 remaining)
+🔨 Compiling component: UserProfile.pulse
+🔌 HMR client connected (4 total)
+🔨 Compiling: count.pulse
+🔌 HMR client disconnected (3 remaining)
+🔨 Compiling component: Counter2.pulse
+🔌 HMR client connected (4 total)
+🔨 Compiling: counter.pulse
+🔌 HMR client disconnected (3 remaining)
+🔌 HMR client connected (4 total)
+📦 Cache hit: blog.pulse
+🔌 HMR client disconnected (3 remaining)
+🔌 HMR client connected (4 total)
+📦 Cache hit: blog.pulse
+🔌 HMR client disconnected (3 remaining)
+🔌 HMR client connected (4 total)
+📦 Cache hit: todo.pulse
+📦 Cache hit: index.pulse
+🔌 HMR client disconnected (3 remaining)
+🔌 HMR client connected (4 total)
+🔌 HMR client disconnected (3 remaining)
+🔌 HMR client connected (4 total)
+🔌 HMR client disconnected (3 remaining)
+🔌 HMR client connected (4 total)
+📦 Cache hit: blog.pulse
+🔌 HMR client disconnected (3 remaining)
+🔌 HMR client connected (4 total)
+📦 Cache hit: list.pulse
+🔌 HMR client disconnected (3 remaining)
+🔌 HMR client connected (4 total)
+🔨 Compiling: show.pulse
+🔌 HMR client disconnected (3 remaining)
+🔌 HMR client connected (4 total)
+📦 Cache hit: list.pulse
+🔌 HMR client disconnected (3 remaining)
+🔌 HMR client connected (4 total)
+📦 Cache hit: count.pulse

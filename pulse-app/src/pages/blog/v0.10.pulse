@@ -1,0 +1,230 @@
+<script>
+  import Navbar from '../../components/Navbar.pulse';
+</script>
+
+<Navbar />
+
+<main class="page">
+  <div class="content">
+    <a href="/blog" class="back">← Back to Blog</a>
+    
+    <h1>Pulse v0.10.0: The Eval Exorcism</h1>
+    <span class="date">January 24, 2025</span>
+    
+    <div class="body">
+      <p class="lead">Pulse v0.10.0 marks a critical milestone in our framework's maturity. We have completely removed the usage of <code>eval()</code> from our runtime, addressing major security and performance concerns.</p>
+      
+      <h3>🛡️ Security & Performance</h3>
+      <p>Previous versions relied on <code>eval()</code> to execute variable bindings in the DOM. This was unsafe and de-optimized by JS engines. v0.10.0 introduces a <strong>Secure Runtime</strong>:</p>
+      <ul>
+        <li><strong>No Eval:</strong> Replaced with <code>new Function</code> constructors that are safer and optimizable.</li>
+        <li><strong>Scope Isolation:</strong> Bindings can only access strictly defined scope variables, preventing global leakage.</li>
+        <li><strong>Compilation Cache:</strong> Repeated expressions are cached for high-performance re-evaluation.</li>
+      </ul>
+
+      <h3>📦 Build Optimization</h3>
+      <p>We've enhanced the production build pipeline:</p>
+      <ul>
+        <li><strong>Aggressive Minification:</strong> Reduced bundle size by ~40%.</li>
+        <li><strong>Tree Shaking:</strong> Unused primitives are automatically stripped from the final build.</li>
+        <li><strong>Splitting:</strong> Better chunking for faster initial loads.</li>
+      </ul>
+      <h3>✨ v0.9 vs v10.0 Comparison</h3>
+      <p>The Eval Exorcism brings massive improvements.</p>
+      
+      <div class="table-container">
+        <table>
+          <thead>
+            <tr>
+              <th>Feature</th>
+              <th>v0.9 (Legacy)</th>
+              <th>v0.10 (Secure)</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>Bindings</strong></td>
+              <td><code>eval()</code> (Unsafe)</td>
+              <td><code>safeEvaluate</code> (Secure)</td>
+            </tr>
+             <tr>
+              <td><strong>Scope</strong></td>
+              <td>Leaky (Globals accessible)</td>
+              <td>Isolated (Strict Scope)</td>
+            </tr>
+            <tr>
+              <td><strong>Bundle Strategy</strong></td>
+              <td>Standard</td>
+              <td>Minified & Tree-Shaken</td>
+            </tr>
+            <tr>
+              <td><strong>Bundle Size</strong></td>
+              <td>1.2 MB (Dev)</td>
+              <td>0.7 MB (Prod)</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</main>
+
+<style>
+  body {
+    background: #f9fafb;
+    font-family: system-ui, sans-serif;
+    margin: 0;
+  }
+  
+  .page {
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 60px 20px;
+  }
+  
+  .content {
+    background: white;
+    padding: 40px;
+    border-radius: 12px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+  }
+  
+  h1 {
+    color: #333;
+    font-size: 2.2rem;
+    margin-bottom: 5px;
+  }
+  
+  h3 {
+    color: #6b46c1;
+    margin-top: 30px;
+    margin-bottom: 15px;
+    font-size: 1.4rem;
+  }
+  
+  .date {
+    color: #999;
+    display: block;
+    margin-bottom: 40px;
+    font-weight: 500;
+  }
+  
+  .lead {
+    font-size: 1.2rem;
+    color: #444;
+    line-height: 1.6;
+    border-left: 4px solid #6b46c1;
+    padding-left: 20px;
+    margin-bottom: 40px;
+  }
+  
+  p {
+    color: #555;
+    line-height: 1.8;
+    margin-bottom: 20px;
+  }
+  
+  .back {
+    display: inline-block;
+    color: #666;
+    text-decoration: none;
+    font-weight: 600;
+    margin-bottom: 30px;
+    transition: color 0.2s;
+  }
+  
+  .back:hover {
+    color: #6b46c1;
+  }
+
+  .alert {
+    background: #eef2ff;
+    border: 1px solid #c7d2fe;
+    color: #3730a3;
+    padding: 15px;
+    border-radius: 8px;
+    margin-top: 30px;
+  }
+
+  /* List Styles (Standardized) */
+  ul {
+    padding-left: 1.5rem;
+    margin-bottom: 2rem;
+  }
+
+  li {
+    margin-bottom: 0.8rem;
+    color: #444;
+    line-height: 1.6;
+    position: relative;
+    list-style: none;
+  }
+
+  li::before {
+    content: "•";
+    color: #6b46c1;
+    font-weight: bold;
+    font-size: 1.2rem;
+    position: absolute;
+    left: -1.2rem;
+    top: -0.1rem;
+  }
+  
+  strong {
+    color: #333;
+    font-weight: 600;
+  }
+
+  /* Table Styles (Premium) */
+  .table-container {
+    overflow-x: auto;
+    margin-top: 2rem;
+    border-radius: 12px;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+    background: white;
+  }
+  
+  table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    font-size: 0.95rem;
+    overflow: hidden;
+  }
+  
+  th, td {
+    padding: 1rem 1.5rem;
+    text-align: left;
+    border-bottom: 1px solid #f3f4f6;
+  }
+  
+  th {
+    background: #6b46c1;
+    color: white;
+    font-weight: 600;
+    text-transform: uppercase;
+    font-size: 0.85rem;
+    letter-spacing: 0.05em;
+  }
+  
+  /* Remove borders inside, keep rounded corners concept */
+  th:first-child {
+    border-top-left-radius: 8px;
+  }
+  th:last-child {
+    border-top-right-radius: 8px;
+  }
+  
+  tr:last-child td {
+    border-bottom: none;
+  }
+  
+  tr:nth-child(even) {
+    background: #f9fafb;
+  }
+  
+  tr:hover td {
+    background: #f3e8ff; /* Light purple tint on hover */
+    color: #1f2937;
+  }
+</style>

@@ -1,0 +1,100 @@
+const state = {
+  count: 0
+};
+
+// Derived state via function call in template
+function doubled() {
+  return state.count * 2;
+}
+
+function increment() {
+  state.count++;
+}
+
+function decrement() {
+  state.count--;
+}
+
+function reset() {
+  state.count = 0;
+}
+
+<style>
+  .counter {
+    background: white;
+    padding: 30px;
+    border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  }
+  
+  .counter h2 {
+    margin-top: 0;
+    color: #333;
+  }
+  
+  .count-display {
+    font-size: 48px;
+    font-weight: bold;
+    color: #6b46c1;
+    margin: 20px 0;
+  }
+  
+  .doubled {
+    font-size: 18px;
+    color: #666;
+    margin-bottom: 20px;
+  }
+  
+  .buttons {
+    display: flex;
+    gap: 10px;
+  }
+  
+  button {
+    flex: 1;
+    padding: 12px 24px;
+    font-size: 16px;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  
+  .btn-increment {
+    background: #10b981;
+    color: white;
+  }
+  
+  .btn-increment:hover {
+    background: #059669;
+  }
+  
+  .btn-decrement {
+    background: #ef4444;
+    color: white;
+  }
+  
+  .btn-decrement:hover {
+    background: #dc2626;
+  }
+  
+  .btn-reset {
+    background: #6b7280;
+    color: white;
+  }
+  
+  .btn-reset:hover {
+    background: #4b5563;
+  }
+</style>
+
+<div class="counter">
+  <h2>🔢 Counter</h2>
+  <div class="count-display">{state.count}</div>
+  <div class="doubled">Doubled: {doubled}</div>
+  <div class="buttons">
+    <button class="btn-decrement" onClick={decrement}>-</button>
+    <button class="btn-reset" onClick={reset}>Reset</button>
+    <button class="btn-increment" onClick={increment}>+</button>
+  </div>
+</div>

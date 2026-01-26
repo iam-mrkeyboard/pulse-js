@@ -1,0 +1,1 @@
+{"root":["./server/src/completion.ts","./server/src/definition.ts","./server/src/hover.ts","./server/src/parser.ts","./server/src/semanticTokens.ts","./server/src/server.ts","./server/src/validator.ts"],"version":"5.9.3"}

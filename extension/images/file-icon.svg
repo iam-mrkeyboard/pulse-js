@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">
+    <!-- Main Rocket Body -->
+    <path fill="#6b46c1" d="M64 10 Q 100 60 84 96 L 44 96 Q 28 60 64 10 Z" />
+    
+    <!-- Fins -->
+    <path fill="#553c9a" d="M44 80 L 20 110 L 52 94 Z" />
+    <path fill="#553c9a" d="M84 80 L 108 110 L 76 94 Z" />
+    
+    <!-- Window -->
+    <circle cx="64" cy="50" r="14" fill="#4a3085" stroke="#805ad5" stroke-width="3"/>
+    
+    <!-- Flames/Thrust -->
+    <path fill="#ff9f43" d="M54 100 L 64 124 L 74 100 Z" opacity="0.8"/>
+    <path fill="#ff6b6b" d="M60 100 L 64 118 L 68 100 Z" opacity="0.9"/>
+</svg>

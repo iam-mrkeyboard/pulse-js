@@ -1,0 +1,121 @@
+<script>
+const state = {
+  count: 0
+};
+
+function increment() {
+  state.count = state.count + 1;
+}
+
+function decrement() {
+  state.count = state.count - 1;
+}
+</script>
+
+<style>
+  body {
+    font-family: system-ui, sans-serif;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    margin: 0;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  }
+  
+  .counter {
+    background: white;
+    padding: 60px;
+    border-radius: 20px;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+    text-align: center;
+  }
+  
+  h1 {
+    color: #6b46c1;
+    margin-bottom: 30px;
+    font-size: 2.5rem;
+  }
+  
+  .display {
+    font-size: 6rem;
+    font-weight: bold;
+    color: #333;
+    margin: 40px 0;
+  }
+  
+  .buttons {
+    display: flex;
+    gap: 20px;
+    justify-content: center;
+  }
+  
+  button {
+    padding: 20px 40px;
+    font-size: 2rem;
+    border: none;
+    border-radius: 12px;
+    cursor: pointer;
+    font-weight: bold;
+    transition: transform 0.2s, box-shadow 0.2s;
+  }
+  
+  button:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 10px 20px rgba(0, 0, 0, 0.2);
+  }
+  
+  button:active {
+    transform: translateY(0);
+  }
+  
+  .decrement {
+    background: #ef4444;
+    color: white;
+  }
+  
+  .increment {
+    background: #6b46c1;
+    color: white;
+  }
+  
+  .info {
+    margin-top: 30px;
+    color: #666;
+    font-size: 1.1rem;
+  }
+  
+  .nav {
+    margin-top: 30px;
+  }
+  
+  .nav a {
+    color: #6b46c1;
+    text-decoration: none;
+    font-weight: 600;
+    font-size: 1.1rem;
+  }
+  
+  .nav a:hover {
+    text-decoration: underline;
+  }
+</style>
+
+<div class="counter">
+  <h1>⚡ Interactive Counter</h1>
+  
+  <div class="display">{state.count}</div>
+  
+  <div class="buttons">
+    <button class="decrement" onClick={decrement}>−</button>
+    <button class="increment" onClick={increment}>+</button>
+  </div>
+  
+  <div class="info">
+    This component ships minimal JavaScript!
+  </div>
+  
+  <div class="nav">
+    <a href="/">← Back to Home</a>
+  </div>
+</div>

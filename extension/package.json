@@ -1,0 +1,130 @@
+{
+  "name": "pulse-framework",
+  "displayName": "Pulse Framework",
+  "description": "Advanced language support for .pulse files with IntelliSense, diagnostics, and more",
+  "version": "1.4.0",
+  "publisher": "pulse",
+  "icon": "images/icon.png",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/yourusername/pulse-vscode"
+  },
+  "engines": {
+    "vscode": "^1.90.0"
+  },
+  "categories": [
+    "Programming Languages",
+    "Snippets",
+    "Linters",
+    "Formatters"
+  ],
+  "keywords": [
+    "pulse",
+    "jsx",
+    "reactive",
+    "framework",
+    "typescript"
+  ],
+  "activationEvents": [
+    "onLanguage:pulse"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "languages": [
+      {
+        "id": "pulse",
+        "aliases": [
+          "Pulse",
+          "pulse"
+        ],
+        "extensions": [
+          ".pulse"
+        ],
+        "configuration": "./language-configuration.json",
+        "icon": {
+          "light": "./images/file-icon.svg",
+          "dark": "./images/file-icon.svg"
+        }
+      }
+    ],
+    "grammars": [
+      {
+        "language": "pulse",
+        "scopeName": "source.pulse",
+        "path": "./syntaxes/pulse.tmLanguage.json",
+        "embeddedLanguages": {
+          "meta.embedded.block.javascript": "javascript",
+          "meta.embedded.block.typescript": "typescript",
+          "meta.embedded.block.css": "css"
+        }
+      }
+    ],
+    "snippets": [
+      {
+        "language": "pulse",
+        "path": "./snippets/pulse.json"
+      }
+    ],
+    "configurationDefaults": {
+      "[pulse]": {
+        "editor.defaultFormatter": "esbenp.prettier-vscode",
+        "editor.formatOnSave": true,
+        "editor.quickSuggestions": {
+          "other": true,
+          "comments": false,
+          "strings": true
+        }
+      }
+    },
+    "configuration": {
+      "title": "Pulse Framework",
+      "properties": {
+        "pulse.diagnostics.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable error diagnostics for Pulse files"
+        },
+        "pulse.autocomplete.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable autocomplete suggestions"
+        },
+        "pulse.validate.imports": {
+          "type": "boolean",
+          "default": true,
+          "description": "Validate component imports"
+        },
+        "pulse.suggest.htmlAttributes": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show HTML attribute suggestions"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -b client server",
+    "watch": "tsc -b client server -w",
+    "postinstall": "cd client && npm install && cd ../server && npm install",
+    "test": "sh ./scripts/e2e.sh",
+    "package": "vsce package",
+    "antigravity:validate": "bun run ./scripts/verify-validator.ts"
+  },
+  "dependencies": {
+    "acorn": "^8.15.0",
+    "acorn-walk": "^8.3.4",
+    "tree-sitter-wasms": "^0.1.13",
+    "vscode-languageclient": "^9.0.1",
+    "vscode-languageserver": "^9.0.1",
+    "vscode-languageserver-textdocument": "^1.0.11",
+    "vscode-uri": "^3.0.8",
+    "web-tree-sitter": "0.22.6"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.3.6",
+    "@types/node": "18.x",
+    "@vscode/vsce": "^2.22.0",
+    "typescript": "^5.3.0"
+  }
+}

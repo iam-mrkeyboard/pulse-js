@@ -1,0 +1,288 @@
+<script>
+  import Navbar from '../../components/Navbar.pulse';
+  import Footer from '../../components/Footer.pulse';
+
+  let title = "Pulse v0.13.0 Released";
+  let subtitle = "The Performance Update: Path Walkers, Template Hoisting, and Keyed Reconciliation.";
+  let date = "January 25, 2026";
+
+
+</script>
+
+
+lojjojo
+
+<Navbar />
+
+<main class="page">
+  <div class="content">
+    <div class="header">
+      <span class="date">{date}</span>
+      <h1>{title}</h1>
+      <p class="subtitle">{subtitle}</p>
+    </div>
+
+    <div class="body">
+      <p>
+        Pulse v0.13.0 marks a significant milestone in our journey to build a framework that is both simple to use 
+        and incredibly performant. This release introduces a completely rewritten hydration and reconciliation engine, 
+        inspired by the state-of-the-art techniques used in frameworks like SolidJS.
+      </p>
+
+      <h2>The "Path Walker" Strategy</h2>
+      <p>
+        Traditional frameworks often rely on <code>querySelector</code> or costly Virtual DOM diffing to locate dynamic 
+        elements in the page. In v0.13.0, Pulse implements a "Path Walker" (or "Treasure Map") technique.
+      </p>
+      <p>
+        Because Pulse compiles your templates, it knows exactly where the dynamic parts are at build time. 
+        Instead of searching for elements at runtime, we now generate a precise map of instructions to walk directly to the target node.
+      </p>
+
+      <div class="highlight-box">
+        <strong>Comparison:</strong>
+        <code>
+// Old Way (Searching)
+el.querySelector('[data-id="123"]');
+
+// New Way (Walking)
+// Path: [0, 1] (First child, then next sibling)
+getTargets(root, [[0, 1]]);
+        </code>
+      </div>
+
+      <h2>Template Hoisting</h2>
+      <p>
+        We've also introduced Template Hoisting. Static parts of your component are now extracted into 
+        <code>&lt;template&gt;</code> elements and created only once. When a component re-renders, we simply clone 
+        the template, which is much faster than creating elements one by one using JavaScript.
+      </p>
+
+      <h2>Keyed Reconciliation</h2>
+      <p>
+        The <code>&lt;List&gt;</code> primitive has been upgraded with a Keyed Reconciliation algorithm. 
+        Previously, updating a list often meant re-rendering strict parts of it. Now, Pulse intelligently moves 
+        existing DOM nodes when the data order changes, minimizing destructive DOM operations and preserving state.
+      </p>
+
+      <h2>Stability Improvements</h2>
+      <p>
+        Along with performance, v0.13.0 addresses critical stability issues found in interactive applications:
+      </p>
+      <ul>
+        <li><strong>Event Bindings:</strong> Fixed a mismatch between server-generated handlers and client-side delegation.</li>
+        <li><strong>Reactive Primitives:</strong> ensured <code>&lt;Show&gt;</code> and <code>&lt;List&gt;</code> correctly track signal dependencies in all contexts.</li>
+      </ul>
+
+      <h2>v0.12.0 vs v0.13.0 Comparison</h2>
+      <div class="table-container">
+        <table>
+          <thead>
+            <tr>
+              <th>Feature</th>
+              <th>v0.12.0</th>
+              <th>v0.13.0</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>DOM Traversal</strong></td>
+              <td>querySelector (Slow)</td>
+              <td>Path Walker (O(1))</td>
+            </tr>
+            <tr>
+              <td><strong>Template Creation</strong></td>
+              <td>Per-Instance</td>
+              <td>Hoisted (Clone Node)</td>
+            </tr>
+            <tr>
+              <td><strong>List Updates</strong></td>
+              <td>Index-based</td>
+              <td>Keyed Reconciliation</td>
+            </tr>
+             <tr>
+              <td><strong>Event Delegation</strong></td>
+              <td>Partial Support</td>
+              <td>Full (data-on-*)</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h2>Summary of Changes</h2>
+      <ul>
+        <li><strong>Optimization:</strong> Implemented Integer-based Path Walker for O(1) node location.</li>
+        <li><strong>Optimization:</strong> Added Template Hoisting to reduce memory and instantiation costs.</li>
+        <li><strong>Optimization:</strong> Keyed Reconciliation for efficient List updates.</li>
+        <li><strong>Runtime:</strong> Removed `eval()` calls for a more secure and CSP-friendly runtime.</li>
+      </ul>
+
+      <p>
+        These changes bring Pulse's performance closer to bare-metal DOM manipulations while keeping the developer 
+        experience smooth and reactive.
+      </p>
+    </div>
+  </div>
+</main>
+
+<Footer />
+
+<style>
+  /* Blog Post Styles from v0.12 */
+  .page {
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 100px 20px;
+    font-family: 'Inter', system-ui, sans-serif;
+    color: #1f2937;
+  }
+
+  .header {
+    text-align: center;
+    margin-bottom: 60px;
+  }
+
+  .date {
+    color: #6b46c1;
+    font-weight: 600;
+    font-size: 0.9rem;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+
+  h1 {
+    font-size: 3.5rem;
+    font-weight: 800;
+    margin: 10px 0 20px;
+    background: linear-gradient(135deg, #111827 0%, #4b5563 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    line-height: 1.1;
+  }
+
+  .subtitle {
+    font-size: 1.5rem;
+    color: #6b7280;
+    font-weight: 400;
+    max-width: 600px;
+    margin: 0 auto;
+  }
+
+  .body {
+    font-size: 1.1rem;
+    line-height: 1.8;
+  }
+
+  h2 {
+    font-size: 2rem;
+    margin-top: 50px;
+    margin-bottom: 25px;
+    color: #111827;
+  }
+
+  h3 {
+    font-size: 1.5rem;
+    margin-top: 30px;
+    margin-bottom: 15px;
+    color: #1f2937;
+  }
+
+  .highlight-box {
+    background: #f3f4f6;
+    border-left: 4px solid #6b46c1;
+    padding: 20px;
+    margin: 40px 0;
+    border-radius: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  code {
+    background: #1f2937;
+    color: #a5b4fc;
+    padding: 15px;
+    border-radius: 6px;
+    font-family: 'Fira Code', monospace;
+    display: block;
+    width: fit-content;
+    white-space: pre;
+    overflow-x: auto;
+    font-size: 0.9rem;
+  }
+
+  ul {
+    list-style-type: none;
+    padding: 0;
+  }
+
+  ul li {
+    padding-left: 24px;
+    position: relative;
+    margin-bottom: 12px;
+  }
+
+  ul li::before {
+    content: "•";
+    color: #6b46c1;
+    font-weight: bold;
+    font-size: 1.5rem;
+    position: absolute;
+    left: 0;
+    top: -5px;
+  }
+
+  /* Table Styles */
+  .table-container {
+    overflow-x: auto;
+    margin-top: 2rem;
+    margin-bottom: 2rem;
+    border-radius: 12px;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+    background: white;
+  }
+  
+  table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    font-size: 0.95rem;
+    overflow: hidden;
+  }
+  
+  th, td {
+    padding: 1rem 1.5rem;
+    text-align: left;
+    border-bottom: 1px solid #f3f4f6;
+  }
+  
+  th {
+    background: #6b46c1;
+    color: white;
+    font-weight: 600;
+    text-transform: uppercase;
+    font-size: 0.85rem;
+    letter-spacing: 0.05em;
+  }
+  
+  th:first-child {
+    border-top-left-radius: 8px;
+  }
+  th:last-child {
+    border-top-right-radius: 8px;
+  }
+  
+  tr:last-child td {
+    border-bottom: none;
+  }
+  
+  tr:nth-child(even) {
+    background: #f9fafb;
+    color: #1f2937;
+  }
+  
+  tr:hover td {
+    background: #f3e8ff;
+    color: #1f2937;
+  }
+</style>

@@ -1,0 +1,252 @@
+<script>
+  import Navbar from '../../components/Navbar.pulse';
+  import Footer from '../../components/Footer.pulse';
+</script>
+
+ <Navbar />
+
+<main class="page">
+  <div class="content">
+    <div class="header">
+      <span class="date">January 25, 2026</span>
+      <h1>Pulse v0.12.0 Released</h1>
+      <p class="subtitle">Major stability improvements for Reactivity, Hydration, and Primitives.</p>
+    </div>
+
+    <div class="body">
+      <p>
+        We are excited to announce **Pulse v0.12.0**, a critical update focused on stabilizing the core runtime and ensuring 
+        rock-solid reactivity across all primitives. This release addresses several key issues reported by the community regarding 
+        nested loops, conditional rendering, and hydration mismatches.
+      </p>
+
+      <h2>🚀 What's New</h2>
+
+      <h3>Unified Reactivity System</h3>
+      <p>
+        We resolved a "Split Core" issue where the runtime could be instantiated multiple times, causing signals to lose track of 
+        their dependencies. In v0.12.0, the reactivity engine is guaranteed to be a singleton, ensuring that `createSignal` and 
+        `createEffect` always communicate correctly, even across different bundles.
+      </p>
+
+      <h3>Smarter Hydration Scoping</h3>
+      <p>
+        Hydration logic has been rewritten to respect primitive boundaries. Previously, nested `List` or `Show` components could 
+        accidentally inherit the wrong scope, breaking event handlers (like "Delete Item"). The new hydration engine uses 
+        scoped traversal to ensure every element binds to the correct data item.
+      </p>
+
+      <h3>Enhanced Primitives</h3>
+      <p>
+        The `&lt;List&gt;` and `&lt;Show&gt;` primitives have been hardened. We fixed template compilation issues that prevented signals 
+        from being tracked correctly in `when` and `each` attributes.
+      </p>
+      <h3>✨ v0.11.0 vs v0.12.0 Comparison</h3>
+      <p>A detailed comparison of stability improvements:</p>
+      
+      <div class="table-container">
+        <table>
+          <thead>
+            <tr>
+              <th>Aspect</th>
+              <th>v0.11.0</th>
+              <th>v0.12.0</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>Reactivity Runtime</strong></td>
+              <td>❌ Split (Multiple Inst.)</td>
+              <td>✅ Unified (Singleton)</td>
+            </tr>
+            <tr>
+              <td><strong>Hydration Scoping</strong></td>
+              <td>❌ Leaks to parents</td>
+              <td>✅ Scoped (Nested safe)</td>
+            </tr>
+            <tr>
+              <td><strong>Primitives (List/Show)</strong></td>
+              <td>❌ Attribute signals ignored</td>
+              <td>✅ Signals invoked</td>
+            </tr>
+            <tr>
+              <td><strong>Dev Server Cache</strong></td>
+              <td>❌ Stale components</td>
+              <td>✅ No-Cache Headers</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="highlight-box">
+        <strong>Upgrade Today:</strong>
+        <code>bun update pulse</code>
+      </div>
+
+      <h2>changelog</h2>
+      <ul>
+        <li>Fixed `hydrate` traversing into nested primitives unexpectedly.</li>
+        <li>Fixed "Add Item" reactivity failure by enforcing Singleton Runtime.</li>
+        <li>Fixed `Show` primitive toggle not working due to missing signal invocation.</li>
+        <li>Improved `deleteItem` scoping in Lists.</li>
+        <li>Added `Cache-Control` headers to Dev Server to prevent stale runtime issues.</li>
+      </ul>
+    </div>
+  </div>
+</main>
+
+<Footer />
+
+<style>
+  /* Blog Post Styles */
+  .page {
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 100px 20px;
+    font-family: 'Inter', system-ui, sans-serif;
+    color: #1f2937;
+  }
+
+  .header {
+    text-align: center;
+    margin-bottom: 60px;
+  }
+
+  .date {
+    color: #6b46c1;
+    font-weight: 600;
+    font-size: 0.9rem;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+
+  h1 {
+    font-size: 3.5rem;
+    font-weight: 800;
+    margin: 10px 0 20px;
+    background: linear-gradient(135deg, #111827 0%, #4b5563 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    line-height: 1.1;
+  }
+
+  .subtitle {
+    font-size: 1.5rem;
+    color: #6b7280;
+    font-weight: 400;
+    max-width: 600px;
+    margin: 0 auto;
+  }
+
+  .body {
+    font-size: 1.1rem;
+    line-height: 1.8;
+  }
+
+  h2 {
+    font-size: 2rem;
+    margin-top: 50px;
+    margin-bottom: 25px;
+    color: #111827;
+  }
+
+  h3 {
+    font-size: 1.5rem;
+    margin-top: 30px;
+    margin-bottom: 15px;
+    color: #1f2937;
+  }
+
+  .highlight-box {
+    background: #f3f4f6;
+    border-left: 4px solid #6b46c1;
+    padding: 20px;
+    margin: 40px 0;
+    border-radius: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  code {
+    background: #1f2937;
+    color: #a5b4fc;
+    padding: 10px 15px;
+    border-radius: 6px;
+    font-family: 'Fira Code', monospace;
+    display: block;
+    width: fit-content;
+  }
+
+  ul {
+    list-style-type: none;
+    padding: 0;
+  }
+
+  ul li {
+    padding-left: 24px;
+    position: relative;
+    margin-bottom: 12px;
+  }
+
+  ul li::before {
+    content: "•";
+    color: #6b46c1;
+    font-weight: bold;
+    font-size: 1.5rem;
+    position: absolute;
+    left: 0;
+    top: -5px;
+  }
+
+  /* Table Styles */
+  .table-container {
+    overflow-x: auto;
+    margin-top: 2rem;
+    border-radius: 12px;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+    background: white;
+  }
+  
+  table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    font-size: 0.95rem;
+    overflow: hidden;
+  }
+  
+  th, td {
+    padding: 1rem 1.5rem;
+    text-align: left;
+    border-bottom: 1px solid #f3f4f6;
+  }
+  
+  th {
+    background: #6b46c1;
+    color: white;
+    font-weight: 600;
+    text-transform: uppercase;
+    font-size: 0.85rem;
+    letter-spacing: 0.05em;
+  }
+  
+  th:first-child {
+    border-top-left-radius: 8px;
+  }
+  th:last-child {
+    border-top-right-radius: 8px;
+  }
+  
+  tr:last-child td {
+    border-bottom: none;
+  }
+  
+  tr:nth-child(even) {
+    background: #f9fafb;
+  }
+  
+  tr:hover td {
+    background: #f3e8ff;
+    color: #1f2937;
+  }
+</style>

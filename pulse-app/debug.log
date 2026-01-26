@@ -1,0 +1,20 @@
+[Scoped] Navbar: .data-v-1td1gaf .navbar { background: #1e1e2e;
+    padding: 1rem 0;
+    border-bottom: 1px solid #313244;
+    color: white; }
+.data-v-1td1gaf .container { max-width: 800px;
+    margin: 0 auto;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0 1rem; }
+.data-v-1td1gaf .brand { font-weight: bold;
+    font-size: 1.25rem;
+    color: #89b4fa;
+    text-decoration: none; }
+.data-v-1td1gaf .links a { color: #cdd6f4;
+    text-decoration: none;
+    margin-left: 1.5rem;
+    font-size: 0.95rem;
+    transition: color 0.2s; }
+.data-v-1td1gaf .links a:hover { color: #89b4fa; }

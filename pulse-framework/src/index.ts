@@ -1,0 +1,48 @@
+// ============================================================================
+// FILE: src/index.ts
+// Main entry point for Pulse framework
+// ============================================================================
+
+// Bundler exports
+export { PulseBundler, build } from './bundler/index';
+export { DependencyAnalyzer } from './bundler/analyzer/dependency-analyzer';
+export { ReactivityAnalyzer } from './bundler/analyzer/reactivity-analyzer';
+export { ComponentCompiler } from './bundler/compiler/component-compiler';
+export { RuntimeBuilder } from './bundler/runtime/runtime-builder';
+
+// Bundler utilities
+export { CodeSplitter } from './bundler/bundler/code-splitter';
+export { Compressor } from './bundler/bundler/compressor';
+export { EntryGenerator } from './bundler/bundler/entry-generator';
+export { Minifier } from './bundler/bundler/minifier';
+export { CodeGenerator } from './bundler/compiler/code-generator';
+export { TemplateOptimizer } from './bundler/compiler/template-optimizer';
+export { CSSScoper } from './bundler/compiler/css-scoper';
+
+// Types
+export type {
+  PulseConfig,
+  ComponentNode,
+  DependencyGraph,
+  BuildResult,
+  ReactivityInfo,
+  TemplateNode,
+  CompilationContext,
+  OutputManifest,
+  IslandManifest,
+  PageManifest,
+  TransformResult,
+} from './bundler/types';
+
+export { createDefaultConfig } from './bundler/types';
+
+// Runtime exports (for user code)
+export { hydrate, hydrateAll } from './runtime/hydration';
+
+// Server exports
+export { DevServer } from './server/dev-server';
+export { SSRRenderer } from './server/ssr';
+export { HMRManager } from './server/hmr';
+
+// Version
+export const VERSION = '0.11.0';

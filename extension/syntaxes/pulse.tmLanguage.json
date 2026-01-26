@@ -1,0 +1,261 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "Pulse",
+  "scopeName": "source.pulse",
+  "patterns": [
+    {
+      "include": "#imports"
+    },
+    {
+      "include": "#style-block"
+    },
+    {
+      "include": "#script-block"
+    },
+    {
+      "include": "#jsx-block"
+    }
+  ],
+  "repository": {
+    "imports": {
+      "patterns": [
+        {
+          "name": "meta.import.pulse",
+          "begin": "\\b(import)\\s+",
+          "beginCaptures": {
+            "1": {
+              "name": "keyword.control.import.js"
+            }
+          },
+          "end": ";|$",
+          "patterns": [
+            {
+              "name": "variable.other.readwrite.js",
+              "match": "\\b[A-Z][a-zA-Z0-9]*\\b"
+            },
+            {
+              "name": "keyword.control.from.js",
+              "match": "\\bfrom\\b"
+            },
+            {
+              "name": "string.quoted.single.js",
+              "begin": "'",
+              "end": "'"
+            },
+            {
+              "name": "string.quoted.double.js",
+              "begin": "\"",
+              "end": "\""
+            }
+          ]
+        }
+      ]
+    },
+    "style-block": {
+      "patterns": [
+        {
+          "name": "meta.embedded.block.css.pulse",
+          "contentName": "source.css.embedded.pulse",
+          "begin": "(<)(style)(>)",
+          "beginCaptures": {
+            "1": {
+              "name": "punctuation.definition.tag.begin.html"
+            },
+            "2": {
+              "name": "entity.name.tag.style.html"
+            },
+            "3": {
+              "name": "punctuation.definition.tag.end.html"
+            }
+          },
+          "end": "(</)(style)(>)",
+          "endCaptures": {
+            "1": {
+              "name": "punctuation.definition.tag.begin.html"
+            },
+            "2": {
+              "name": "entity.name.tag.style.html"
+            },
+            "3": {
+              "name": "punctuation.definition.tag.end.html"
+            }
+          },
+          "patterns": [
+            {
+              "include": "source.css"
+            }
+          ]
+        }
+      ]
+    },
+    "script-block": {
+      "patterns": [
+        {
+          "name": "meta.embedded.block.javascript.pulse",
+          "contentName": "source.js.embedded.pulse",
+          "begin": "(?=\\s*(?:const|let|var|function|class)\\s)",
+          "end": "(?=<[a-zA-Z])",
+          "patterns": [
+            {
+              "include": "source.tsx"
+            }
+          ]
+        }
+      ]
+    },
+    "jsx-block": {
+      "patterns": [
+        {
+          "include": "#pulse-component-tag"
+        },
+        {
+          "include": "#jsx-tag"
+        },
+        {
+          "include": "#jsx-expression"
+        }
+      ]
+    },
+    "pulse-component-tag": {
+      "patterns": [
+        {
+          "name": "meta.tag.pulse.component",
+          "begin": "(<)(List|Show|For|Router|Route|Link|Slot)\\b",
+          "beginCaptures": {
+            "1": {
+              "name": "punctuation.definition.tag.begin.js"
+            },
+            "2": {
+              "name": "support.class.component.pulse"
+            }
+          },
+          "end": "(/?>)",
+          "endCaptures": {
+            "1": {
+              "name": "punctuation.definition.tag.end.js"
+            }
+          },
+          "patterns": [
+            {
+              "include": "#jsx-attribute"
+            },
+            {
+              "include": "#jsx-expression"
+            }
+          ]
+        },
+        {
+          "name": "meta.tag.pulse.component",
+          "match": "(</)(List|Show|For|Router|Route|Link|Slot)(>)",
+          "captures": {
+            "1": {
+              "name": "punctuation.definition.tag.begin.js"
+            },
+            "2": {
+              "name": "support.class.component.pulse"
+            },
+            "3": {
+              "name": "punctuation.definition.tag.end.js"
+            }
+          }
+        }
+      ]
+    },
+    "jsx-tag": {
+      "patterns": [
+        {
+          "name": "meta.tag.js",
+          "begin": "(<)([a-zA-Z][a-zA-Z0-9:-]*)",
+          "beginCaptures": {
+            "1": {
+              "name": "punctuation.definition.tag.begin.js"
+            },
+            "2": {
+              "name": "entity.name.tag.js"
+            }
+          },
+          "end": "(/?>)",
+          "endCaptures": {
+            "1": {
+              "name": "punctuation.definition.tag.end.js"
+            }
+          },
+          "patterns": [
+            {
+              "include": "#jsx-attribute"
+            },
+            {
+              "include": "#jsx-expression"
+            }
+          ]
+        },
+        {
+          "name": "meta.tag.js",
+          "match": "(</)([a-zA-Z][a-zA-Z0-9:-]*)(>)",
+          "captures": {
+            "1": {
+              "name": "punctuation.definition.tag.begin.js"
+            },
+            "2": {
+              "name": "entity.name.tag.js"
+            },
+            "3": {
+              "name": "punctuation.definition.tag.end.js"
+            }
+          }
+        }
+      ]
+    },
+    "jsx-attribute": {
+      "patterns": [
+        {
+          "name": "support.function.pulse.signal",
+          "match": "\\b(createSignal|createMemo|createEffect|createStore)\\b"
+        },
+        {
+          "name": "entity.other.attribute-name.event.js",
+          "match": "\\bon[A-Z][a-zA-Z0-9]*"
+        },
+        {
+          "name": "entity.other.attribute-name.js",
+          "match": "\\b[a-zA-Z][a-zA-Z0-9:-]*(?==)"
+        },
+        {
+          "name": "string.quoted.double.js",
+          "begin": "\"",
+          "end": "\""
+        },
+        {
+          "name": "string.quoted.single.js",
+          "begin": "'",
+          "end": "'"
+        }
+      ]
+    },
+    "jsx-expression": {
+      "patterns": [
+        {
+          "name": "meta.embedded.expression.js",
+          "contentName": "source.js.embedded.expression",
+          "begin": "\\{",
+          "beginCaptures": {
+            "0": {
+              "name": "punctuation.section.embedded.begin.js"
+            }
+          },
+          "end": "\\}",
+          "endCaptures": {
+            "0": {
+              "name": "punctuation.section.embedded.end.js"
+            }
+          },
+          "patterns": [
+            {
+              "include": "source.tsx"
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

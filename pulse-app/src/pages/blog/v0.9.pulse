@@ -1,0 +1,194 @@
+<script>
+  import Navbar from '../../components/Navbar.pulse';
+</script>
+
+<Navbar />
+
+<main class="page">
+  <div class="content">
+    <a href="/blog" class="back">← Back to Blog</a>
+    
+    <h1>Pulse v0.9.0 Released: The Clean Up</h1>
+    <span class="date">January 24, 2025</span>
+    
+    <div class="body">
+      <p class="lead">Pulse v0.9.0 focuses on code quality, maintainability, and runtime efficiency. We have gutted the massive inline script injection system in favor of a modern, modular runtime architecture.</p>
+      
+      <h3>🧹 Runtime Logic Extraction</h3>
+      <p>In previous versions, the compiler injected ~150 lines of raw string helpers into <em>every single component</em> to handle primitives like `List` and `Show`. In v0.9, we moved this logic to a shared <code>/runtime/dom.js</code> library.</p>
+      <ul>
+        <li><strong>Bundle Size:</strong> Significantly reduced for apps with multiple components.</li>
+        <li><strong>Readability:</strong> Generated code is now much cleaner and easier to debug.</li>
+        <li><strong>Maintainability:</strong> Core DOM logic lives in a proper TypeScript file, not inside template strings.</li>
+      </ul>
+
+      <h3>✨ Performance Comparison</h3>
+      <p>The architecture shift continues our trend of prioritizing runtime efficiency.</p>
+      
+      <div class="table-container">
+        <table>
+          <thead>
+            <tr>
+              <th>Metric</th>
+              <th>v0.8 (Strict)</th>
+              <th>v0.9 (Modular)</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>Compiler Strategy</strong></td>
+              <td>String Injection</td>
+              <td>Runtime Import</td>
+            </tr>
+            <tr>
+              <td><strong>Code Duplication</strong></td>
+              <td>High (per component)</td>
+              <td>None (Shared)</td>
+            </tr>
+            <tr>
+              <td><strong>Debuggability</strong></td>
+              <td>Low (eval hell)</td>
+              <td>High (Sourcemaps)</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</main>
+
+<style>
+  body {
+    background: #f9fafb;
+    font-family: system-ui, sans-serif;
+    margin: 0;
+  }
+  
+  .page {
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 60px 20px;
+  }
+  
+  .content {
+    background: white;
+    padding: 40px;
+    border-radius: 12px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+  }
+  
+  h1 {
+    color: #333;
+    font-size: 2.2rem;
+    margin-bottom: 5px;
+  }
+  
+  h3 {
+    color: #6b46c1;
+    margin-top: 30px;
+    margin-bottom: 15px;
+    font-size: 1.4rem;
+  }
+  
+  .date {
+    color: #999;
+    display: block;
+    margin-bottom: 40px;
+    font-weight: 500;
+  }
+  
+  .lead {
+    font-size: 1.2rem;
+    color: #444;
+    line-height: 1.6;
+    border-left: 4px solid #6b46c1;
+    padding-left: 20px;
+    margin-bottom: 40px;
+  }
+  
+  p {
+    color: #555;
+    line-height: 1.8;
+    margin-bottom: 20px;
+  }
+  
+  .back {
+    display: inline-block;
+    color: #666;
+    text-decoration: none;
+    font-weight: 600;
+    margin-bottom: 30px;
+    transition: color 0.2s;
+  }
+  
+  .back:hover {
+    color: #6b46c1;
+  }
+
+  /* Table Styles */
+  .table-container {
+    overflow-x: auto;
+    margin-top: 2rem;
+    border-radius: 8px;
+    border: 1px solid #e5e7eb;
+  }
+  
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.95rem;
+  }
+  
+  th, td {
+    padding: 1rem;
+    text-align: left;
+    border-bottom: 1px solid #e5e7eb;
+  }
+  
+  th {
+    background: #f9fafb;
+    font-weight: 600;
+    color: #374151;
+  }
+  
+  td {
+    color: #4b5563;
+  }
+  
+  tr:last-child td {
+    border-bottom: none;
+  }
+  
+  tr:nth-child(even) {
+    background: #fcfcfd;
+  }
+
+  /* List Styles */
+  ul {
+    padding-left: 1.5rem;
+    margin-bottom: 2rem;
+  }
+
+  li {
+    margin-bottom: 0.8rem;
+    color: #444;
+    line-height: 1.6;
+    position: relative;
+    list-style: none;
+  }
+
+  li::before {
+    content: "•";
+    color: #6b46c1;
+    font-weight: bold;
+    font-size: 1.2rem;
+    position: absolute;
+    left: -1.2rem;
+    top: -0.1rem;
+  }
+  
+  strong {
+    color: #333;
+    font-weight: 600;
+  }
+</style>

@@ -1,0 +1,64 @@
+nohup: ignoring input
+
+⚡ Pulse v5.0 Development Server
+
+👀 Watching: /home/ibuu/Desktop/pulse-0.6/pulse-app
+
+⚡ Pulse v0.8.0 Dev Server running
+
+  Local:    http://localhost:3000
+  Network:  http://0.0.0.0:3000
+  HMR:      ✓ Enabled
+  Cache:    ✓ Enabled
+
+  Ready in 1ms
+
+  Local:    http://localhost:3000
+  Network:  http://0.0.0.0:3000
+  HMR:      Enabled
+  Source:   ./src
+
+Press Ctrl+C to stop
+
+🔨 Compiling: form.pulse
+🔨 Compiling component: Navbar.pulse
+🔌 HMR client connected (1 total)
+📦 Cache hit: form.pulse
+🔌 HMR client connected (2 total)
+📦 Cache hit: form.pulse
+🔌 HMR client disconnected (1 remaining)
+🔌 HMR client connected (2 total)
+📦 Cache hit: form.pulse
+🔌 HMR client disconnected (1 remaining)
+🔌 HMR client connected (2 total)
+🔨 Compiling: index.pulse
+🔌 HMR client disconnected (1 remaining)
+🔌 HMR client connected (2 total)
+📦 Cache hit: form.pulse
+🔌 HMR client disconnected (1 remaining)
+🔌 HMR client connected (2 total)
+🔨 Compiling: blog.pulse
+🔌 HMR client disconnected (1 remaining)
+🔌 HMR client connected (2 total)
+📦 Cache hit: form.pulse
+🔌 HMR client disconnected (1 remaining)
+🔌 HMR client connected (2 total)
+🔌 HMR client disconnected (1 remaining)
+🔌 HMR client disconnected (0 remaining)
+📦 Cache hit: form.pulse
+📦 Cache hit: form.pulse
+🔌 HMR client connected (1 total)
+🔌 HMR client connected (2 total)
+📦 Cache hit: form.pulse
+🔌 HMR client connected (3 total)
+📦 Cache hit: index.pulse
+🔌 HMR client disconnected (2 remaining)
+🔌 HMR client connected (3 total)
+📦 Cache hit: form.pulse
+🔌 HMR client disconnected (2 remaining)
+🔌 HMR client connected (3 total)
+📦 Cache hit: form.pulse
+🔌 HMR client connected (4 total)
+🔌 HMR client disconnected (3 remaining)
+🔌 HMR client disconnected (2 remaining)
+🔌 HMR client disconnected (1 remaining)

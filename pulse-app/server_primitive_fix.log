@@ -1,0 +1,47 @@
+nohup: ignoring input
+
+⚡ Pulse v5.0 Development Server
+
+👀 Watching: /home/ibuu/Desktop/pulse-0.6/pulse-app/src
+
+⚡ Pulse v0.6.0 Dev Server running
+
+  Local:    http://localhost:3000
+  Network:  http://0.0.0.0:3000
+  HMR:      ✓ Enabled
+  Cache:    ✓ Enabled
+
+  Ready in 0ms
+
+  Local:    http://localhost:3000
+  Network:  http://0.0.0.0:3000
+  HMR:      Enabled
+  Source:   ./src
+
+Press Ctrl+C to stop
+
+🔨 Compiling: list.pulse
+Runtime file not found: /home/ibuu/Desktop/pulse-0.6/pulse-app/src/bundler/runtime/core-runtime.ts
+🔌 HMR client connected (1 total)
+🔨 Compiling: list.pulse
+Runtime file not found: /home/ibuu/Desktop/pulse-0.6/pulse-app/src/bundler/runtime/primitives/list.ts
+🔨 Compiling component: Navbar.pulse
+🔌 HMR client connected (2 total)
+📦 Cache hit: list.pulse
+🔌 HMR client disconnected (1 remaining)
+Runtime file not found: /home/ibuu/Desktop/pulse-0.6/pulse-app/src/bundler/runtime/primitives/list.ts
+🔌 HMR client connected (2 total)
+🔨 Compiling: show.pulse
+Runtime file not found: /home/ibuu/Desktop/pulse-0.6/pulse-app/src/bundler/runtime/primitives/show.ts
+🔌 HMR client connected (3 total)
+📦 Cache hit: list.pulse
+Runtime file not found: /home/ibuu/Desktop/pulse-0.6/pulse-app/src/bundler/runtime/primitives/list.ts
+🔌 HMR client connected (4 total)
+📦 Cache hit: show.pulse
+Runtime file not found: /home/ibuu/Desktop/pulse-0.6/pulse-app/src/bundler/runtime/primitives/show.ts
+🔌 HMR client connected (5 total)
+Runtime file not found: /home/ibuu/Desktop/pulse-0.6/pulse-app/src/bundler/runtime/primitives/show.ts
+Runtime file not found: /home/ibuu/Desktop/pulse-0.6/pulse-app/src/bundler/runtime/primitives/list.ts
+📦 Cache hit: show.pulse
+Runtime file not found: /home/ibuu/Desktop/pulse-0.6/pulse-app/src/bundler/runtime/primitives/show.ts
+🔌 HMR client connected (6 total)

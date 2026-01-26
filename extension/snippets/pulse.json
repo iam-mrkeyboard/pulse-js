@@ -1,0 +1,248 @@
+{
+  "Pulse Component": {
+    "prefix": "pulse",
+    "body": [
+      "<style>",
+      "  .${TM_FILENAME_BASE/(.*)/${1:/downcase}/} {",
+      "    $1",
+      "  }",
+      "</style>",
+      "",
+      "<div class=\"${TM_FILENAME_BASE/(.*)/${1:/downcase}/}\">",
+      "  $0",
+      "</div>"
+    ],
+    "description": "Basic Pulse component with auto-generated class from filename"
+  },
+  "Pulse Component with State": {
+    "prefix": "pulse-state",
+    "body": [
+      "<style>",
+      "  .${TM_FILENAME_BASE/(.*)/${1:/downcase}/} {",
+      "    $2",
+      "  }",
+      "</style>",
+      "",
+      "let ${1:count} = ${3:0};",
+      "",
+      "function ${4:increment}() {",
+      "  state.$1++;",
+      "}",
+      "",
+      "<div class=\"${TM_FILENAME_BASE/(.*)/${1:/downcase}/}\">",
+      "  <p>{$1}</p>",
+      "  <button onClick={$4}>Click</button>",
+      "  $0",
+      "</div>"
+    ],
+    "description": "Component with reactive state"
+  },
+  "Pulse Page": {
+    "prefix": "pulse-page",
+    "body": [
+      "import Layout from '${1:../layouts/BaseLayout.pulse}';",
+      "",
+      "<style>",
+      "  .${TM_FILENAME_BASE}-page {",
+      "    ${2:padding: 40px;}",
+      "  }",
+      "</style>",
+      "",
+      "let title = '${TM_FILENAME_BASE/(.*)/${1:/capitalize}/}';",
+      "",
+      "<div class=\"${TM_FILENAME_BASE}-page\">",
+      "  <title>{title}</title>",
+      "  <meta name=\"description\" content=\"${3:${TM_FILENAME_BASE} page}\" />",
+      "  ",
+      "  <h1>{title}</h1>",
+      "  $0",
+      "</div>"
+    ],
+    "description": "Pulse page with layout and auto-generated title"
+  },
+  "Pulse Layout": {
+    "prefix": "pulse-layout",
+    "body": [
+      "<style>",
+      "  * { margin: 0; padding: 0; box-sizing: border-box; }",
+      "  body { ",
+      "    min-height: 100vh;",
+      "    display: flex;",
+      "    flex-direction: column;",
+      "  }",
+      "  main { flex: 1; }",
+      "</style>",
+      "",
+      "<div>",
+      "  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\" />",
+      "  ",
+      "  <header>",
+      "    ${1:<!-- Header content -->}",
+      "  </header>",
+      "  ",
+      "  <main>",
+      "    <slot />",
+      "  </main>",
+      "  ",
+      "  <footer>",
+      "    ${2:<!-- Footer content -->}",
+      "  </footer>",
+      "</div>"
+    ],
+    "description": "Layout with header, footer, and slot"
+  },
+  "State Variable": {
+    "prefix": "state",
+    "body": ["let ${1:name} = ${2:value};"],
+    "description": "Reactive state variable"
+  },
+  "State Object": {
+    "prefix": "state-obj",
+    "body": ["let ${1:user} = {", "  ${2:name}: '${3:value}',", "  $0", "};"],
+    "description": "Reactive state object"
+  },
+  "State Array": {
+    "prefix": "state-arr",
+    "body": ["let ${1:items} = [${2:'item1', 'item2'}];"],
+    "description": "Reactive state array"
+  },
+  "Click Handler": {
+    "prefix": "onclick",
+    "body": ["onClick={() => { ${1:state.count++} }}"],
+    "description": "onClick event handler"
+  },
+  "Change Handler": {
+    "prefix": "onchange",
+    "body": ["onChange={(e) => { state.${1:value} = e.target.value }}"],
+    "description": "onChange event handler"
+  },
+  "Submit Handler": {
+    "prefix": "onsubmit",
+    "body": ["onSubmit={(e) => { e.preventDefault(); ${1:handleSubmit()} }}"],
+    "description": "onSubmit event handler"
+  },
+  "Function": {
+    "prefix": "func",
+    "body": [
+      "function ${1:handleClick}(${2:}) {",
+      "  ${3:// function body}",
+      "}"
+    ],
+    "description": "Function declaration"
+  },
+  "Async Function": {
+    "prefix": "afunc",
+    "body": [
+      "async function ${1:fetchData}(${2:}) {",
+      "  try {",
+      "    const response = await fetch('${3:url}');",
+      "    const data = await response.json();",
+      "    state.${4:data} = data;",
+      "  } catch (error) {",
+      "    console.error('Error:', error);",
+      "  }",
+      "}"
+    ],
+    "description": "Async function with fetch"
+  },
+  "Conditional Rendering": {
+    "prefix": "if",
+    "body": ["{state.${1:show} && <div>${2:content}</div>}"],
+    "description": "Conditional rendering"
+  },
+  "Ternary Expression": {
+    "prefix": "ternary",
+    "body": ["{state.${1:condition} ? ${2:'Yes'} : ${3:'No'}}"],
+    "description": "Ternary expression"
+  },
+  "List with Map": {
+    "prefix": "map",
+    "body": [
+      "{state.${1:items}.map((${2:item}, ${3:index}) => (",
+      "  <div key={$2.${4:id}}>",
+      "    {$2.${5:name}}",
+      "  </div>",
+      "))}"
+    ],
+    "description": "Map over array with key"
+  },
+  "Filter and Map": {
+    "prefix": "filter-map",
+    "body": [
+      "{state.${1:items}",
+      "  .filter(${2:item} => $2.${3:active})",
+      "  .map(($2, ${4:index}) => (",
+      "    <div key={$2.${5:id}}>",
+      "      {$2.${6:name}}",
+      "    </div>",
+      "  ))}"
+    ],
+    "description": "Filter and map array"
+  },
+  "Input Controlled": {
+    "prefix": "input",
+    "body": [
+      "<input",
+      "  type=\"${1:text}\"",
+      "  value={state.${2:value}}",
+      "  onChange={(e) => { state.$2 = e.target.value }}",
+      "  placeholder=\"${3:Enter text}\"",
+      "/>"
+    ],
+    "description": "Controlled input"
+  },
+  "Button with Handler": {
+    "prefix": "button",
+    "body": [
+      "<button onClick={() => { ${1:state.count++} }}>",
+      "  ${2:Click Me}",
+      "</button>"
+    ],
+    "description": "Button with click handler"
+  },
+  "Import Component": {
+    "prefix": "import",
+    "body": ["import ${1:ComponentName} from '${2:./components/$1.pulse}';"],
+    "description": "Import Pulse component"
+  },
+  "Import Layout": {
+    "prefix": "import-layout",
+    "body": ["import Layout from '${1:../layouts/BaseLayout.pulse}';"],
+    "description": "Import layout"
+  },
+  "Form": {
+    "prefix": "form",
+    "body": [
+      "let ${1:formData} = {",
+      "  ${2:name}: '',",
+      "  ${3:email}: ''",
+      "};",
+      "",
+      "function ${4:handleSubmit}() {",
+      "  console.log('Form data:', state.$1);",
+      "}",
+      "",
+      "<form onSubmit={(e) => { e.preventDefault(); $4() }}>",
+      "  <input",
+      "    type=\"text\"",
+      "    value={$1.$2}",
+      "    onChange={(e) => { state.$1.$2 = e.target.value }}",
+      "    placeholder=\"${5:Name}\"",
+      "  />",
+      "  <button type=\"submit\">Submit</button>",
+      "</form>"
+    ],
+    "description": "Form with controlled inputs"
+  },
+  "SEO Meta Tags": {
+    "prefix": "seo",
+    "body": [
+      "<title>${1:Page Title}</title>",
+      "<meta name=\"description\" content=\"${2:Page description}\" />",
+      "<meta property=\"og:title\" content=\"$1\" />",
+      "<meta property=\"og:description\" content=\"$2\" />",
+      "<meta property=\"og:image\" content=\"${3:/og-image.jpg}\" />"
+    ],
+    "description": "SEO meta tags"
+  }
+}

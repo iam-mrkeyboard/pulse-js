@@ -1,0 +1,387 @@
+<script>
+  import Navbar from '../../components/Navbar.pulse';
+
+  const [name, setName] = createSignal('Pulse User');
+  const [email, setEmail] = createSignal('');
+  const [role, setRole] = createSignal('developer');
+  const [notifications, setNotifications] = createSignal(true);
+  const [theme, setTheme] = createSignal('light');
+  const [isSuccess, setSuccess] = createSignal(false);
+
+  function handleNameInput(e) {
+    setName(e.target.value);
+  }
+
+  function handleEmailInput(e) {
+    setEmail(e.target.value);
+  }
+
+  function handleRoleChange(e) {
+    setRole(e.target.value);
+  }
+
+  function toggleNotifications(e) {
+    setNotifications(e.target.checked);
+  }
+
+  function handleThemeChange(e) {
+    setTheme(e.target.value);
+  }
+
+  function handleSubmit(e) {
+    e.preventDefault();
+    console.log('Saving changes...');
+    
+    // Simulate API call
+    setTimeout(() => {
+      console.log('Form Submitted:', {
+        name: name,
+        email: email,
+        role: role,
+        notifications: notifications,
+        theme: theme
+      });
+      setSuccess(true);
+      
+      // Reset success message after 3 seconds
+      setTimeout(() => setSuccess(false), 3000);
+    }, 1000);
+  }
+</script>
+
+<Navbar />
+
+<main class="page">
+  <div class="header">
+    <h1>Form Elements</h1>
+    <p>Demonstrating two-way binding and Pulse styling.</p>
+  </div>
+
+  <div class="grid">
+    <!-- Form Section -->
+    <div class="card form-card">
+      <form onSubmit={handleSubmit}>
+        
+        <!-- Text Input -->
+        <div class="form-group">
+          <label>Full Name</label>
+          <input 
+            type="text" 
+            value={name} 
+            onInput={handleNameInput} 
+            placeholder="Enter your name"
+          />
+          <span class="hint">Type to see live update below</span>
+        </div>
+
+        <!-- Email Input -->
+        <div class="form-group">
+          <label>Email Address</label>
+          <input 
+            type="email" 
+            value={email} 
+            onInput={handleEmailInput} 
+            placeholder="john@example.com"
+          />
+        </div>
+
+        <!-- Select Dropdown -->
+        <div class="form-group">
+          <label>Role</label>
+          <select value={role} onChange={handleRoleChange}>
+            <option value="developer">Developer</option>
+            <option value="designer">Designer</option>
+            <option value="manager">Manager</option>
+          </select>
+        </div>
+
+        <!-- Radio Group -->
+        <div class="form-group">
+          <label>Theme Preference</label>
+          <div class="radio-group">
+            <label class="radio-label">
+              <input 
+                type="radio" 
+                name="theme" 
+                value="light" 
+                checked={theme === 'light'} 
+                onChange={handleThemeChange}
+              />
+              Light
+            </label>
+            <label class="radio-label">
+              <input 
+                type="radio" 
+                name="theme" 
+                value="dark" 
+                checked={theme === 'dark'} 
+                onChange={handleThemeChange}
+              />
+              Dark
+            </label>
+          </div>
+        </div>
+
+        <!-- Checkbox -->
+        <div class="form-group checkbox-group">
+          <label class="checkbox-label">
+            <input 
+              type="checkbox" 
+              checked={notifications} 
+              onChange={toggleNotifications}
+            />
+            Receive Notifications
+          </label>
+        </div>
+
+        <!-- Success Message -->
+        <Show when={isSuccess}>
+          <div class="success-message">
+            Changes saved successfully!
+          </div>
+        </Show>
+
+        <!-- Buttons -->
+        <div class="button-group">
+          <button type="submit" class="btn btn-primary">Save Changes</button>
+          <button type="button" class="btn btn-secondary">Cancel</button>
+        </div>
+      </form>
+    </div>
+
+    <!-- Live Preview Section -->
+    <div class="card preview-card">
+      <h2>Live State Preview</h2>
+      <div class="code-block">
+        <div class="prop">
+          <span class="key">Name:</span>
+          <span class="value string">"{name}"</span>
+        </div>
+        <div class="prop">
+          <span class="key">Email:</span>
+          <span class="value string">"{email}"</span>
+        </div>
+        <div class="prop">
+          <span class="key">Role:</span>
+          <span class="value keyword">{role}</span>
+        </div>
+        <div class="prop">
+          <span class="key">Notifications:</span>
+          <span class="value boolean">{notifications}</span>
+        </div>
+        <div class="prop">
+          <span class="key">Theme:</span>
+          <span class="value string">"{theme}"</span>
+        </div>
+      </div>
+      
+      <div class="message-box">
+        <p>Hello, <strong>{name}</strong>! You are viewing this in <strong>{theme}</strong> mode.</p>
+      </div>
+    </div>
+  </div>
+</main>
+
+<style>
+  /* Reset & Base */
+  .page {
+    max-width: 1000px;
+    margin: 0 auto;
+    padding: 40px 20px;
+    background: #f9fafb;
+    min-height: 100vh;
+    font-family: system-ui, sans-serif;
+  }
+
+  .header {
+    text-align: center;
+    margin-bottom: 40px;
+  }
+
+  h1 {
+    color: #1f2937;
+    font-size: 2.5rem;
+    margin-bottom: 10px;
+  }
+
+  p {
+    color: #6b7280;
+  }
+
+  /* Layout */
+  .grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 40px;
+  }
+
+  @media (max-width: 768px) {
+    .grid {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  .card {
+    background: white;
+    padding: 30px;
+    border-radius: 12px;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  }
+
+  /* Form Elements */
+  .form-group {
+    margin-bottom: 20px;
+  }
+
+  label {
+    display: block;
+    margin-bottom: 8px;
+    font-weight: 500;
+    color: #374151;
+    font-size: 0.9rem;
+  }
+
+  input[type="text"],
+  input[type="email"],
+  select {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    font-size: 1rem;
+    color: #111827;
+    transition: all 0.2s;
+    outline: none;
+    box-sizing: border-box; /* Important for width: 100% */
+  }
+
+  input[type="text"]:focus,
+  input[type="email"]:focus,
+  select:focus {
+    border-color: #6b46c1;
+    box-shadow: 0 0 0 3px rgba(107, 70, 193, 0.2);
+  }
+
+  .hint {
+    display: block;
+    margin-top: 5px;
+    font-size: 0.8rem;
+    color: #9ca3af;
+  }
+
+  /* Radio & Checkbox */
+  .radio-group {
+    display: flex;
+    gap: 20px;
+  }
+
+  .radio-label, .checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    font-weight: 400;
+  }
+  
+  input[type="radio"],
+  input[type="checkbox"] {
+    accent-color: #6b46c1;
+    width: 1.2rem;
+    height: 1.2rem;
+  }
+
+  /* Buttons */
+  .button-group {
+    display: flex;
+    gap: 15px;
+    margin-top: 30px;
+  }
+
+  .btn {
+    padding: 10px 20px;
+    border-radius: 6px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+    font-size: 1rem;
+    border: none;
+  }
+
+  .btn-primary {
+    background: #6b46c1;
+    color: white;
+  }
+
+  .btn-primary:hover {
+    background: #5b21b6;
+  }
+
+  .btn-secondary {
+    background: #f3f4f6;
+    color: #4b5563;
+  }
+
+  .btn-secondary:hover {
+    background: #e5e7eb;
+  }
+
+  /* Preview Styles */
+  .preview-card h2 {
+    margin-top: 0;
+    color: #374151;
+    font-size: 1.2rem;
+    border-bottom: 1px solid #e5e7eb;
+    padding-bottom: 15px;
+    margin-bottom: 20px;
+  }
+
+  .code-block {
+    background: #1e1e2e;
+    padding: 20px;
+    border-radius: 8px;
+    font-family: monospace;
+    font-size: 0.9rem;
+    line-height: 1.6;
+  }
+
+  .prop {
+    margin-bottom: 5px;
+  }
+
+  .key {
+    color: #f7768e; /* Pinkish red */
+  }
+
+  .string {
+    color: #9ece6a; /* Green */
+  }
+
+  .keyword {
+    color: #bb9af7; /* Purple */
+  }
+
+  .boolean {
+    color: #ff9e64; /* Orange */
+  }
+
+  .message-box {
+    margin-top: 25px;
+    padding: 15px;
+    background: #eef2ff;
+    border: 1px solid #c7d2fe;
+    border-radius: 6px;
+    color: #3730a3;
+  }
+
+  .success-message {
+    margin-top: 20px;
+    padding: 15px;
+    background-color: #dcfce7;
+    border: 1px solid #86efac;
+    color: #166534;
+    border-radius: 6px;
+    text-align: center;
+    font-weight: 500;
+    transition: opacity 0.3s ease;
+  }
+</style>

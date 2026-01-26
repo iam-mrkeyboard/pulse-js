@@ -1,0 +1,260 @@
+<script>
+  import Navbar from '../components/Navbar.pulse';
+</script>
+
+<Navbar />
+
+<main class="examples-page">
+  <section class="hero">
+    <h1>Examples</h1>
+    <p class="subtitle">Real-world examples showcasing Pulse features. Click any example to see the full code and live demo.</p>
+  </section>
+
+  <section class="examples-grid">
+    <!-- Working Feature Demos -->
+    <div class="section-label">Live Feature Demos</div>
+    
+    <a href="/features/list" class="example-card featured">
+      <div class="card-icon">📋</div>
+      <div class="card-content">
+        <h3>List Primitive</h3>
+        <p>Dynamic product list with add/delete functionality and two-way binding</p>
+        <div class="tags">
+          <span>List</span>
+          <span>Forms</span>
+          <span>CRUD</span>
+        </div>
+      </div>
+      <div class="card-arrow">→</div>
+    </a>
+
+    <a href="/features/show" class="example-card featured">
+      <div class="card-icon">👁️</div>
+      <div class="card-content">
+        <h3>Show Primitive</h3>
+        <p>Conditional rendering with toggle and counter demonstration</p>
+        <div class="tags">
+          <span>Show</span>
+          <span>Fallback</span>
+          <span>Toggle</span>
+        </div>
+      </div>
+      <div class="card-arrow">→</div>
+    </a>
+
+    <a href="/features/form" class="example-card featured">
+      <div class="card-icon">📝</div>
+      <div class="card-content">
+        <h3>Form Elements</h3>
+        <p>Complete form with inputs, selects, checkboxes, and live preview</p>
+        <div class="tags">
+          <span>Two-Way Binding</span>
+          <span>All Input Types</span>
+          <span>Validation</span>
+        </div>
+      </div>
+      <div class="card-arrow">→</div>
+    </a>
+
+    <!-- Code Examples -->
+    <div class="section-label">Code Examples</div>
+
+    <a href="/examples/counter" class="example-card">
+      <div class="card-icon">🔢</div>
+      <div class="card-content">
+        <h3>Interactive Counter</h3>
+        <p>Learn signals, effects, and memos with a classic counter example</p>
+        <div class="tags">
+          <span>createSignal</span>
+          <span>createMemo</span>
+          <span>createEffect</span>
+        </div>
+      </div>
+      <div class="card-arrow">→</div>
+    </a>
+
+    <a href="/examples/todo" class="example-card">
+      <div class="card-icon">✅</div>
+      <div class="card-content">
+        <h3>Todo Application</h3>
+        <p>Full CRUD app with List primitive, forms, and filtering</p>
+        <div class="tags">
+          <span>List</span>
+          <span>Forms</span>
+          <span>CRUD</span>
+        </div>
+      </div>
+      <div class="card-arrow">→</div>
+    </a>
+
+    <a href="/examples/tabs" class="example-card">
+      <div class="card-icon">📑</div>
+      <div class="card-content">
+        <h3>Tabs Component</h3>
+        <p>Tab navigation with Show primitive for conditional rendering</p>
+        <div class="tags">
+          <span>Show</span>
+          <span>Dynamic Classes</span>
+          <span>Navigation</span>
+        </div>
+      </div>
+      <div class="card-arrow">→</div>
+    </a>
+  </section>
+</main>
+
+<style>
+  body {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    min-height: 100vh;
+    font-family: system-ui, sans-serif;
+    margin: 0;
+  }
+
+  .examples-page {
+    padding: 40px 20px 80px;
+    max-width: 900px;
+    margin: 0 auto;
+  }
+
+  .hero {
+    text-align: center;
+    margin-bottom: 50px;
+  }
+  
+  .hero h1 {
+    color: white;
+    font-size: 3rem;
+    margin: 0 0 15px;
+    text-shadow: 0 2px 10px rgba(0,0,0,0.2);
+  }
+  
+  .subtitle {
+    color: rgba(255,255,255,0.9);
+    font-size: 1.2rem;
+    margin: 0;
+    max-width: 500px;
+    margin: 0 auto;
+    line-height: 1.6;
+  }
+
+  .examples-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+  }
+
+  .section-label {
+    color: rgba(255,255,255,0.8);
+    font-size: 0.9rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    margin: 20px 0 5px;
+    padding-left: 5px;
+  }
+
+  .section-label:first-child {
+    margin-top: 0;
+  }
+
+  .example-card.featured {
+    background: linear-gradient(135deg, #ffffff 0%, #f9fafb 100%);
+    border: 2px solid #10b981;
+  }
+
+  .example-card.featured .card-icon {
+    background: linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%);
+  }
+
+  .example-card.featured .card-arrow {
+    color: #10b981;
+  }
+
+  .example-card {
+    background: white;
+    border-radius: 16px;
+    padding: 25px 30px;
+    display: flex;
+    align-items: center;
+    gap: 25px;
+    text-decoration: none;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.15);
+    transition: transform 0.2s, box-shadow 0.2s;
+  }
+  
+  .example-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 15px 50px rgba(0,0,0,0.25);
+  }
+
+  .card-icon {
+    font-size: 3rem;
+    width: 80px;
+    height: 80px;
+    background: linear-gradient(135deg, #f3e8ff 0%, #e9d5ff 100%);
+    border-radius: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+
+  .card-content {
+    flex: 1;
+  }
+  
+  .card-content h3 {
+    color: #1f2937;
+    font-size: 1.4rem;
+    margin: 0 0 8px;
+  }
+  
+  .card-content p {
+    color: #6b7280;
+    margin: 0 0 15px;
+    line-height: 1.5;
+  }
+
+  .tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  
+  .tags span {
+    background: linear-gradient(135deg, #6b46c1 0%, #8b5cf6 100%);
+    color: white;
+    padding: 5px 12px;
+    border-radius: 20px;
+    font-size: 0.8rem;
+    font-weight: 600;
+  }
+
+  .card-arrow {
+    font-size: 2rem;
+    color: #6b46c1;
+    font-weight: 300;
+    flex-shrink: 0;
+  }
+
+  @media (max-width: 600px) {
+    .hero h1 {
+      font-size: 2rem;
+    }
+    
+    .example-card {
+      flex-direction: column;
+      text-align: center;
+      padding: 25px 20px;
+    }
+    
+    .card-arrow {
+      display: none;
+    }
+    
+    .tags {
+      justify-content: center;
+    }
+  }
+</style>

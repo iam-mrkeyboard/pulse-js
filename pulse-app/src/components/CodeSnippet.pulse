@@ -1,0 +1,40 @@
+<script>
+  const code = 
+    '<script>\n' +
+    '  const [count, setCount] = createSignal(0);\n' +
+    '  \n' +
+    '  const doubled = createMemo(() => count * 2);\n' +
+    '<\/script>\n' +
+    '\n' +
+    '<div class="counter">\n' +
+    '  <h2>Count: {count}</h2>\n' +
+    '  <p>Doubled: {doubled}</p>\n' +
+    '  \n' +
+    '  <button onClick={() => setCount(c => c + 1)}>\n' +
+    '    Increment\n' +
+    '  </button>\n' +
+    '</div>\n' +
+    '\n' +
+    '<style>\n' +
+    '  .counter {\n' +
+    '    padding: 20px;\n' +
+    '    text-align: center;\n' +
+    '  }\n' +
+    '  \n' +
+    '  button {\n' +
+    '    background: #6b46c1;\n' +
+    '    color: white;\n' +
+    '    border-radius: 8px;\n' +
+    '  }\n' +
+    '</style>';
+</script>
+
+<div class="demo-code">
+  <div class="code-header">
+    <span class="dot red"></span>
+    <span class="dot yellow"></span>
+    <span class="dot green"></span>
+    <span class="filename">Counter.pulse</span>
+  </div>
+  <pre><code>{code}</code></pre>
+</div>

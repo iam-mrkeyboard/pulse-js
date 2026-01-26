@@ -1,0 +1,15 @@
+const state = {
+  name: 'Guest'
+};
+
+function updateName() {
+  state.name = 'Pulse User';
+}
+
+<div class="user-profile" style="border: 1px solid #ccc; padding: 20px; border-radius: 8px;">
+  <h3>User Profile Component</h3>
+  <p>Current User: <strong>{state.name}</strong></p>
+  <button id="btn-update-profile" onClick={updateName} style="padding: 8px 16px; background: #3b82f6; color: white; border: none; border-radius: 4px;">
+    Update Name
+  </button>
+</div>

@@ -1,0 +1,117 @@
+nohup: ignoring input
+
+⚡ Pulse v5.0 Development Server
+
+👀 Watching: /home/ibuu/Desktop/pulse-0.6/pulse-app/src
+
+⚡ Pulse v0.6.0 Dev Server running
+
+  Local:    http://localhost:3000
+  Network:  http://0.0.0.0:3000
+  HMR:      ✓ Enabled
+  Cache:    ✓ Enabled
+
+  Ready in 0ms
+
+  Local:    http://localhost:3000
+  Network:  http://0.0.0.0:3000
+  HMR:      Enabled
+  Source:   ./src
+
+Press Ctrl+C to stop
+
+🔨 Compiling: list.pulse
+🔨 Compiling: blog.pulse
+📦 Cache hit: list.pulse
+📦 Cache hit: list.pulse
+📦 Cache hit: list.pulse
+📦 Cache hit: list.pulse
+🔨 Compiling component: Navbar.pulse
+📦 Cache hit: list.pulse
+📦 Cache hit: list.pulse
+📦 Cache hit: list.pulse
+📦 Cache hit: list.pulse
+🔌 HMR client connected (1 total)
+🔌 HMR client connected (2 total)
+🔌 HMR client connected (3 total)
+🔌 HMR client connected (4 total)
+🔌 HMR client connected (5 total)
+🔌 HMR client connected (6 total)
+🔌 HMR client connected (7 total)
+🔌 HMR client connected (8 total)
+🔌 HMR client connected (9 total)
+🔌 HMR client connected (10 total)
+📦 Cache hit: list.pulse
+🔌 HMR client connected (11 total)
+📝 File change: list.pulse
+🔄 Full page reload triggered
+📊 Cache: 2 entries, 90.5% hit rate
+🔨 Compiling: list.pulse
+📦 Cache hit: list.pulse
+📦 Cache hit: list.pulse
+📦 Cache hit: list.pulse
+📦 Cache hit: blog.pulse
+📦 Cache hit: list.pulse
+📦 Cache hit: list.pulse
+📦 Cache hit: list.pulse
+📦 Cache hit: list.pulse
+📦 Cache hit: list.pulse
+📦 Cache hit: list.pulse
+🔌 HMR client disconnected (10 remaining)
+🔌 HMR client disconnected (9 remaining)
+🔌 HMR client disconnected (8 remaining)
+🔌 HMR client disconnected (7 remaining)
+🔌 HMR client disconnected (6 remaining)
+🔌 HMR client disconnected (5 remaining)
+🔌 HMR client disconnected (4 remaining)
+🔌 HMR client disconnected (3 remaining)
+🔌 HMR client disconnected (2 remaining)
+🔌 HMR client disconnected (1 remaining)
+🔌 HMR client disconnected (0 remaining)
+🔌 HMR client connected (1 total)
+🔌 HMR client connected (2 total)
+🔌 HMR client connected (3 total)
+🔌 HMR client connected (4 total)
+🔌 HMR client connected (5 total)
+🔌 HMR client connected (6 total)
+🔌 HMR client connected (7 total)
+🔌 HMR client connected (8 total)
+🔌 HMR client connected (9 total)
+🔌 HMR client connected (10 total)
+🔌 HMR client connected (11 total)
+📝 File change: list.pulse
+🔄 Full page reload triggered
+📊 Cache: 2 entries, 93.0% hit rate
+🔨 Compiling: list.pulse
+📦 Cache hit: list.pulse
+📦 Cache hit: list.pulse
+📦 Cache hit: list.pulse
+📦 Cache hit: list.pulse
+📦 Cache hit: list.pulse
+📦 Cache hit: blog.pulse
+📦 Cache hit: list.pulse
+🔌 HMR client disconnected (10 remaining)
+🔌 HMR client disconnected (9 remaining)
+🔌 HMR client disconnected (8 remaining)
+🔌 HMR client disconnected (7 remaining)
+🔌 HMR client disconnected (6 remaining)
+🔌 HMR client disconnected (5 remaining)
+📦 Cache hit: list.pulse
+🔌 HMR client disconnected (4 remaining)
+🔌 HMR client disconnected (3 remaining)
+📦 Cache hit: list.pulse
+📦 Cache hit: list.pulse
+🔌 HMR client disconnected (2 remaining)
+🔌 HMR client disconnected (1 remaining)
+🔌 HMR client disconnected (0 remaining)
+🔌 HMR client connected (1 total)
+🔌 HMR client connected (2 total)
+🔌 HMR client connected (3 total)
+🔌 HMR client connected (4 total)
+🔌 HMR client connected (5 total)
+🔌 HMR client connected (6 total)
+🔌 HMR client connected (7 total)
+🔌 HMR client connected (8 total)
+🔌 HMR client connected (9 total)
+🔌 HMR client connected (10 total)
+🔌 HMR client connected (11 total)

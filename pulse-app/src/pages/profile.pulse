@@ -1,0 +1,10 @@
+import UserProfile from '../components/UserProfile.pulse';
+
+<div style="padding: 20px; font-family: sans-serif;">
+  <h1>Profile Page</h1>
+  <p>This page tests component imports.</p>
+  
+  <div style="margin-top: 20px;">
+    <UserProfile />
+  </div>
+</div>

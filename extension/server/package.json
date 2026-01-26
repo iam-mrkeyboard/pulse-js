@@ -1,0 +1,17 @@
+{
+  "name": "pulse-server",
+  "version": "1.0.0",
+  "description": "Pulse Language Server",
+  "dependencies": {
+    "acorn": "^8.11.0",
+    "acorn-walk": "^8.3.0",
+    "tree-sitter-wasms": "^0.1.13",
+    "vscode-languageserver": "^9.0.1",
+    "vscode-languageserver-textdocument": "^1.0.11",
+    "vscode-uri": "^3.1.0",
+    "web-tree-sitter": "0.22.6"
+  },
+  "devDependencies": {
+    "@types/node": "18.x"
+  }
+}

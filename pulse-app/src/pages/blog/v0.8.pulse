@@ -1,0 +1,188 @@
+<script>
+  import Navbar from '../../components/Navbar.pulse';
+</script>
+
+<Navbar />
+
+<main class="page">
+  <div class="content">
+    <a href="/blog" class="back">← Back to Blog</a>
+    
+    <h1>Pulse v0.8.0 Released: The Strict Update</h1>
+    <span class="date">January 24, 2025</span>
+    
+    <div class="body">
+      <p class="lead">Pulse v0.8.0 marks a pivotal maturity point for the framework. We have completely rewritten the compilation pipeline to move away from regex-based extraction to a robust, standards-compliant parsing architecture.</p>
+      
+      <h3>🚫 Zero Regex Parsing</h3>
+      <p>Previous versions relied on complex Regular Expressions to identify imports, state, and functions. This was fragile and prone to breaking with complex syntax (like Arrow Functions or nested objects). v0.8 introduces a bespoke <strong>ScriptParser</strong> that performs manual character-by-character token scanning. This ensures that valid JavaScript is always parsed correctly, no matter how it's formatted.</p>
+
+      <h3>🔒 Strict Mode & Explicit Tags</h3>
+      <p>To support this new level of precision, Pulse now enforces <strong>Strict Mode</strong>. Implicit top-level JavaScript is no longer guessed. All component logic must be wrapped in explicit <code>&lt;script&gt;</code> tags. This aligns Pulse with standard web development practices and improved tooling support.</p>
+
+      <h3>🧩 Robust Component Mounting</h3>
+      <p>We solved the "Missing Component" issue. The new <code>TemplateTransformer</code> successfully identifies imported components (like <code>&lt;Navbar /&gt;</code>) even when deeply nested in primitives. It generates precise hydration markers (<code>data-pulse-component</code>), ensuring that your interactive islands hook up correctly every time.</p>
+
+      <h3>🎨 Standardization</h3>
+      <p>We have also standardized the visual language of the framework. All default components now adhere to the "Pulse Purple" design system, creating a cohesive visual experience out of the box.</p>
+
+      <h2>Performance Comparison</h2>
+      <p>How does v0.8 compare to previous versions? The move to AST parsing introduces a slight build-time cost for significantly improved safety, while maintaining the small runtime footprint introduced in v0.7.</p>
+      
+      <div class="table-container">
+        <table>
+          <thead>
+            <tr>
+              <th>Metric</th>
+              <th>v0.6 (Alpha)</th>
+              <th>v0.7 (Islands)</th>
+              <th>v0.8 (Strict)</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>Bundle Strategy</strong></td>
+              <td>Full Hydration</td>
+              <td>Partial (Islands)</td>
+              <td>Partial (Resumable)</td>
+            </tr>
+            <tr>
+              <td><strong>Avg JS Size</strong></td>
+              <td>~12KB</td>
+              <td>~4KB</td>
+              <td>~4.2KB</td>
+            </tr>
+            <tr>
+              <td><strong>Build Time</strong></td>
+              <td>~80ms</td>
+              <td>~95ms</td>
+              <td>~110ms</td>
+            </tr>
+            <tr>
+              <td><strong>Safety</strong></td>
+              <td>Low (Regex)</td>
+              <td>Medium</td>
+              <td>High (AST)</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</main>
+
+<style>
+  body {
+    background: #f9fafb;
+    font-family: system-ui, sans-serif;
+    margin: 0;
+  }
+  
+  .page {
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 60px 20px;
+  }
+  
+  .content {
+    background: white;
+    padding: 40px;
+    border-radius: 12px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+  }
+  
+  h1 {
+    color: #333;
+    font-size: 2.2rem;
+    margin-bottom: 5px;
+  }
+  
+  h2 {
+    color: #333;
+    font-size: 1.8rem;
+    margin-top: 50px;
+    margin-bottom: 20px;
+    border-bottom: 2px solid #f3f4f6;
+    padding-bottom: 10px;
+  }
+  
+  h3 {
+    color: #6b46c1;
+    margin-top: 30px;
+    margin-bottom: 15px;
+    font-size: 1.4rem;
+  }
+  
+  .date {
+    color: #999;
+    display: block;
+    margin-bottom: 40px;
+    font-weight: 500;
+  }
+  
+  .lead {
+    font-size: 1.2rem;
+    color: #444;
+    line-height: 1.6;
+    border-left: 4px solid #6b46c1;
+    padding-left: 20px;
+    margin-bottom: 40px;
+  }
+  
+  p {
+    color: #555;
+    line-height: 1.8;
+    margin-bottom: 20px;
+  }
+  
+  .back {
+    display: inline-block;
+    color: #666;
+    text-decoration: none;
+    font-weight: 600;
+    margin-bottom: 30px;
+    transition: color 0.2s;
+  }
+  
+  .back:hover {
+    color: #6b46c1;
+  }
+
+  /* Table Styles */
+  .table-container {
+    overflow-x: auto;
+    margin-top: 2rem;
+    border-radius: 8px;
+    border: 1px solid #e5e7eb;
+  }
+  
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.95rem;
+  }
+  
+  th, td {
+    padding: 1rem;
+    text-align: left;
+    border-bottom: 1px solid #e5e7eb;
+  }
+  
+  th {
+    background: #f9fafb;
+    font-weight: 600;
+    color: #374151;
+  }
+  
+  td {
+    color: #4b5563;
+  }
+  
+  tr:last-child td {
+    border-bottom: none;
+  }
+  
+  tr:nth-child(even) {
+    background: #fcfcfd;
+  }
+</style>
