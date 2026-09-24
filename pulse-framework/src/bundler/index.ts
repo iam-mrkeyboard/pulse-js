@@ -75,7 +75,7 @@ export class PulseBundler {
     const warnings: any[] = [];
 
     try {
-      console.log('⚡ Pulse v5.0 Build Started\n');
+      console.log('⚡ Pulse v0.16.0 Build Started\n');
 
       // Phase 1: Analyze dependency graph
       console.log('📊 Phase 1: Analyzing dependencies...');
@@ -363,7 +363,7 @@ export class PulseBundler {
 
   private async writeManifest(): Promise<void> {
     const manifest = {
-      version: '5.0.0',
+      version: '0.16.0',
       buildTime: new Date().toISOString(),
       stats: this.ctx.output.stats,
       pages: Array.from(this.ctx.output.pages.values()).map((p) => ({

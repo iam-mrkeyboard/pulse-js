@@ -10,7 +10,7 @@ import type { PulseConfig } from '../../bundler/types';
  */
 export function generateHMRClientScript(): string {
   return [
-    '// Pulse HMR Client v0.11.0',
+    '// Pulse HMR Client v0.16.0',
     '(function() {',
     '  const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";',
     '  const ws = new WebSocket(protocol + "//" + window.location.host + "/__pulse_hmr");',

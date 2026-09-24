@@ -9,7 +9,7 @@ import { Logger } from './logger';
 import { Spinner } from './spinner';
 
 export async function buildCommand(config: PulseConfig): Promise<void> {
-  Logger.header('⚡ Pulse v0.11.0 Production Build');
+  Logger.header('⚡ Pulse v0.16.0 Production Build');
 
   const spinner = new Spinner('Building...');
   spinner.start();
