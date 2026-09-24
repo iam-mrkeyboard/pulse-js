@@ -6,6 +6,7 @@
 import { HTMLParser, type ParsedNode, type ParsedExpression } from '../bundler/compiler/html-parser';
 import * as acorn from 'acorn';
 import { walk } from 'estree-walker';
+import { safeEval as safeEvalSSR } from '../runtime/safe-eval.js';
 
 export class TemplateTransformer {
   constructor() {
@@ -364,33 +365,17 @@ export class TemplateTransformer {
   }
 }
 
-// Helper for SSR evaluation
+
+// Helper for SSR evaluation — delegates to shared Function-free evaluator.
 const evalSSR = (code: string, item: any, as: string, globalScope: Record<string, any>): any => {
-  try {
-    const scopeKeys = Object.keys(globalScope);
-    const scopeValues = Object.values(globalScope);
-    const fn = new Function(as, ...scopeKeys, `try { return ${code} } catch(e) { return "" }`);
-    return fn(item, ...scopeValues);
-  } catch (e) {
-    return "";
-  }
-}
+  return safeEvalSSR(code, { ...globalScope, [as]: item });
+};
 
 const interpolateSSR = (tpl: string, item: any, as: string, globalScope: Record<string, any> = {}): string => {
-  let result = tpl;
-  const regex = /\{([^}]+)\}/g;
-  result = result.replace(regex, (match, code) => {
-    try {
-      const scopeKeys = Object.keys(globalScope);
-      const scopeValues = Object.values(globalScope);
-
-      const fn = new Function(as, ...scopeKeys, `try { return ${code} } catch(e) { return "" }`);
-      const val = fn(item, ...scopeValues);
-
-      return val !== undefined ? String(val) : '';
-    } catch (e) {
-      return "";
-    }
+  return tpl.replace(/\{([^}]+)\}/g, (_match, code) => {
+    const val = evalSSR(code, item, as, globalScope);
+    return val !== undefined && val !== null ? String(val) : '';
   });
-  return result;
-}
+};
+
+export { evalSSR, interpolateSSR, safeEvalSSR };
