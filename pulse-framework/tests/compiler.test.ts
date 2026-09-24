@@ -135,3 +135,47 @@ function select(id) { state.selected = id; }
     expect(code).not.toMatch(/get_data\[i\]/);
   });
 });
+
+describe('Nested template-literal class attributes', () => {
+  test('class={`btn btn-${x}`} emits valid JS that terser accepts', async () => {
+    const { ComponentCompiler } = await import('../src/server/component-compiler');
+    const { ScriptParser } = await import('../src/server/script-parser');
+    const { TemplateTransformer } = await import('../src/server/template-transformer');
+    const { minify } = await import('terser');
+
+    const src = `<script>
+  const variant = 'primary';
+</script>
+<button class={\`btn btn-\${variant}\`}>Hi</button>`;
+
+    const compiler = new ComponentCompiler(
+      { root: process.cwd(), srcDir: 'src', outDir: 'dist' } as any,
+      new ScriptParser(),
+      new TemplateTransformer(),
+    );
+    const code = await compiler.compile('Button.pulse', src);
+    // Nested template literals in class attrs must not break the emitted module.
+    expect(code.includes('btn btn-')).toBe(true);
+    const result = await minify(code, { module: true, compress: false, mangle: false });
+    expect(result.code && result.code.length > 0).toBe(true);
+  });
+
+  test('docs/components.pulse compiles and minifies', async () => {
+    const { ComponentCompiler } = await import('../src/server/component-compiler');
+    const { ScriptParser } = await import('../src/server/script-parser');
+    const { TemplateTransformer } = await import('../src/server/template-transformer');
+    const { minify } = await import('terser');
+    const { readFileSync } = await import('fs');
+    const path = require('path');
+    const file = path.resolve(import.meta.dir, '../../pulse-app/src/pages/docs/components.pulse');
+    const src = readFileSync(file, 'utf8');
+    const compiler = new ComponentCompiler(
+      { root: process.cwd(), srcDir: 'src', outDir: 'dist' } as any,
+      new ScriptParser(),
+      new TemplateTransformer(),
+    );
+    const code = await compiler.compile(file, src);
+    const result = await minify(code, { module: true, compress: true, mangle: false });
+    expect(result.code && result.code.length > 0).toBe(true);
+  });
+});

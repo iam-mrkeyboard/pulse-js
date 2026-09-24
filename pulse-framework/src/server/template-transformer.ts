@@ -318,24 +318,28 @@ export class TemplateTransformer {
               }
             }
 
-            const hasStateDep = valStr.includes('{') && Array.from(stateNames).some(name => valStr.includes(name));
-            if (hasStateDep && !isInScope) {
-              const inner = valStr.slice(1, -1);
-              const expressionCode = this.transformExpression(inner, stateNames);
+            // Any {...} attribute expression becomes a binding (incl. template literals
+            // like class={`btn btn-${variant}`}). Do NOT embed raw ` / ${ into static HTML —
+            // that breaks the outer _tpl.innerHTML = `...` template literal.
+            if (expr !== null && !isInScope) {
+              const expressionCode = this.transformExpression(expr, stateNames);
               bindings.push({
                 type: 'attribute',
                 path: [...path],
                 name: key,
                 expression: expressionCode
               });
-            } else if (hasStateDep && isInScope && Array.isArray(scope._listBindings)) {
-              const inner = valStr.slice(1, -1);
+              // Leave a placeholder attribute so path indices stay stable
+              attrsStr += ` ${key}=""`;
+            } else if (expr !== null && isInScope && Array.isArray(scope._listBindings)) {
               scope._listBindings.push({
                 type: 'attribute',
                 path: [...path],
                 name: key,
-                expr: this.transformExpression(inner, stateNames),
+                expr: this.transformExpression(expr, stateNames),
               });
+            } else if (expr !== null) {
+              attrsStr += ` ${key}=""`;
             } else {
               attrsStr += ` ${key}="${valStr.replaceAll('"', '&quot;')}"`;
             }

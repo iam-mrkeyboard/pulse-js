@@ -27,6 +27,15 @@ export class ComponentCompiler {
     this.unifiedParser = new UnifiedParser();
   }
 
+  
+  /** Escape a string so it is safe inside a JS template literal. */
+  private escapeForTemplateLiteral(s: string): string {
+    return s
+      .replace(/\\/g, '\\\\')
+      .replace(/`/g, '\\`')
+      .replace(/\$\{/g, '\\${');
+  }
+
   public async compile(filePath: string, content: string): Promise<string> {
     let componentName = path.basename(filePath, '.pulse');
     // Sanitize to valid JS identifier
@@ -220,7 +229,7 @@ ${imports.map(i => {
       moduleCode += `
 // Static Template
 const _tpl = document.createElement('template');
-_tpl.innerHTML = \`${fullTemplateHTML.replaceAll('`', '\\`')}\`; // Escape backticks
+_tpl.innerHTML = \`${this.escapeForTemplateLiteral(fullTemplateHTML)}\`;
 
 export default function ${componentName}(props) {
   props = props || {};
@@ -463,7 +472,9 @@ export default function ${componentName}(props) {
       result += processedTemplate.slice(lastIndex);
       processedTemplate = result;
 
-      moduleCode += `  container.innerHTML = \`${scopedStyles ? `<style>${scopedStyles}</style>` : ''}${processedTemplate}\`;\n\n`;
+      moduleCode += `  container.innerHTML = \`${this.escapeForTemplateLiteral((scopedStyles ? `<style>${scopedStyles}</style>` : '') + processedTemplate)}\`;
+
+`;
 
       // Simple event handling for non-reactive components
       if (template.includes('onClick={')) {
