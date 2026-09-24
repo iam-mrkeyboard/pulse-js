@@ -1,9 +1,9 @@
 import { describe, test, expect } from 'bun:test';
 import { readFileSync } from 'fs';
 import path from 'path';
-import { ComponentCompiler } from '../src/server/compiler/component-compiler';
+import { ComponentCompiler } from '../src/server/component-compiler';
 import { ScriptParser } from '../src/server/script-parser';
-import { TemplateTransformer } from '../src/server/compiler/template-transformer';
+import { TemplateTransformer } from '../src/server/template-transformer';
 import { createDefaultConfig } from '../src/bundler/types';
 
 const appRoot = path.resolve(import.meta.dir, '../../pulse-app');
@@ -37,7 +37,7 @@ describe('Counter compile + click', () => {
     const code = await compileComponent('src/components/Counter2.pulse');
     let mod = code
       .replaceAll('/runtime/core.js', '../src/runtime/core.ts')
-      .replaceAll('/runtime/dom.js', '../src/bundler/runtime/dom.ts')
+      .replaceAll('/runtime/dom.js', '../src/runtime/dom.ts')
       .replaceAll('/runtime/primitives/list.js', '../src/runtime/primitives/list.ts')
       .replaceAll('/runtime/primitives/show.js', '../src/runtime/primitives/show.ts');
 

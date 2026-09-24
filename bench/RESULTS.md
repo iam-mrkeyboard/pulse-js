@@ -68,3 +68,17 @@ Vanilla hand-written baseline remains the floor (especially swap/remove via dire
 2. **Updates:** effect-per-binding + direct DOM property writes; no batching layer on the hot path.
 3. **List:** keyed Map reuse + common prefix/suffix reconcile; dispose removed entries; FLIP off by default. Do not ship always-insertBefore; skip full LIS unless a reverse/shuffle bench later justifies the create tax.
 
+---
+
+---
+
+## Re-run after merge/restructure-with-fixes (local, HeadlessChrome via Puppeteer)
+
+Same winners confirmed after porting PR #1 onto `local-restructure`:
+
+| Op | prefix/suffix+Map | always-insert | LIS | vanilla |
+|---|---:|---:|---:|---:|
+| append_1k | 2.6 | 5.4 | 5.4 | 2.6 |
+| create_10k | 28.2 | 30.0 | 57.7 | 28.1 |
+
+Create 10k rows: createElement=27.100000000558794, cloneNode=31.799999999813735, innerHTML=30

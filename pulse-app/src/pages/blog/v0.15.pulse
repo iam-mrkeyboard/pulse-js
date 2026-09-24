@@ -1,0 +1,266 @@
+<script>
+  import Navbar from '../../components/Navbar.pulse';
+  import Footer from '../../components/Footer.pulse';
+
+  let title = "Pulse v0.15.0 Released";
+  let subtitle = "The Performance Update: 5x Smaller Runtime, Reactivity V2, and Beautiful Errors.";
+  let date = "February 6, 2026";
+</script>
+
+<Navbar />
+
+<main class="page">
+  <div class="content">
+    <div class="header">
+      <span class="date">{date}</span>
+      <h1>{title}</h1>
+      <p class="subtitle">{subtitle}</p>
+    </div>
+
+    <div class="body">
+      <p>
+        We are thrilled to announce <strong>Pulse v0.15.0</strong>, a major milestone in our journey to build the ultimate LLM-native web framework. This release focuses on massive performance gains, runtime optimization, and developer experience.
+      </p>
+
+      <h2>⚡ 5x Smaller Runtime</h2>
+      <p>
+        We've completely rewritten the core runtime. The new <strong>Functional Runtime</strong> drops class-based overhead in favor of tree-shakable functions.
+      </p>
+      <div class="highlight-box">
+        <strong>Runtime Size Comparison (gzip):</strong>
+        <ul>
+          <li><strong>v0.14:</strong> ~20kB</li>
+          <li><strong>v0.15:</strong> <strong>~4kB</strong></li>
+        </ul>
+      </div>
+
+      <h2>🧬 Reactivity V2</h2>
+      <p>
+        The reactivity engine is now strictly dependency-tracking.
+      </p>
+      <ul>
+        <li><strong>Auto-Tracking:</strong> No need for manual dependency arrays.</li>
+        <li><strong>Smart Scheduler:</strong> Updates are batched and scheduled via microtasks, ensuring zero unnecessary re-renders.</li>
+        <li><strong>Memory Efficient:</strong> Signals and effects are now plain objects/closures, reducing memory pressure.</li>
+      </ul>
+
+      <h2>🖼️ Template Cloning DOM</h2>
+      <p>
+        We've ditched <code>document.createElement</code> chains for standard HTML <code>&lt;template&gt;</code> cloning.
+      </p>
+      <ul>
+        <li><strong>Instantiation:</strong> Cloning a template content is up to <strong>10x faster</strong> than creating elements one by one.</li>
+        <li><strong>Path Walking:</strong> We locate nodes using pre-computed integer paths (e.g. <code>firstChild.nextSibling</code>), bypassing slow CSS selectors entirely.</li>
+      </ul>
+
+      <h2>🤖 LLM Introspective</h2>
+      <p>
+        Pulse v0.15 is designed to be understood by AI.
+      </p>
+      <ul>
+        <li><strong>Component Introspector:</strong> Generates deterministic Semantic Models of your code.</li>
+        <li><strong>Agent Friendly:</strong> Agents can confidently refactor Pulse components because the framework structure is strictly typed and validatable.</li>
+      </ul>
+
+      <h2>💅 Beautiful Errors</h2>
+      <p>
+        We believe errors should be helpful, not scary. The new Error Overlay features:
+      </p>
+      <ul>
+        <li><strong>Glassmorphism Design:</strong> A modern, dark-themed UI.</li>
+        <li><strong>Smart Suggestions:</strong> AI-driven hints to fix the problem instantly.</li>
+        <li><strong>Clean Stack Traces:</strong> Noise reduction to focus on your code.</li>
+      </ul>
+
+      <h2>v0.14 vs v0.15 Comparison</h2>
+      <div class="table-container">
+        <table>
+          <thead>
+            <tr>
+              <th>Feature</th>
+              <th>v0.14</th>
+              <th>v0.15 (Current)</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>Runtime Size</strong></td>
+              <td>~20kB</td>
+              <td><strong>~4kB</strong></td>
+            </tr>
+            <tr>
+              <td><strong>Reactivity</strong></td>
+              <td>Class-based</td>
+              <td><strong>Functional</strong></td>
+            </tr>
+            <tr>
+              <td><strong>DOM Engine</strong></td>
+              <td>createElement</td>
+              <td><strong>Template Cloning</strong></td>
+            </tr>
+             <tr>
+              <td><strong>Error UI</strong></td>
+              <td>Standard</td>
+              <td><strong>Premium Glass</strong></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <p>
+        Phase 6 (Cleanup) is complete. Our next focus is <strong>Ecosystem Growth</strong>—expect a router, state management patterns, and more "Magical primitives" in v0.16!
+      </p>
+    </div>
+  </div>
+</main>
+
+<Footer />
+
+<style>
+  /* Blog Post Styles */
+  .page {
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 100px 20px;
+    font-family: 'Inter', system-ui, sans-serif;
+    color: #1f2937;
+  }
+
+  .header {
+    text-align: center;
+    margin-bottom: 60px;
+  }
+
+  .date {
+    color: #6b46c1;
+    font-weight: 600;
+    font-size: 0.9rem;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+
+  h1 {
+    font-size: 3.5rem;
+    font-weight: 800;
+    margin: 10px 0 20px;
+    background: linear-gradient(135deg, #111827 0%, #4b5563 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    line-height: 1.1;
+  }
+
+  .subtitle {
+    font-size: 1.5rem;
+    color: #6b7280;
+    font-weight: 400;
+    max-width: 600px;
+    margin: 0 auto;
+  }
+
+  .body {
+    font-size: 1.1rem;
+    line-height: 1.8;
+  }
+
+  h2 {
+    font-size: 2rem;
+    margin-top: 50px;
+    margin-bottom: 25px;
+    color: #111827;
+  }
+
+  .highlight-box {
+    background: #f3f4f6;
+    border-left: 4px solid #6b46c1;
+    padding: 20px;
+    margin: 40px 0;
+    border-radius: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  code {
+    background: #1f2937;
+    color: #a5b4fc;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-family: 'Fira Code', monospace;
+    font-size: 0.9rem;
+  }
+
+  ul {
+    list-style-type: none;
+    padding: 0;
+  }
+
+  ul li {
+    padding-left: 24px;
+    position: relative;
+    margin-bottom: 12px;
+  }
+
+  ul li::before {
+    content: "•";
+    color: #6b46c1;
+    font-weight: bold;
+    font-size: 1.5rem;
+    position: absolute;
+    left: 0;
+    top: -5px;
+  }
+
+  /* Table Styles */
+  .table-container {
+    overflow-x: auto;
+    margin-top: 2rem;
+    margin-bottom: 2rem;
+    border-radius: 12px;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+    background: white;
+  }
+  
+  table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    font-size: 0.95rem;
+    overflow: hidden;
+  }
+  
+  th, td {
+    padding: 1rem 1.5rem;
+    text-align: left;
+    border-bottom: 1px solid #f3f4f6;
+  }
+  
+  th {
+    background: #6b46c1;
+    color: white;
+    font-weight: 600;
+    text-transform: uppercase;
+    font-size: 0.85rem;
+    letter-spacing: 0.05em;
+  }
+  
+  th:first-child {
+    border-top-left-radius: 8px;
+  }
+  th:last-child {
+    border-top-right-radius: 8px;
+  }
+  
+  tr:last-child td {
+    border-bottom: none;
+  }
+  
+  tr:nth-child(even) {
+    background: #f9fafb;
+    color: #1f2937;
+  }
+  
+  tr:hover td {
+    background: #f3e8ff;
+    color: #1f2937;
+  }
+</style>

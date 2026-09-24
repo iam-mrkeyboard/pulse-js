@@ -1,9 +1,0 @@
-nohup: ignoring input
-Fatal error: 6 errors building "/home/ibuu/Desktop/pulse-0.6/pulse-v5/src/server/dev-server.ts"
-AggregateError: 6 errors building "/home/ibuu/Desktop/pulse-0.6/pulse-v5/src/server/dev-server.ts"
-    at requestFetch (native:1:11)
-    at <anonymous> (native:11:43)
-    at <anonymous> (native:11:37)
-    at requestInstantiate (native:1:11)
-    at requestSatisfyUtil (native:1:11)
-    at <anonymous> (native:11:83)

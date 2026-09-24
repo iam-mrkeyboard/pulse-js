@@ -4,11 +4,6 @@
   const [activeId, setActiveId] = createSignal(null);
   
   const benefits = [
-
-fk;ak;fk;kfkkf;ka;fk;kf;kskf
-
-
-    
     { id: 1, title: '⚡ Zero Overhead', content: 'No Virtual DOM. Pulse compiles components to surgical DOM updates for maximum performance.' },
     { id: 2, title: '🍔 Bun Native', content: 'Built primarily for Bun. Enjoy sub-millisecond startup times and native bundler integration.' },
     { id: 3, title: '🎯 Fine-Grained', content: 'Signals invoke updates only where needed. No component re-rendering overhead.' },
@@ -36,14 +31,14 @@ fk;ak;fk;kfkkf;ka;fk;kf;kskf
       <List each={benefits} as="benefit">
         <div class="item">
           <button 
-            class={activeId === benefit.id ? 'trigger active' : 'trigger'} 
+            class={activeId() === benefit.id ? 'trigger active' : 'trigger'} 
             onClick={() => toggle(benefit.id)}
           >
             <span class="title">{benefit.title}</span>
             <span class="arrow">▼</span>
           </button>
           
-          <Show when={activeId === benefit.id}>
+          <Show when={activeId() === benefit.id}>
             <div class="content">
               <p>{benefit.content}</p>
             </div>

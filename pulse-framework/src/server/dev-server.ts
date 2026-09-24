@@ -11,27 +11,28 @@ import { CompilationCache } from './compilation-cache';
 import { ErrorOverlay, type DevError } from './error-overlay';
 import { FileWatcher } from './file-watcher';
 
-import { DependencyAnalyzer } from '../bundler/analyzer/dependency-analyzer';
+import { DependencyAnalyzer } from '../bundler/dependency-analyzer';
 import { HotReload } from './hot-reload';
 import {
   ComponentPropsError,
   ComponentImportError,
 } from '../bundler/compiler/errors';
-import { HTMLParser, type ParsedNode, type ParsedExpression } from '../bundler/compiler/html-parser';
+import { SafeCompiler } from '../bundler/compiler/safe-compiler';
+import { CompilationError } from '../bundler/compiler/errors';
 import { ReactivityTransformer } from '../bundler/compiler/reactivity-transformer';
 import { CSSScoper } from '../bundler/compiler/css-scoper';
 import { ScriptParser, type ScriptParseResult } from './script-parser';
 
 // Extracted modules
-import { serveHMRClient, getHMRScript } from './runtime/hmr-client';
-import { wrapHTML, serve404, generateSuggestion } from './utils/html-wrapper';
-import { getInlineListPrimitive } from './primitives/inline-list';
-import { getInlineShowPrimitive } from './primitives/inline-show';
-import { getInlineRuntime } from './runtime/inline-runtime';
-import { TemplateTransformer } from './compiler/template-transformer';
-import { getMountScript } from './compiler/mount-script-generator';
-import { PageCompiler } from './compiler/page-compiler';
-import { ComponentCompiler } from './compiler/component-compiler';
+import { serveHMRClient, getHMRScript } from './hmr-client';
+import { wrapHTML, serve404, generateSuggestion } from './html-wrapper';
+// import { getInlineListPrimitive } from './primitives/inline-list';
+// import { getInlineShowPrimitive } from './primitives/inline-show';
+// import { getInlineRuntime } from './runtime/inline-runtime';
+import { TemplateTransformer } from './template-transformer';
+import { getMountScript } from './mount-script-generator';
+import { PageCompiler } from './page-compiler';
+import { ComponentCompiler } from './component-compiler';
 
 export class DevServer {
   private hmr: HMRManager;
@@ -43,10 +44,10 @@ export class DevServer {
   private watcher: FileWatcher;
   private analyzer: DependencyAnalyzer;
   private compiler?: ComponentCompiler; // Reusing existing name but now implies the class
+  private safeCompiler?: SafeCompiler;
   private pageCompiler: PageCompiler;
   private lastError?: DevError;
   private hotReload: HotReload;
-  private htmlParser: HTMLParser;
   private reactivityTransformer: ReactivityTransformer;
   private compiledComponents: Map<string, string>;
   private scriptParser: ScriptParser;
@@ -55,17 +56,18 @@ export class DevServer {
   constructor(config: PulseConfig) {
     this.config = config;
     this.hmr = new HMRManager();
-    this.ssr = new SSRRenderer();
+    this.scriptParser = new ScriptParser();
     this.moduleGraph = new ModuleGraph();
     this.cache = new CompilationCache();
     this.watcher = new FileWatcher();
     this.analyzer = new DependencyAnalyzer(config);
     this.hotReload = new HotReload(this.moduleGraph, this.hmr);
-    this.htmlParser = new HTMLParser();
-    this.scriptParser = new ScriptParser();
     this.templateTransformer = new TemplateTransformer();
     this.pageCompiler = new PageCompiler(config, this.scriptParser, this.templateTransformer);
     this.compiler = new ComponentCompiler(config, this.scriptParser, this.templateTransformer);
+    // SSR needs compiler
+    this.ssr = new SSRRenderer(config, this.compiler);
+    this.safeCompiler = new SafeCompiler(this.compiler);
     this.reactivityTransformer = new ReactivityTransformer();
     this.compiledComponents = new Map();
   }
@@ -138,7 +140,7 @@ export class DevServer {
     // Start file watching
     this.startFileWatcher();
 
-    console.log(`\n⚡ Pulse v0.13.0 Dev Server running\n`);
+    console.log(`\n⚡ Pulse v0.15.0 Dev Server running\n`);
     console.log(`  Local:    http://localhost:${port}`);
     console.log(`  Network:  http://0.0.0.0:${port}`);
     console.log(
@@ -150,7 +152,7 @@ export class DevServer {
 
   private async servePage(pathname: string): Promise<Response> {
     try {
-      // Clear previous error if page loads successfully
+      // Clear previous error
       if (this.lastError) {
         this.lastError = undefined;
         this.hmr.clearError();
@@ -169,7 +171,7 @@ export class DevServer {
           pagePath = path.join(pagesDir, cleanPath + '.pulse');
         }
 
-        // Try index file in directory
+        // Try index file
         const indexPath = path.join(pagesDir, cleanPath, 'index.pulse');
         const indexFile = Bun.file(indexPath);
         if (await indexFile.exists()) {
@@ -182,39 +184,63 @@ export class DevServer {
         return serve404(pathname);
       }
 
-      // Add to module graph
-      const module = this.moduleGraph.addModule(pagePath, 'page');
+      // Track dependency
+      this.moduleGraph.addModule(pagePath, 'page');
 
-      // Check cache
-      const content = await file.text();
-      const hash = this.cache.computeHash(content);
-      const cached = this.cache.get(pagePath, hash);
+      // SSR Render
+      console.log(`🔨 SSR Compiling: ${path.basename(pagePath)}`);
+      const ssrHtml = await this.ssr.renderPage(pagePath);
 
-      let html: string;
-      if (cached) {
-        html = cached;
-        console.log(`📦 Cache hit: ${path.basename(pagePath)}`);
-      } else {
-        console.log(`🔨 Compiling: ${path.basename(pagePath)}`);
-        html = await this.pageCompiler.compile(pagePath, content);
-        this.cache.set(pagePath, hash, html, []);
-        this.moduleGraph.updateModule(pagePath, hash, html);
-      }
+      // Client Hydration Script
+      // We request the page as a module using ?type=module query
+      // and import 'hydrate' from runtime.
+      const pageBasename = path.basename(pagePath);
+      const relativePageUrl = pathname === '/' ? '/index.pulse' : pathname + (pathname.endsWith('.pulse') ? '' : '.pulse');
+      // For hydration, we need the matching module.
+      // If pathname is /about, we want /pages/about.pulse?type=module ?? 
+      // serveModule handles /__modules/, serveComponent handles /components/.
+      // We can serve it via /__modules/ ? OR just explicit path?
+      // DevServer maps /components/ to src?
+      // Let's use a reliable path relative to root?
+      // serveModule logic: /__modules/path/to/file.pulse
+      // pagePath is absolute.
+      const relativePath = path.relative(this.config.root, pagePath);
+      const clientModuleUrl = `/__modules/${relativePath}`;
 
-      return new Response(html, {
+      const clientScript = `
+        <script type="module">
+          import Page from '${clientModuleUrl}';
+          import { hydrate } from '/runtime/dom.js';
+          
+          const app = document.getElementById('app');
+          hydrate(Page, app);
+          
+          // HMR Support
+          if (import.meta.hot) {
+            import.meta.hot.accept(() => {
+              window.location.reload();
+            });
+          }
+        </script>
+      `;
+
+      const fullHtml = this.ssr.wrapHTML(`
+        <div id="app">${ssrHtml}</div>
+        ${clientScript}
+      `);
+
+      return new Response(fullHtml, {
         headers: {
           'Content-Type': 'text/html; charset=utf-8',
-          'X-Pulse-Page': path.basename(pagePath),
+          'X-Pulse-Page': pageBasename,
           'Cache-Control': 'no-cache, no-store, must-revalidate',
         },
       });
+
     } catch (error: any) {
       console.error('❌ Error serving page:', error.message);
 
-      // Handle specific error types
-      if (error instanceof ComponentPropsError) {
-        this.lastError = error.toDevError();
-      } else if (error instanceof ComponentImportError) {
+      if (error instanceof ComponentPropsError || error instanceof ComponentImportError) {
         this.lastError = error.toDevError();
       } else {
         this.lastError = {
@@ -223,10 +249,10 @@ export class DevServer {
           message: error.message,
           stack: error.stack,
           suggestion: generateSuggestion(error),
-        };
+        } as DevError;
       }
 
-      const devError = this.lastError || { type: 'runtime', message: 'Unknown error' } as DevError;
+      const devError = this.lastError;
       this.hmr.error(devError);
 
       return new Response(ErrorOverlay.generateHTML(devError), {
@@ -238,11 +264,24 @@ export class DevServer {
 
   private async serveRuntime(pathname: string): Promise<Response> {
     const runtimePath = pathname.replace('/runtime/', '');
-    // Framework package root (this file lives in src/server/)
-    const frameworkSrc = path.resolve(import.meta.dir, '..');
 
-    const serveTsFile = async (absolutePath: string) => {
-      const file = Bun.file(absolutePath);
+    // Implement robust path finding for runtime
+    let frameworkRuntimeDir = path.resolve(import.meta.dir, '../runtime');
+
+    // Check if core.ts exists here (Source mode)
+    const coreCheck = Bun.file(path.join(frameworkRuntimeDir, 'core.ts'));
+    if (!(await coreCheck.exists())) {
+      // If not, we might be in dist/cli, try ../../src/runtime
+      frameworkRuntimeDir = path.resolve(import.meta.dir, '../../src/runtime');
+    }
+
+    // console.log('[DevServer] Serving runtime from:', frameworkRuntimeDir); // Debug log (optional)
+
+    // Common helper to serve TS files from src/runtime
+    const serveTsFile = async (fileName: string) => {
+      const filePath = path.join(frameworkRuntimeDir, fileName);
+      const file = Bun.file(filePath);
+
       if (await file.exists()) {
         const content = await file.text();
         const transpiler = new Bun.Transpiler({ loader: 'ts' });
@@ -254,21 +293,25 @@ export class DevServer {
           },
         });
       }
-      return new Response(`console.error("Runtime file not found: ${absolutePath}")`, { status: 404 });
+      return new Response(`console.error("Runtime file ${fileName} not found at ${filePath}")`, { status: 404 });
     };
 
+    // Core runtime
     if (runtimePath === 'core.js') {
-      return await serveTsFile(path.join(frameworkSrc, 'runtime/core.ts'));
+      return await serveTsFile('core.ts');
     }
+
+    // Primitives
     if (runtimePath === 'primitives/list.js') {
-      return await serveTsFile(path.join(frameworkSrc, 'runtime/primitives/list.ts'));
+      return await serveTsFile('primitives/list.ts');
     }
     if (runtimePath === 'primitives/show.js') {
-      return await serveTsFile(path.join(frameworkSrc, 'runtime/primitives/show.ts'));
+      return await serveTsFile('primitives/show.ts');
     }
+
+    // DOM Runtime
     if (runtimePath === 'dom.js') {
-      // Single DOM runtime: bundler/runtime/dom.ts (also re-exported as runtime/dom.ts)
-      return await serveTsFile(path.join(frameworkSrc, 'bundler/runtime/dom.ts'));
+      return await serveTsFile('dom.ts');
     }
 
     return new Response('console.error("Runtime file not found")', { status: 404 });
@@ -303,9 +346,18 @@ export class DevServer {
 
       if (!compiled || !this.cache.get(foundPath, hash)) {
         console.log(`🔨 Compiling component: ${path.basename(foundPath)}`);
-        compiled = await this.compiler!.compile(foundPath, content);
-        this.compiledComponents.set(foundPath, compiled);
-        this.cache.set(foundPath, hash, compiled, []);
+        // Use SafeCompiler
+        const result = await this.safeCompiler!.compile(content, foundPath);
+
+        if (result.isOk()) {
+          compiled = result.value.code;
+          this.compiledComponents.set(foundPath, compiled);
+          this.cache.set(foundPath, hash, compiled, []);
+        } else {
+          // Wrap error in DevError format or throw
+          const err = result.error as CompilationError;
+          throw err;
+        }
       }
 
       return new Response(compiled, {
@@ -338,9 +390,17 @@ export class DevServer {
       let compiled = this.compiledComponents.get(filePath);
       if (!compiled || !this.cache.get(filePath, hash)) {
         console.log(`🔨 Compiling component: ${path.basename(filePath)}`);
-        compiled = await this.compiler!.compile(filePath, content);
-        this.compiledComponents.set(filePath, compiled);
-        this.cache.set(filePath, hash, compiled, []);
+        // Use SafeCompiler
+        const result = await this.safeCompiler!.compile(content, filePath);
+
+        if (result.isOk()) {
+          compiled = result.value.code;
+          this.compiledComponents.set(filePath, compiled);
+          this.cache.set(filePath, hash, compiled, []);
+        } else {
+          const err = result.error as CompilationError;
+          throw err;
+        }
       }
 
       return new Response(compiled, {
@@ -351,8 +411,7 @@ export class DevServer {
       });
     } catch (error: any) {
       console.error('Component serve error:', error);
-      return new Response(`console.error("Component serve error: ${error.message}")`, {
-        status: 500,
+      return new Response(this.generateErrorComponent(error, filePath), {
         headers: { 'Content-Type': 'application/javascript' },
       });
     }
@@ -370,10 +429,21 @@ export class DevServer {
     // If it's a .pulse file, we must compile it!
     if (modulePath.endsWith('.pulse')) {
       const content = await file.text();
-      const compiled = await this.compiler!.compile(srcPath, content);
-      return new Response(compiled, {
-        headers: { 'Content-Type': 'application/javascript' },
-      });
+      const result = await this.safeCompiler!.compile(content, srcPath);
+
+      if (result.isOk()) {
+        const compiled = result.value.code;
+        return new Response(compiled, {
+          headers: { 'Content-Type': 'application/javascript' },
+        });
+      } else {
+        const err = result.error as CompilationError;
+        console.error('Module compilation error:', err);
+        return new Response(`console.error("Module compilation error: ${err.message}")`, {
+          status: 500,
+          headers: { 'Content-Type': 'application/javascript' }
+        });
+      }
     }
 
     return new Response(file);
@@ -386,6 +456,24 @@ export class DevServer {
       return new Response(file);
     }
     return new Response('Not Found', { status: 404 });
+  }
+
+  private generateErrorComponent(error: Error, path: string): string {
+    return `
+      export default function ErrorComponent() {
+        const el = document.createElement('div');
+        el.style.cssText = 'border: 2px solid red; padding: 20px; margin: 10px; background: #fff0f0; border-radius: 8px; font-family: monospace;';
+        el.innerHTML = \`
+          <h3 style="color: #d32f2f; margin-top: 0;">⚠️ Component Error</h3>
+          <p><strong>File:</strong> ${path}</p>
+          <div style="background: #ffebee; padding: 10px; border-radius: 4px; overflow-x: auto;">
+            <p style="margin: 0; color: #b71c1c;"><strong>Error:</strong> ${error.message.replace(/`/g, '\\`')}</p>
+          </div>
+          <pre style="margin-top: 10px; font-size: 11px; color: #555;">${(error.stack || '').replace(/`/g, '\\`')}</pre>
+        \`;
+        return el;
+      }
+    `;
   }
 
   private startFileWatcher(): void {

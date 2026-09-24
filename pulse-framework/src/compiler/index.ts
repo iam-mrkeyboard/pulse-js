@@ -1,7 +1,7 @@
 /**
  * Single Pulse SFC compiler (dev + build).
- * Measured create path: cloneNode + path walk (SFC-native; createElement was ~20% faster on
- * tiny rows but HTML SFCs compile naturally to <template> clone — see bench/RESULTS.md).
+ * Restructure layout: server/component-compiler.ts is canonical.
+ * Bundler interactive path should delegate here.
  */
-export { ComponentCompiler } from '../server/compiler/component-compiler';
-export { TemplateTransformer } from '../server/compiler/template-transformer';
+export { ComponentCompiler } from '../server/component-compiler';
+export { TemplateTransformer } from '../server/template-transformer';

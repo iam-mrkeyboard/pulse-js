@@ -1,7 +1,7 @@
 {
   "comments": {
     "lineComment": "//",
-    "blockComment": ["/*", "*/"]
+    "blockComment": ["<!--", "-->"]
   },
   "brackets": [
     ["{", "}"],
@@ -16,8 +16,10 @@
     { "open": "'", "close": "'", "notIn": ["string", "comment"] },
     { "open": "\"", "close": "\"", "notIn": ["string"] },
     { "open": "`", "close": "`", "notIn": ["string", "comment"] },
+    { "open": "/**", "close": " */", "notIn": ["string"] },
     { "open": "<", "close": ">", "notIn": ["string"] }
   ],
+  "autoCloseBefore": ";:.,=}])>` \n\t",
   "surroundingPairs": [
     ["{", "}"],
     ["[", "]"],
@@ -35,7 +37,22 @@
   },
   "wordPattern": "(-?\\d*\\.\\d\\w*)|([^\\`\\~\\!\\@\\#\\%\\^\\&\\*\\(\\)\\-\\=\\+\\[\\{\\]\\}\\\\\\|\\;\\:\\'\\\"\\,\\.\\<\\>\\/\\?\\s]+)",
   "indentationRules": {
-    "increaseIndentPattern": "^((?!\\/\\/).)*(\\{[^}\"'`]*|\\([^)\"'`]*|\\[[^\\]\"'`]*)$",
-    "decreaseIndentPattern": "^((?!.*?\\/\\*).*\\*/)?\\s*[\\}\\]].*$"
-  }
+    "increaseIndentPattern": "^\\s*<(?!\\?|(?:area|base|br|col|embed|hr|img|input|link|meta|param|source|track|wbr)\\b|[^>]*\\/>)([-_\\.A-Za-z0-9]+)(?=\\s|>)\\b[^>]*>(?!.*<\\/\\1\\s*>)|<!--(?!.*-->)|\\{[^}\"']*$",
+    "decreaseIndentPattern": "^\\s*(<\\/[-_\\.A-Za-z0-9]+\\b[^>]*>|-->|\\})"
+  },
+  "onEnterRules": [
+    {
+      "beforeText": "^\\s*<([_:\\w][_:\\w-.\\d]*)([^/>]*(?!/)>)[^<]*$",
+      "afterText": "^\\s*</([_:\\w][_:\\w-.\\d]*)>$",
+      "action": {
+        "indent": "indentOutdent"
+      }
+    },
+    {
+      "beforeText": "^\\s*<(\\w[\\w\\d]*)([^/>]*(?!/)>)[^<]*$",
+      "action": {
+        "indent": "indent"
+      }
+    }
+  ]
 }

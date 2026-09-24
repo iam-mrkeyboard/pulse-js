@@ -6,13 +6,13 @@
 import path from 'node:path';
 import { $, Glob } from 'bun';
 // fs import removed
-import { DependencyAnalyzer } from './analyzer/dependency-analyzer';
+import { DependencyAnalyzer } from './dependency-analyzer';
 import { ComponentCompiler } from './compiler/component-compiler';
-import { RuntimeBuilder } from './runtime/runtime-builder';
-import { CodeSplitter } from './bundler/code-splitter';
-import { Compressor } from './bundler/compressor';
-import { EntryGenerator } from './bundler/entry-generator';
-import { Minifier } from './bundler/minifier';
+import { RuntimeBuilder } from '../runtime/runtime-builder';
+import { CodeSplitter } from './code-splitter';
+import { Compressor } from './compressor';
+import { EntryGenerator } from './entry-generator';
+import { Minifier } from './minifier';
 import type {
   PulseConfig,
   BuildResult,
@@ -258,7 +258,7 @@ export class PulseBundler {
     }
   }
 
-   private async findPulseFiles(dir: string): Promise<string[]> {
+  private async findPulseFiles(dir: string): Promise<string[]> {
     const files: string[] = [];
     const glob = new Glob('**/*.pulse');
 

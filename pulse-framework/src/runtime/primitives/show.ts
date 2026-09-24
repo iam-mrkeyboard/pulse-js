@@ -1,6 +1,7 @@
 import { createEffect } from '../core.js';
 
 export function Show(props: { when: () => any, initialNodes?: Node[], children: () => Node, fallback?: () => Node }) {
+
   const anchor = document.createComment('Show Anchor');
   const parent = document.createDocumentFragment();
   parent.appendChild(anchor);

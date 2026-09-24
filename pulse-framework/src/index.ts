@@ -5,16 +5,16 @@
 
 // Bundler exports
 export { PulseBundler, build } from './bundler/index';
-export { DependencyAnalyzer } from './bundler/analyzer/dependency-analyzer';
-export { ReactivityAnalyzer } from './bundler/analyzer/reactivity-analyzer';
+export { DependencyAnalyzer } from './bundler/dependency-analyzer';
+export { ReactivityAnalyzer } from './bundler/reactivity-analyzer';
 export { ComponentCompiler } from './bundler/compiler/component-compiler';
-export { RuntimeBuilder } from './bundler/runtime/runtime-builder';
+export { RuntimeBuilder } from './runtime/runtime-builder';
 
 // Bundler utilities
-export { CodeSplitter } from './bundler/bundler/code-splitter';
-export { Compressor } from './bundler/bundler/compressor';
-export { EntryGenerator } from './bundler/bundler/entry-generator';
-export { Minifier } from './bundler/bundler/minifier';
+export { CodeSplitter } from './bundler/code-splitter';
+export { Compressor } from './bundler/compressor';
+export { EntryGenerator } from './bundler/entry-generator';
+export { Minifier } from './bundler/minifier';
 export { CodeGenerator } from './bundler/compiler/code-generator';
 export { TemplateOptimizer } from './bundler/compiler/template-optimizer';
 export { CSSScoper } from './bundler/compiler/css-scoper';

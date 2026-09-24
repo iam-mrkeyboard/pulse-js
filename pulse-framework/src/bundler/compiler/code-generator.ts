@@ -78,6 +78,9 @@ ${exports}
       }
     }
 
+    // Import error boundary
+    imports.push(`import { errorBoundary } from '/runtime/error-boundary.js';`);
+
     return imports.join('\n');
   }
 
@@ -138,13 +141,20 @@ function render(props = {}) {
   private generateExports(node: ComponentNode): string {
     return `
 export default function ${node.name}(props = {}) {
-  return render(props);
+  const wrapped = errorBoundary.wrap(function(props) {
+    return render(props);
+  }, '${node.name}');
+  return wrapped(props);
 }
 
 // SSR export
 export function ${node.name}_ssr(props = {}) {
-  ${node.props.size > 0 ? 'props = { ...defaultProps, ...props };' : ''}
-  return \`${node.template?.staticHTML || ''}\`;
+  try {
+    ${node.props.size > 0 ? 'props = { ...defaultProps, ...props };' : ''}
+    return \`${node.template?.staticHTML || ''}\`;
+  } catch (e) {
+    return \`<!-- \${node.name} SSR Error: \${e.message} -->\`;
+  }
 }
 `;
   }

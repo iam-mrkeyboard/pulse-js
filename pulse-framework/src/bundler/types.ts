@@ -2,26 +2,7 @@
 // FILE: src/bundler/types.ts - FIXED VERSION
 // ============================================================================
 
-export interface ComponentNode {
-  id: string;
-  path: string;
-  name: string;
-  hash: string;
-  imports: ImportDeclaration[];
-  exports: ExportDeclaration[];
-  isStatic: boolean;
-  usesState: boolean;
-  primitives: Set<PrimitiveType>;
-  dependencies: Set<string>;
-  styles?: string;
-  template?: TemplateNode;
-  reactivity: ReactivityInfo;
-  size: {
-    original: number;
-    compiled: number;
-    gzipped: number;
-  };
-}
+
 
 export interface ImportDeclaration {
   source: string;
@@ -278,6 +259,7 @@ export interface TransformResult {
   map?: string;
   dependencies: string[];
   sideEffects: boolean;
+  inferredProps?: ComponentProps[];
 }
 
 export interface ComponentProps {

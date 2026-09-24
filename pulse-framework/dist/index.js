@@ -1,9 +1,9 @@
 // @bun
 // src/bundler/index.ts
-import path3 from "path";
+import path4 from "path";
 var {$, Glob } = globalThis.Bun;
 
-// src/bundler/analyzer/dependency-analyzer.ts
+// src/bundler/dependency-analyzer.ts
 import path from "path";
 
 // node_modules/acorn/dist/acorn.mjs
@@ -5494,7 +5494,7 @@ class PropsAnalyzer {
   }
 }
 
-// src/bundler/analyzer/dependency-analyzer.ts
+// src/bundler/dependency-analyzer.ts
 class DependencyAnalyzer {
   config;
   graph;
@@ -6003,6 +6003,106 @@ class ComponentResolver {
 }
 
 // src/bundler/compiler/errors.ts
+class Ok {
+  value;
+  constructor(value) {
+    this.value = value;
+  }
+  isOk() {
+    return true;
+  }
+  isErr() {
+    return false;
+  }
+}
+
+class Err {
+  error;
+  constructor(error) {
+    this.error = error;
+  }
+  isOk() {
+    return false;
+  }
+  isErr() {
+    return true;
+  }
+}
+
+class CompilationError extends Error {
+  code;
+  file;
+  title;
+  location;
+  suggestion;
+  originalError;
+  quickFixes;
+  docsUrl;
+  codeFrame;
+  preview;
+  constructor(options) {
+    super(options.message);
+    this.name = "CompilationError";
+    this.code = options.code;
+    this.file = options.file;
+    this.title = options.title || "Compilation Error";
+    this.location = options.location;
+    this.suggestion = options.suggestion;
+    this.originalError = options.originalError;
+    this.quickFixes = options.quickFixes;
+    this.docsUrl = options.docsUrl || "https://pulsejs.org/docs/errors";
+    if (options.source && options.location) {
+      this.codeFrame = this.generateCodeFrame(options.source, options.location);
+    }
+  }
+  generateCodeFrame(source, loc) {
+    const lines = source.split(`
+`);
+    const startLine = Math.max(0, loc.line - 3);
+    const endLine = Math.min(lines.length - 1, loc.line + 2);
+    const frameLines = [];
+    for (let i2 = startLine;i2 <= endLine; i2++) {
+      frameLines.push({
+        content: lines[i2],
+        lineNo: i2 + 1,
+        isError: i2 + 1 === loc.line,
+        column: i2 + 1 === loc.line ? loc.column : undefined,
+        hint: i2 + 1 === loc.line ? "Error occurred here" : undefined
+      });
+    }
+    return {
+      start: startLine + 1,
+      lines: frameLines
+    };
+  }
+}
+
+class EmptyComponentError extends CompilationError {
+  constructor(file) {
+    super({
+      message: "Component file is empty",
+      code: "EMPTY_FILE",
+      title: "Empty Component",
+      file,
+      suggestion: "Add a template to your component. Example: <div>Hello</div>"
+    });
+  }
+}
+class ParseError extends CompilationError {
+  constructor(options) {
+    const loc = options.original.loc || { line: 1, column: 0 };
+    super({
+      message: options.original.message,
+      code: "PARSE_ERROR",
+      title: "Parsing Failed",
+      file: options.source.file || "unknown",
+      location: loc,
+      originalError: options.original,
+      suggestion: options.suggestions?.join(`
+`)
+    });
+  }
+}
 class ComponentPropsError extends Error {
   componentName;
   validationErrors;
@@ -6067,6 +6167,34 @@ class ComponentImportError extends Error {
       message: `Cannot find component: ${this.componentName}`,
       suggestion: `Check if the file exists at: ${this.importPath}
 Make sure the path is correct and the file has a .pulse extension`
+    };
+  }
+}
+class ComponentError extends Error {
+  code;
+  file;
+  line;
+  column;
+  suggestion;
+  originalError;
+  constructor(options) {
+    super(options.message);
+    this.name = "ComponentError";
+    this.code = options.code;
+    this.file = options.file;
+    this.line = options.line;
+    this.column = options.column;
+    this.suggestion = options.suggestion;
+    this.originalError = options.originalError;
+  }
+  toDevError() {
+    return {
+      type: "compile",
+      file: this.file,
+      message: this.message,
+      suggestion: this.suggestion || "Check the component structure",
+      line: this.line,
+      column: this.column
     };
   }
 }
@@ -6376,6 +6504,7 @@ ${exports}
         imports.push(`import ${specifiers} from '${importDecl.source}';`);
       }
     }
+    imports.push(`import { errorBoundary } from '/runtime/error-boundary.js';`);
     return imports.join(`
 `);
   }
@@ -6425,13 +6554,20 @@ function render(props = {}) {
   generateExports(node) {
     return `
 export default function ${node.name}(props = {}) {
-  return render(props);
+  const wrapped = errorBoundary.wrap(function(props) {
+    return render(props);
+  }, '${node.name}');
+  return wrapped(props);
 }
 
 // SSR export
 export function ${node.name}_ssr(props = {}) {
-  ${node.props.size > 0 ? "props = { ...defaultProps, ...props };" : ""}
-  return \`${node.template?.staticHTML || ""}\`;
+  try {
+    ${node.props.size > 0 ? "props = { ...defaultProps, ...props };" : ""}
+    return \`${node.template?.staticHTML || ""}\`;
+  } catch (e) {
+    return \`<!-- \${node.name} SSR Error: \${e.message} -->\`;
+  }
 }
 `;
   }
@@ -7042,14 +7178,24 @@ class ReactivityTransformer {
       const computed = new Map;
       const effects = [];
       const transformedSegments = [];
-      const self2 = this;
+      const findDependencies = (node) => {
+        const deps = new Set;
+        walk(node, {
+          enter(child) {
+            if (child.type === "MemberExpression" && child.object.name === "state") {
+              deps.add(child.property.name);
+            }
+          }
+        });
+        return Array.from(deps);
+      };
       walk(ast, {
         enter(node) {
           if (node.type === "ExpressionStatement" && node.expression.type === "AssignmentExpression" && node.expression.left.type === "MemberExpression" && node.expression.left.object.name === "state") {
             const propName = node.expression.left.property.name;
             const initValue = code.slice(node.expression.right.start, node.expression.right.end);
             if (node.expression.right.type === "ArrowFunctionExpression" || node.expression.right.type === "FunctionExpression") {
-              const deps = self2.extractDependencies(initValue);
+              const deps = findDependencies(node.expression.right);
               computed.set(propName, deps);
             } else {
               signals.set(propName, initValue);
@@ -7061,13 +7207,7 @@ class ReactivityTransformer {
         enter(node, parent) {
           if (node.type === "MemberExpression" && node.object.name === "state" && parent?.type !== "AssignmentExpression") {
             const propName = node.property.name;
-            if (signals.has(propName)) {
-              transformedSegments.push({
-                start: node.start,
-                end: node.end,
-                replacement: `get_${propName}()`
-              });
-            } else if (computed.has(propName)) {
+            if (signals.has(propName) || computed.has(propName)) {
               transformedSegments.push({
                 start: node.start,
                 end: node.end,
@@ -7100,25 +7240,59 @@ class ReactivityTransformer {
         effects
       };
     } catch (error) {
-      console.warn("Reactivity transformation failed, returning original code:", error);
-      return {
-        code,
-        signals: new Map,
-        computed: new Map,
-        effects: []
-      };
+      throw new ComponentError({
+        code: "REACTIVITY_ERROR",
+        message: `Failed to transform reactivity: ${error.message}`,
+        file: "unknown",
+        suggestion: "Check for syntax errors in your state declarations",
+        originalError: error
+      });
     }
   }
-  extractDependencies(code) {
-    const deps = [];
-    const stateRegex = /state\.(\w+)/g;
+}
+
+// src/bundler/compiler/prop-inferencer.ts
+class PropInferencer {
+  infer(node) {
+    const props = new Map;
+    if (node.template) {
+      this.analyzeTemplate(node.template, props);
+    }
+    return Array.from(props.values());
+  }
+  analyzeTemplate(templateNode, props) {
+    const traverse = (n) => {
+      if (n.type === "expression" && n.expression) {
+        this.extractPropsFromExpression(n.expression.raw, props);
+      }
+      if (n.type === "element") {
+        if (n.attributes) {
+          for (const attr of n.attributes.values()) {
+            if (!attr.isStatic && attr.value && attr.value.expression) {
+              this.extractPropsFromExpression(attr.value.expression.raw, props);
+            }
+          }
+        }
+        if (n.children) {
+          n.children.forEach(traverse);
+        }
+      }
+    };
+    traverse(templateNode);
+  }
+  extractPropsFromExpression(expr, props) {
+    const propRegex = /props\.(\w+)/g;
     let match;
-    while ((match = stateRegex.exec(code)) !== null) {
-      if (match[1]) {
-        deps.push(match[1]);
+    while ((match = propRegex.exec(expr)) !== null) {
+      const name = match[1];
+      if (!props.has(name)) {
+        props.set(name, {
+          name,
+          type: "any",
+          required: true
+        });
       }
     }
-    return deps;
   }
 }
 
@@ -7130,6 +7304,7 @@ class ComponentCompiler {
   cssScoper;
   htmlParser;
   reactivityTransformer;
+  propInferencer;
   constructor(ctx) {
     this.ctx = ctx;
     this.codeGenerator = new CodeGenerator;
@@ -7138,6 +7313,7 @@ class ComponentCompiler {
     this.cssScoper = new CSSScoper;
     this.htmlParser = new HTMLParser;
     this.reactivityTransformer = new ReactivityTransformer;
+    this.propInferencer = new PropInferencer;
   }
   async compile(node) {
     const cached = this.ctx.cache.components.get(node.path);
@@ -7177,28 +7353,66 @@ export function ${node.name}_ssr(props = {}) {
     };
   }
   async compileInteractive(node, content) {
-    const templateStart = content.search(/^\s*<[a-zA-Z>/]/m);
-    const logic = templateStart !== -1 ? content.substring(0, templateStart).trim() : "";
-    const template = templateStart !== -1 ? content.substring(templateStart).trim() : "";
-    const templateAST = this.parseTemplate(template);
-    node.template = templateAST;
-    const optimized = this.templateOptimizer.optimize(template);
-    let processedCSS = "";
-    if (node.styles) {
-      processedCSS = this.cssScoper.scope(node.styles, node.hash, template);
+    try {
+      const templateStart = content.search(/^\s*<[a-zA-Z>/]/m);
+      const logic = templateStart !== -1 ? content.substring(0, templateStart).trim() : "";
+      const template = templateStart !== -1 ? content.substring(templateStart).trim() : "";
+      let templateAST;
+      try {
+        templateAST = this.parseTemplate(template);
+      } catch (e) {
+        throw new ComponentError({
+          code: "PARSE_ERROR",
+          message: `Failed to parse component template: ${e.message}`,
+          file: node.path,
+          suggestion: "Check for unclosed tags or invalid HTML syntax",
+          originalError: e
+        });
+      }
+      node.template = templateAST;
+      const optimized = this.templateOptimizer.optimize(template);
+      let processedCSS = "";
+      if (node.styles) {
+        processedCSS = this.cssScoper.scope(node.styles, node.hash, template);
+      }
+      let transformedLogic;
+      try {
+        transformedLogic = this.transformLogic(logic, node);
+      } catch (e) {
+        throw new ComponentError({
+          code: "TRANSFORM_ERROR",
+          message: `Failed to transform component logic: ${e.message}`,
+          file: node.path,
+          suggestion: "Check for syntax errors in your script block",
+          originalError: e
+        });
+      }
+      const code = this.codeGenerator.generate(node, optimized, transformedLogic, processedCSS);
+      const inferredProps = this.propInferencer.infer(node);
+      node.props = new Map(inferredProps.map((p) => [p.name, p]));
+      this.ctx.cache.components.set(node.path, {
+        hash: node.hash,
+        compiled: code,
+        timestamp: Date.now()
+      });
+      return {
+        code,
+        dependencies: Array.from(node.dependencies),
+        sideEffects: true,
+        inferredProps
+      };
+    } catch (error) {
+      if (error instanceof ComponentError) {
+        throw error;
+      }
+      throw new ComponentError({
+        code: "COMPILE_ERROR",
+        message: `Unexpected error compiling component: ${error.message}`,
+        file: node.path,
+        suggestion: "This might be a bug in the Pulse compiler. Please report it.",
+        originalError: error
+      });
     }
-    const transformedLogic = this.transformLogic(logic, node);
-    const code = this.codeGenerator.generate(node, optimized, transformedLogic, processedCSS);
-    this.ctx.cache.components.set(node.path, {
-      hash: node.hash,
-      compiled: code,
-      timestamp: Date.now()
-    });
-    return {
-      code,
-      dependencies: Array.from(node.dependencies),
-      sideEffects: true
-    };
   }
   parseTemplate(template) {
     const parsed = this.htmlParser.parse(template);
@@ -8484,7 +8698,7 @@ function parse4($TEXT, options) {
       S.token = S.input(S.token.value.substr(1));
     }
   }
-  var statement = embed_tokens(function statement(is_export_default, is_for_body, is_if_body) {
+  var statement = embed_tokens(function statement2(is_export_default, is_for_body, is_if_body) {
     handle_regexp();
     switch (S.token.type) {
       case "string":
@@ -8572,7 +8786,7 @@ function parse4($TEXT, options) {
             return new AST_Debugger;
           case "do":
             next();
-            var body = in_loop(statement);
+            var body = in_loop(statement2);
             expect_token("keyword", "while");
             var condition = parenthesised();
             semicolon(true);
@@ -8585,7 +8799,7 @@ function parse4($TEXT, options) {
             return new AST_While({
               condition: parenthesised(),
               body: in_loop(function() {
-                return statement(false, true);
+                return statement2(false, true);
               })
             });
           case "for":
@@ -8663,7 +8877,7 @@ function parse4($TEXT, options) {
             next();
             return new AST_With({
               expression: parenthesised(),
-              body: statement()
+              body: statement2()
             });
           case "export":
             if (!is_token(peek(), "punc", "(")) {
@@ -9674,7 +9888,7 @@ function parse4($TEXT, options) {
   var create_accessor = embed_tokens((is_generator, is_async) => {
     return function_(AST_Accessor, is_generator, is_async);
   });
-  var object_or_destructuring_ = embed_tokens(function object_or_destructuring_() {
+  var object_or_destructuring_ = embed_tokens(function object_or_destructuring_2() {
     var start = S.token, first = true, a = [];
     expect("{");
     while (!is("punc", "}")) {
@@ -16027,7 +16241,7 @@ function OutputStream(options) {
     if (OUTPUT.length() > insert)
       newline_insert = insert;
   }
-  const gc_scope = options["_destroy_ast"] ? function gc_scope(scope) {
+  const gc_scope = options["_destroy_ast"] ? function gc_scope2(scope) {
     scope.body.length = 0;
     scope.argnames.length = 0;
   } : noop;
@@ -37261,257 +37475,9 @@ async function minify(files, options, _fs_module) {
   } while (!val.done);
   return val.value;
 }
-// src/bundler/runtime/core-runtime.ts
-var CORE_RUNTIME_SOURCE = `
-// Pulse v0.11.0 Core Runtime - Signal System
-let activeEffect = null;
-const effectStack = [];
+// src/runtime/runtime-builder.ts
+import path3 from "path";
 
-export function createSignal(initialValue) {
-  let value = initialValue;
-  const subscribers = new Set();
-  
-  const read = () => {
-    if (activeEffect) subscribers.add(activeEffect);
-    return value;
-  };
-  
-  const write = (newValue) => {
-    const next = typeof newValue === 'function' ? newValue(value) : newValue;
-    if (value !== next) {
-      value = next;
-      subscribers.forEach(effect => effect());
-    }
-  };
-  
-  return [read, write];
-}
-
-export function createEffect(fn) {
-  const effect = () => {
-    effectStack.push(effect);
-    activeEffect = effect;
-    try {
-      fn();
-    } finally {
-      effectStack.pop();
-      activeEffect = effectStack[effectStack.length - 1] || null;
-    }
-  };
-  effect();
-  return effect;
-}
-
-export function createMemo(fn) {
-  const [signal, setSignal] = createSignal();
-  createEffect(() => setSignal(fn()));
-  return signal;
-}
-
-export function batch(fn) {
-  const updates = [];
-  let batching = true;
-  try {
-    fn();
-  } finally {
-    batching = false;
-    updates.forEach(update => update());
-  }
-}
-
-export function hydrate(selector, Component, props = {}) {
-  const el = document.querySelector(selector);
-  if (!el) return console.warn('[Pulse] Hydration target not found:', selector);
-  
-  try {
-    const vnode = Component(props);
-    if (vnode instanceof HTMLElement) {
-      el.replaceWith(vnode);
-    } else if (vnode instanceof DocumentFragment) {
-      el.replaceWith(...Array.from(vnode.childNodes));
-    } else if (vnode && typeof vnode === 'object' && 'nodeType' in vnode) {
-      el.replaceWith(vnode);
-    } else {
-      console.warn('[Pulse] Component did not return a valid DOM node');
-    }
-  } catch (error) {
-    console.error('[Pulse] Hydration error:', error);
-  }
-}
-`;
-
-// src/bundler/runtime/primitives/list.ts
-var LIST_PRIMITIVE_SOURCE = `
-import { createEffect } from '../core.js';
-
-export function List(props) {
-  const container = document.createElement('div');
-  container.style.display = 'contents';
-  container.setAttribute('data-pulse-list', 'true');
-  
-  const itemsGetter = typeof props.each === 'function' ? props.each : () => props.each || [];
-  const template = props.children;
-  const keyFn = props.key || ((item, index) => item?.id ?? item?.key ?? index);
-  
-  let prevItems = [];
-  let prevNodes = new Map();
-  
-  createEffect(() => {
-    const items = itemsGetter();
-    const newItems = Array.isArray(items) ? items : [];
-    
-    const newKeys = new Map();
-    newItems.forEach((item, index) => {
-      const key = keyFn(item, index);
-      newKeys.set(key, { item, index });
-    });
-    
-    const oldKeys = new Map();
-    prevItems.forEach((item, index) => {
-      const key = keyFn(item, index);
-      oldKeys.set(key, { item, index });
-    });
-    
-    const nodesToKeep = new Map();
-    const nodesToAdd = [];
-    const nodesToRemove = [];
-    
-    newKeys.forEach((newData, key) => {
-      if (oldKeys.has(key)) {
-        const oldData = oldKeys.get(key);
-        const node = prevNodes.get(key);
-        
-        // Strict equality check for item reuse
-        if (node && oldData.item === newData.item) {
-          nodesToKeep.set(key, { node, item: newData.item, index: newData.index });
-        } else {
-          // If item changed, treat as new (re-render)
-          nodesToAdd.push({ key, item: newData.item, index: newData.index });
-        }
-      } else {
-        nodesToAdd.push({ key, item: newData.item, index: newData.index });
-      }
-    });
-    
-    oldKeys.forEach((oldData, key) => {
-      if (!newKeys.has(key)) {
-        const node = prevNodes.get(key);
-        if (node) nodesToRemove.push({ key, node });
-      }
-    });
-    
-    nodesToRemove.forEach(({ key, node }) => {
-      if (node.parentNode === container) container.removeChild(node);
-      prevNodes.delete(key);
-    });
-    
-    const newNodes = new Map(nodesToKeep);
-    nodesToAdd.forEach(({ key, item, index }) => {
-      const node = typeof template === 'function' ? template(item, index) : document.createTextNode(String(item));
-      newNodes.set(key, node instanceof Node ? node : document.createTextNode(String(node)));
-    });
-    
-    const fragment = document.createDocumentFragment();
-    newItems.forEach((item, index) => {
-      const key = keyFn(item, index);
-      const node = newNodes.get(key);
-      if (node) fragment.appendChild(node);
-    });
-    
-    container.innerHTML = '';
-    container.appendChild(fragment);
-    prevItems = newItems;
-    prevNodes = newNodes;
-  });
-  
-  return container;
-}
-`;
-
-// src/bundler/runtime/primitives/show.ts
-var SHOW_PRIMITIVE_SOURCE = `
-import { createEffect } from '../core.js';
-
-export function Show(props) {
-  const anchor = document.createComment('show');
-  const container = document.createElement('div');
-  container.style.display = 'contents';
-  container.appendChild(anchor);
-  
-  let currentNode = null;
-  let isShowing = false;
-  let init = true;
-  
-  createEffect(() => {
-    const condition = typeof props.when === 'function' ? props.when() : props.when;
-    const shouldShow = !!condition;
-
-    if (init || shouldShow !== isShowing) {
-       if (shouldShow) {
-         // Switch to Showing
-         if (currentNode && currentNode.parentNode === container) {
-            container.removeChild(currentNode);
-         }
-         const content = typeof props.children === 'function' ? props.children() : props.children;
-         currentNode = content instanceof Node ? content : document.createTextNode(String(content || ''));
-         if (currentNode.classList) currentNode.classList.add('p-enter');
-         container.insertBefore(currentNode, anchor);
-         isShowing = true;
-       } else {
-         // Switch to Hiding (Fallback)
-         if (currentNode && currentNode.parentNode === container) {
-            container.removeChild(currentNode);
-         }
-         if (props.fallback) {
-            const fallback = typeof props.fallback === 'function' ? props.fallback() : props.fallback;
-            currentNode = fallback instanceof Node ? fallback : document.createTextNode(String(fallback || ''));
-             if (currentNode.classList) currentNode.classList.add('p-enter');
-            container.insertBefore(currentNode, anchor);
-         } else {
-            currentNode = null;
-         }
-         isShowing = false;
-       }
-       init = false;
-    }
-  });
-  
-  return container;
-}
-`;
-
-// src/bundler/runtime/primitives/portal.ts
-var PORTAL_PRIMITIVE_SOURCE = `
-import { createEffect } from '../core.js';
-
-export function Portal(props) {
-  const placeholder = document.createComment('portal');
-  
-  createEffect(() => {
-    const target = typeof props.target === 'string' 
-      ? document.querySelector(props.target)
-      : props.target;
-    
-    if (!target) {
-      console.warn('Portal target not found:', props.target);
-      return;
-    }
-    
-    const content = typeof props.children === 'function' ? props.children() : props.children;
-    const node = content instanceof Node ? content : document.createTextNode(String(content || ''));
-    
-    target.appendChild(node);
-    
-    return () => {
-      if (node.parentNode === target) target.removeChild(node);
-    };
-  });
-  
-  return placeholder;
-}
-`;
-
-// src/bundler/runtime/runtime-builder.ts
 class RuntimeBuilder {
   ctx;
   constructor(ctx) {
@@ -37545,25 +37511,22 @@ class RuntimeBuilder {
     return primitives;
   }
   async buildCoreRuntime() {
-    return this.minifyCode(CORE_RUNTIME_SOURCE);
+    const corePath = path3.resolve(import.meta.dir, "../../runtime/core.ts");
+    const file = Bun.file(corePath);
+    if (await file.exists()) {
+      return this.minifyCode(await file.text());
+    }
+    return "";
   }
   async buildPrimitive(primitive) {
-    let source = "";
-    switch (primitive) {
-      case "List":
-        source = LIST_PRIMITIVE_SOURCE;
-        break;
-      case "Show":
-        source = SHOW_PRIMITIVE_SOURCE;
-        break;
-      case "Portal":
-        source = PORTAL_PRIMITIVE_SOURCE;
-        break;
-      default:
-        console.warn(`Unknown primitive: ${primitive}`);
-        return "";
+    const fileName = `${primitive.toLowerCase()}.ts`;
+    const primitivePath = path3.resolve(import.meta.dir, "../../runtime/primitives", fileName);
+    const file = Bun.file(primitivePath);
+    if (await file.exists()) {
+      return this.minifyCode(await file.text());
     }
-    return this.minifyCode(source);
+    console.warn(`[RuntimeBuilder] Primitive ${primitive} not found at ${primitivePath}`);
+    return "";
   }
   async minifyCode(code) {
     if (!this.ctx.config.build.minify) {
@@ -37602,7 +37565,7 @@ class RuntimeBuilder {
   }
 }
 
-// src/bundler/bundler/code-splitter.ts
+// src/bundler/code-splitter.ts
 class CodeSplitter {
   split(graph) {
     const bundles = new Map;
@@ -37619,11 +37582,11 @@ class CodeSplitter {
   collectDependencies(nodePath, graph) {
     const collected = new Set;
     const visited = new Set;
-    const collect = (path3) => {
-      if (visited.has(path3))
+    const collect = (path4) => {
+      if (visited.has(path4))
         return;
-      visited.add(path3);
-      const deps = graph.edges.get(path3);
+      visited.add(path4);
+      const deps = graph.edges.get(path4);
       if (deps) {
         deps.forEach((dep) => {
           collected.add(dep);
@@ -37639,7 +37602,7 @@ class CodeSplitter {
   }
 }
 
-// src/bundler/bundler/compressor.ts
+// src/bundler/compressor.ts
 import { gzipSync, brotliCompressSync, constants } from "zlib";
 
 class Compressor2 {
@@ -37666,7 +37629,7 @@ class Compressor2 {
   }
 }
 
-// src/bundler/bundler/entry-generator.ts
+// src/bundler/entry-generator.ts
 class EntryGenerator {
   generate(page, islands, runtimePath, isStatic) {
     if (isStatic) {
@@ -37729,7 +37692,7 @@ class EntryGenerator {
   }
 }
 
-// src/bundler/bundler/minifier.ts
+// src/bundler/minifier.ts
 class Minifier {
   async minify(code, isModule = true) {
     const result = await minify(code, {
@@ -37817,7 +37780,7 @@ class PulseBundler {
 `);
       console.log("\uD83D\uDCCA Phase 1: Analyzing dependencies...");
       const analyzer = new DependencyAnalyzer(this.ctx.config);
-      const pagesDir = path3.resolve(this.ctx.config.root, this.ctx.config.pages.dir);
+      const pagesDir = path4.resolve(this.ctx.config.root, this.ctx.config.pages.dir);
       const pageFiles = await this.findPulseFiles(pagesDir);
       for (const pageFile of pageFiles) {
         this.ctx.graph = await analyzer.analyze(pageFile);
@@ -37831,12 +37794,12 @@ class PulseBundler {
 \u2699\uFE0F  Phase 3: Building runtime...`);
       const runtimeBuilder = new RuntimeBuilder(this.ctx);
       const runtimes = await runtimeBuilder.buildRuntime(this.ctx.graph);
-      const runtimeDir = path3.join(this.ctx.config.outDir, "runtime");
+      const runtimeDir = path4.join(this.ctx.config.outDir, "runtime");
       await $`mkdir -p ${runtimeDir}`;
       for (const [name, code] of runtimes) {
         const finalCode = this.ctx.config.build.minify ? await this.minifier.minify(code) : code;
-        const filePath = path3.join(runtimeDir, `${name}.js`);
-        await $`mkdir -p ${path3.dirname(filePath)}`;
+        const filePath = path4.join(runtimeDir, `${name}.js`);
+        await $`mkdir -p ${path4.dirname(filePath)}`;
         await Bun.write(filePath, finalCode);
         if (this.ctx.config.optimization.compress && this.compressor.shouldCompress(Buffer.byteLength(finalCode))) {
           const compressed = this.compressor.compress(finalCode, this.ctx.config.optimization.compress);
@@ -37877,8 +37840,8 @@ class PulseBundler {
           isPreloaded: false
         };
         this.ctx.output.islands.set(island.id, manifest);
-        const islandPath = path3.join(this.ctx.config.outDir, "islands", `${island.id}.js`);
-        await $`mkdir -p ${path3.dirname(islandPath)}`;
+        const islandPath = path4.join(this.ctx.config.outDir, "islands", `${island.id}.js`);
+        await $`mkdir -p ${path4.dirname(islandPath)}`;
         await Bun.write(islandPath, finalCode);
         if (this.ctx.config.optimization.compress && this.compressor.shouldCompress(manifest.size)) {
           const compressed = this.compressor.compress(finalCode, this.ctx.config.optimization.compress);
@@ -37931,7 +37894,7 @@ class PulseBundler {
     const files = [];
     const glob = new Glob("**/*.pulse");
     for await (const file of glob.scan(dir)) {
-      files.push(path3.join(dir, file));
+      files.push(path4.join(dir, file));
     }
     return files;
   }
@@ -37949,8 +37912,8 @@ class PulseBundler {
     }
     const html = this.entryGenerator.generate(node, pageIslands, "/runtime/core.js", isStatic);
     const finalHTML = this.ctx.config.build.minify ? await this.minifier.minifyHTML(html) : html;
-    const pagePath = path3.join(this.ctx.config.outDir, node.name === "index" ? "index.html" : `${node.name}/index.html`);
-    await $`mkdir -p ${path3.dirname(pagePath)}`;
+    const pagePath = path4.join(this.ctx.config.outDir, node.name === "index" ? "index.html" : `${node.name}/index.html`);
+    await $`mkdir -p ${path4.dirname(pagePath)}`;
     await Bun.write(pagePath, finalHTML);
     if (this.ctx.config.optimization.compress && this.compressor.shouldCompress(Buffer.byteLength(finalHTML))) {
       const compressed = this.compressor.compress(finalHTML, this.ctx.config.optimization.compress);
@@ -38009,7 +37972,7 @@ class PulseBundler {
         hitRate: this.ctx.cache.hits / (this.ctx.cache.hits + this.ctx.cache.misses)
       }
     };
-    const manifestPath = path3.join(this.ctx.config.outDir, "manifest.json");
+    const manifestPath = path4.join(this.ctx.config.outDir, "manifest.json");
     await Bun.write(manifestPath, JSON.stringify(manifest, null, 2));
   }
   printSummary() {
@@ -38048,7 +38011,7 @@ async function build(config) {
   const bundler = new PulseBundler(config);
   return bundler.build();
 }
-// src/bundler/analyzer/reactivity-analyzer.ts
+// src/bundler/reactivity-analyzer.ts
 class ReactivityAnalyzer {
   analyze(code) {
     const info = {
@@ -38287,7 +38250,7 @@ if (typeof window !== "undefined") {
   }
 }
 // src/server/dev-server.ts
-import path7 from "path";
+import path8 from "path";
 
 // src/server/hmr.ts
 class HMRManager {
@@ -38331,19 +38294,19 @@ class HMRManager {
       timestamp: Date.now()
     });
   }
-  cssUpdate(path4) {
-    console.log(`\uD83C\uDFA8 CSS update: ${path4}`);
+  cssUpdate(path5) {
+    console.log(`\uD83C\uDFA8 CSS update: ${path5}`);
     this.broadcast({
       type: "css-update",
-      path: path4,
+      path: path5,
       timestamp: Date.now()
     });
   }
-  jsUpdate(path4, hash) {
-    console.log(`\u26A1 JS update: ${path4}`);
+  jsUpdate(path5, hash) {
+    console.log(`\u26A1 JS update: ${path5}`);
     this.broadcast({
       type: "js-update",
-      path: path4,
+      path: path5,
       hash,
       timestamp: Date.now()
     });
@@ -38813,7 +38776,7 @@ class ErrorOverlay {
 
 // src/server/file-watcher.ts
 import fs from "fs";
-import path4 from "path";
+import path5 from "path";
 
 class FileWatcher {
   watchers = [];
@@ -38824,9 +38787,9 @@ class FileWatcher {
       const watcher = fs.watch(dir, { recursive: options.recursive ?? true }, (eventType, filename) => {
         if (!filename)
           return;
-        const fullPath = path4.join(dir, filename);
+        const fullPath = path5.join(dir, filename);
         if (options.ignored && options.ignored.length > 0) {
-          const parts = fullPath.split(path4.sep);
+          const parts = fullPath.split(path5.sep);
           const shouldIgnore = options.ignored.some((pattern) => {
             const cleanPattern = pattern.replaceAll("*", "").replaceAll("/", "");
             return parts.includes(cleanPattern);
@@ -38835,7 +38798,7 @@ class FileWatcher {
             return;
         }
         if (options.extensions?.length) {
-          const ext = path4.extname(fullPath);
+          const ext = path5.extname(fullPath);
           if (!options.extensions.includes(ext)) {
             return;
           }
@@ -38924,6 +38887,499 @@ class HotReload {
         }).filter(Boolean)
       ],
       timestamp: Date.now()
+    });
+  }
+}
+
+// node_modules/ultrahtml/dist/index.js
+var S = Symbol("Fragment");
+var D = new Set(["area", "base", "br", "col", "embed", "hr", "img", "input", "keygen", "link", "meta", "param", "source", "track", "wbr"]);
+var x = new Set(["script", "style"]);
+var o = /(?:<(\/?)([a-zA-Z][a-zA-Z0-9\:-]*)(?:\s([^>]*?))?((?:\s*\/)?)>|(<\!\-\-)([\s\S]*?)(\-\->)|(<\!)([\s\S]*?)(>))/gm;
+var b = /[\@\.a-z0-9_\:\-]/i;
+function I(e) {
+  let t = {};
+  if (e) {
+    let i2 = "none", r, n = "", a, l;
+    for (let c = 0;c < e.length; c++) {
+      let d = e[c];
+      i2 === "none" ? b.test(d) ? (r && (t[r] = n, r = undefined, n = ""), a = c, i2 = "key") : d === "=" && r && (i2 = "value") : i2 === "key" ? b.test(d) || (r = e.substring(a, c), d === "=" ? i2 = "value" : i2 = "none") : d === l && c > 0 && e[c - 1] !== "\\" ? l && (n = e.substring(a, c), l = undefined, i2 = "none") : (d === '"' || d === "'") && !l && (a = c + 1, l = d);
+    }
+    i2 === "key" && a != null && a < e.length && (r = e.substring(a, e.length)), r && (t[r] = n);
+  }
+  return t;
+}
+function P(e) {
+  let t = typeof e == "string" ? e : e.value, i2, r, n, a, l, c, d, m, s, u = [];
+  o.lastIndex = 0, r = i2 = { type: 0, children: [] };
+  let g = 0;
+  function h() {
+    a = t.substring(g, o.lastIndex - n[0].length), a && r.children.push({ type: 2, value: a, parent: r });
+  }
+  for (;n = o.exec(t); ) {
+    if (c = n[5] || n[8], d = n[6] || n[9], m = n[7] || n[10], x.has(r.name) && n[2] !== r.name) {
+      l = o.lastIndex - n[0].length, r.children.length > 0 && (r.children[0].value += n[0]);
+      continue;
+    } else if (c === "<!--") {
+      if (l = o.lastIndex - n[0].length, x.has(r.name))
+        continue;
+      s = { type: 3, value: d, parent: r, loc: [{ start: l, end: l + c.length }, { start: o.lastIndex - m.length, end: o.lastIndex }] }, u.push(s), s.parent.children.push(s);
+    } else if (c === "<!")
+      l = o.lastIndex - n[0].length, s = { type: 4, value: d, parent: r, loc: [{ start: l, end: l + c.length }, { start: o.lastIndex - m.length, end: o.lastIndex }] }, u.push(s), s.parent.children.push(s);
+    else if (n[1] !== "/")
+      if (h(), x.has(r.name)) {
+        g = o.lastIndex, h();
+        continue;
+      } else
+        s = { type: 1, name: n[2] + "", attributes: I(n[3]), parent: r, children: [], loc: [{ start: o.lastIndex - n[0].length, end: o.lastIndex }] }, u.push(s), s.parent.children.push(s), n[4] && n[4].indexOf("/") > -1 || D.has(s.name) ? (s.loc[1] = s.loc[0], s.isSelfClosingTag = true) : r = s;
+    else
+      h(), n[2] + "" === r.name ? (s = r, r = s.parent, s.loc.push({ start: o.lastIndex - n[0].length, end: o.lastIndex }), a = t.substring(s.loc[0].end, s.loc[1].start), s.children.length === 0 && s.children.push({ type: 2, value: a, parent: r })) : n[2] + "" === u[u.length - 1].name && u[u.length - 1].isSelfClosingTag === true && (s = u[u.length - 1], s.loc.push({ start: o.lastIndex - n[0].length, end: o.lastIndex }));
+    g = o.lastIndex;
+  }
+  return a = t.slice(g), r.children.push({ type: 2, value: a, parent: r }), i2;
+}
+var O = class {
+  constructor(t) {
+    this.callback = t;
+  }
+  visit(t, i2, r) {
+    if (this.callback(t, i2, r), Array.isArray(t.children))
+      for (let n = 0;n < t.children.length; n++) {
+        let a = t.children[n];
+        this.visit(a, t, n);
+      }
+  }
+};
+var p = Symbol("HTMLString");
+var M = Symbol("AttrString");
+var f = Symbol("RenderFn");
+function B(e, t) {
+  return new O(t).visit(e);
+}
+
+// src/bundler/compiler/unified-parser.ts
+import { transform } from "lightningcss";
+class Scanner {
+  pos = 0;
+  source;
+  constructor(source) {
+    this.source = source;
+  }
+  isEOF() {
+    return this.pos >= this.source.length;
+  }
+  peek() {
+    return this.source[this.pos];
+  }
+  advance(n = 1) {
+    this.pos += n;
+  }
+  match(pattern) {
+    return this.source.startsWith(pattern, this.pos);
+  }
+  scanUntil(delimiter) {
+    const start = this.pos;
+    let index = this.source.indexOf(delimiter, this.pos);
+    if (index === -1)
+      return null;
+    this.pos = index + delimiter.length;
+    return this.source.slice(start, index);
+  }
+  scanToEnd() {
+    const content = this.source.slice(this.pos);
+    this.pos = this.source.length;
+    return content;
+  }
+  reset() {
+    this.pos = 0;
+  }
+}
+
+class UnifiedParser {
+  parse(source, filePath) {
+    const sections = this.splitSections(source);
+    const script = this.parseScript(sections.script, filePath);
+    const template = this.parseTemplate(sections.template, filePath);
+    const styles = this.parseStyles(sections.styles, filePath);
+    const metadata = {
+      name: this.extractName(filePath),
+      location: { file: filePath, source }
+    };
+    return {
+      script,
+      template,
+      styles,
+      metadata
+    };
+  }
+  extractName(filePath) {
+    const parts = filePath.split("/");
+    const filename = parts[parts.length - 1];
+    return filename.replace(".pulse", "");
+  }
+  splitSections(source) {
+    const scanner = new Scanner(source);
+    const sections = {
+      script: "",
+      template: "",
+      styles: ""
+    };
+    let remaining = source;
+    const scriptOpen = source.indexOf("<script");
+    if (scriptOpen !== -1) {
+      const scriptClose = source.indexOf("</script>", scriptOpen);
+      if (scriptClose !== -1) {
+        const tagEnd = source.indexOf(">", scriptOpen);
+        if (tagEnd !== -1 && tagEnd < scriptClose) {
+          sections.script = source.slice(tagEnd + 1, scriptClose);
+        }
+      }
+    }
+    const styleOpen = source.indexOf("<style");
+    if (styleOpen !== -1) {
+      const styleClose = source.indexOf("</style>", styleOpen);
+      if (styleClose !== -1) {
+        const tagEnd = source.indexOf(">", styleOpen);
+        if (tagEnd !== -1 && tagEnd < styleClose) {
+          sections.styles = source.slice(tagEnd + 1, styleClose);
+        }
+      }
+    }
+    sections.template = source.replace(/<script[\s\S]*?>[\s\S]*?<\/script>/gi, "").replace(/<style[\s\S]*?>[\s\S]*?<\/style>/gi, "").trim();
+    return sections;
+  }
+  parseScript(code, filePath) {
+    if (!code || !code.trim())
+      return { type: "empty" };
+    try {
+      const ast = parse3(code, {
+        ecmaVersion: "latest",
+        sourceType: "module",
+        locations: true,
+        ranges: true
+      });
+      const imports = [];
+      const exports = [];
+      const signals = [];
+      const declarations = [];
+      const functions = [];
+      ast.body.forEach((node) => {
+        if (node.type === "VariableDeclaration") {
+          node.declarations.forEach((decl) => {
+            const isSignal = decl.init && decl.init.type === "CallExpression" && decl.init.callee.name === "createSignal";
+            if (decl.id.type === "Identifier") {
+              declarations.push(decl.id.name);
+              if (isSignal) {
+                signals.push({
+                  name: decl.id.name,
+                  initialValue: { type: "other", raw: "unknown" },
+                  setter: "unknown",
+                  type: { kind: "unknown" },
+                  usages: []
+                });
+              }
+            } else if (decl.id.type === "ArrayPattern") {
+              decl.id.elements.forEach((el) => {
+                if (el && el.type === "Identifier")
+                  declarations.push(el.name);
+              });
+              if (isSignal && decl.id.elements.length > 0) {
+                const first = decl.id.elements[0];
+                if (first && first.type === "Identifier") {
+                  signals.push({
+                    name: first.name,
+                    initialValue: { type: "other", raw: "unknown" },
+                    setter: "unknown",
+                    type: { kind: "unknown" },
+                    usages: []
+                  });
+                }
+              }
+            } else if (decl.id.type === "ObjectPattern") {
+              decl.id.properties.forEach((prop) => {
+                if (prop.value.type === "Identifier")
+                  declarations.push(prop.value.name);
+              });
+            }
+          });
+        }
+        if (node.type === "FunctionDeclaration") {
+          if (node.id) {
+            declarations.push(node.id.name);
+            functions.push({ name: node.id.name, params: node.params.map((p2) => p2.name), isAsync: node.async });
+          }
+        }
+        if (node.type === "ClassDeclaration") {
+          if (node.id)
+            declarations.push(node.id.name);
+        }
+        if (node.type === "ImportDeclaration") {
+          const specifiers = node.specifiers.map((s) => ({
+            imported: s.imported?.name || "default",
+            local: s.local.name
+          }));
+          imports.push({ source: node.source.value, specifiers, isTypeOnly: false });
+          specifiers.forEach((s) => declarations.push(s.local));
+        }
+      });
+      return {
+        type: "valid",
+        ast,
+        code,
+        imports,
+        exports,
+        signals,
+        effects: [],
+        computed: [],
+        functions,
+        declarations
+      };
+    } catch (error) {
+      throw new ParseError({
+        original: error,
+        source: { file: filePath }
+      });
+    }
+  }
+  parseTemplate(code, filePath) {
+    if (!code || !code.trim())
+      return { type: "empty" };
+    try {
+      const ast = P(code);
+      const components = [];
+      const bindings = [];
+      B(ast, (node) => {
+        if (node.type === 1) {
+          if (/^[A-Z]/.test(node.name)) {
+            components.push({
+              name: node.name,
+              props: {},
+              children: node.children
+            });
+          }
+          for (const key in node.attributes) {
+            const val = node.attributes[key];
+            if (val && val.includes("{")) {
+              bindings.push({
+                type: "attribute",
+                name: key,
+                target: [],
+                expression: { type: "other", raw: val },
+                dependencies: new Set,
+                isOneWay: true,
+                isTwoWay: false
+              });
+            }
+          }
+        }
+        if (node.type === 2) {
+          const text = node.value || "";
+          if (text.includes("{")) {
+            bindings.push({
+              type: "text",
+              target: [],
+              expression: { type: "other", raw: text },
+              dependencies: new Set,
+              isOneWay: true,
+              isTwoWay: false
+            });
+          }
+        }
+      });
+      return {
+        type: "valid",
+        ast,
+        code,
+        components,
+        bindings,
+        events: [],
+        slots: []
+      };
+    } catch (error) {
+      throw new ParseError({
+        original: error,
+        source: { file: filePath }
+      });
+    }
+  }
+  parseStyles(code, filePath) {
+    if (!code || !code.trim())
+      return { type: "empty" };
+    try {
+      transform({
+        filename: filePath,
+        code: Buffer.from(code),
+        minify: false,
+        sourceMap: false
+      });
+      return {
+        type: "valid",
+        code,
+        scoped: false,
+        classes: []
+      };
+    } catch (error) {
+      throw new ParseError({
+        original: error,
+        source: { file: filePath }
+      });
+    }
+  }
+}
+
+// src/bundler/compiler/validator.ts
+class ComponentValidator {
+  validate(ast) {
+    const file = ast.metadata.location.file;
+    if (ast.script.type === "error") {
+      return new Err(new CompilationError({
+        message: ast.script.error.message,
+        code: "SCRIPT_JUNK",
+        file,
+        originalError: ast.script.error,
+        location: ast.script.error.loc
+      }));
+    }
+    if (ast.template.type === "error") {
+      return new Err(new CompilationError({
+        message: ast.template.error.message,
+        code: "TEMPLATE_JUNK",
+        file,
+        originalError: ast.template.error
+      }));
+    }
+    if (ast.styles.type === "error") {
+      return new Err(new CompilationError({
+        message: ast.styles.error.message,
+        code: "STYLE_JUNK",
+        file,
+        originalError: ast.styles.error
+      }));
+    }
+    if (ast.template.type === "valid" && ast.script.type === "valid") {
+      const missingRefs = this.checkReferences(ast);
+      if (missingRefs.length > 0) {
+        return new Err(new CompilationError({
+          message: `Undefined variables referenced in template: ${missingRefs.join(", ")}`,
+          code: "UNDEFINED_REFERENCE",
+          file,
+          suggestion: `Define ${missingRefs.join(", ")} in the <script> block or import them.`
+        }));
+      }
+    }
+    return new Ok(true);
+  }
+  checkReferences(ast) {
+    const defined = new Set;
+    if (ast.script.type === "valid") {
+      ast.script.imports.forEach((i2) => {
+        i2.specifiers.forEach((s) => defined.add(s.local));
+      });
+      ast.script.signals.forEach((s) => defined.add(s.name));
+      ast.script.functions.forEach((f2) => defined.add(f2.name));
+      ast.script.declarations.forEach((d) => defined.add(d));
+      ["console", "window", "document", "Math", "Date", "Array", "Object", "Boolean", "String", "Number"].forEach((g) => defined.add(g));
+    }
+    const missing = [];
+    if (ast.template.type === "valid") {
+      console.log("[Validator] Bindings count:", ast.template.bindings.length);
+      ast.template.bindings.forEach((b2) => {
+        const ids = this.extractIdentifiers(b2.expression.raw);
+        ids.forEach((id) => {
+          if (!defined.has(id)) {
+            missing.push(id);
+          }
+        });
+      });
+    }
+    return missing;
+  }
+  extractIdentifiers(expression) {
+    const tokens = expression.match(/[a-zA-Z_$][a-zA-Z0-9_$]*/g) || [];
+    const keywords2 = new Set(["true", "false", "null", "undefined", "typeof", "instanceof", "in", "new", "this"]);
+    return tokens.filter((t) => !keywords2.has(t));
+  }
+}
+
+// src/bundler/compiler/safe-compiler.ts
+class CompilationContext {
+  filePath;
+  warnings = [];
+  constructor(filePath) {
+    this.filePath = filePath;
+  }
+  addWarning(message, location) {
+    this.warnings.push({
+      code: "WARNING",
+      message,
+      location
+    });
+  }
+}
+
+class SafeCompiler {
+  legacyCompiler;
+  strictMode = true;
+  parser;
+  validator;
+  constructor(legacyCompiler) {
+    this.legacyCompiler = legacyCompiler;
+    this.parser = new UnifiedParser;
+    this.validator = new ComponentValidator;
+  }
+  async compile(source, filePath) {
+    const context = new CompilationContext(filePath);
+    try {
+      this.validate(source, context);
+      const ast = this.parseWithRecovery(source, context);
+      const validationResult = this.validator.validate(ast);
+      if (validationResult.isErr()) {
+        return new Err(this.enrichError(validationResult.error, context, source));
+      }
+      const transformed = await this.transformSafe(ast, source, filePath, context);
+      return new Ok(this.emit(transformed, context));
+    } catch (error) {
+      return new Err(this.enrichError(error, context, source));
+    }
+  }
+  validate(source, ctx) {
+    if (!source || !source.trim()) {
+      throw new EmptyComponentError(ctx.filePath);
+    }
+  }
+  parseWithRecovery(source, ctx) {
+    try {
+      return this.parser.parse(source, ctx.filePath);
+    } catch (parseError) {
+      throw new ParseError({
+        original: parseError,
+        source: { file: ctx.filePath }
+      });
+    }
+  }
+  async transformSafe(ast, source, filePath, ctx) {
+    if (this.legacyCompiler) {
+      return this.legacyCompiler.compile(filePath, source);
+    }
+    return "// SafeCompiler: No backend configured yet";
+  }
+  emit(code, ctx) {
+    return {
+      code,
+      map: null,
+      warnings: ctx.warnings
+    };
+  }
+  enrichError(error, ctx, source) {
+    if (error instanceof CompilationError)
+      return error;
+    return new CompilationError({
+      message: error.message || "Unknown compilation error",
+      code: "UNKNOWN_ERROR",
+      file: ctx.filePath,
+      originalError: error,
+      source,
+      location: error.loc
     });
   }
 }
@@ -39334,7 +39790,7 @@ class ScriptParser {
   }
 }
 
-// src/server/runtime/hmr-client.ts
+// src/server/hmr-client.ts
 function generateHMRClientScript() {
   return [
     "// Pulse HMR Client v0.11.0",
@@ -39493,7 +39949,7 @@ function getHMRScript(config) {
   return `<script type="module" src="/__pulse_client.js"></script>`;
 }
 
-// src/server/utils/html-wrapper.ts
+// src/server/html-wrapper.ts
 function wrapHTML(content, title, hmrScript) {
   return `<!DOCTYPE html>
 <html lang="en">
@@ -39545,7 +40001,7 @@ function generateSuggestion(error) {
   return "Check the error message above for more details";
 }
 
-// src/server/compiler/template-transformer.ts
+// src/server/template-transformer.ts
 class TemplateTransformer {
   htmlParser;
   constructor() {
@@ -39593,7 +40049,7 @@ class TemplateTransformer {
           }
         }
       });
-      replacements.sort((a, b) => b.start - a.start);
+      replacements.sort((a, b2) => b2.start - a.start);
       for (const rep of replacements) {
         magicString = magicString.slice(0, rep.start) + rep.value + magicString.slice(rep.end);
       }
@@ -39603,7 +40059,6 @@ class TemplateTransformer {
     }
   }
   transform(template, stateVars, componentNames = [], declarations = []) {
-    console.log("[Transformer] Start transform");
     const root = this.htmlParser.parse(template);
     const bindings = [];
     const templates = new Map;
@@ -39704,7 +40159,7 @@ class TemplateTransformer {
       }
       return { attrsStr, bindId };
     };
-    const serialize = (node, scope = {}, isInScope = false, isRaw = false, path5 = []) => {
+    const serialize = (node, scope = {}, isInScope = false, isRaw = false, path6 = []) => {
       if (node.type === "text") {
         return node.content || "";
       }
@@ -39715,14 +40170,14 @@ class TemplateTransformer {
         if (isInScope) {
           scope._listBindings.push({
             type: "text",
-            path: [...path5],
+            path: [...path6],
             expr: content
           });
           return `<span style="display:contents"> </span>`;
         }
         let isDependent = false;
         const allNamesArray = Array.from(allVarNames);
-        allNamesArray.sort((a, b) => b.length - a.length);
+        allNamesArray.sort((a, b2) => b2.length - a.length);
         for (const varName of allNamesArray) {
           if (content.includes(varName)) {
             isDependent = true;
@@ -39760,9 +40215,24 @@ class TemplateTransformer {
           const ssrContent = "";
           return `<pulse-list${attrs} style="display:contents">${ssrContent}</pulse-list>`;
         }
+        if (originalTagName === "Show") {
+          const whenAttr = node.attributes?.get("when");
+          let whenExpr = typeof whenAttr === "string" ? whenAttr : whenAttr?.code;
+          if (whenExpr)
+            whenExpr = this.transformExpression(whenExpr, stateNames);
+          const fallbackAttr = node.attributes?.get("fallback");
+          let fallbackExpr = typeof fallbackAttr === "string" ? fallbackAttr : fallbackAttr?.code;
+          if (fallbackExpr)
+            fallbackExpr = this.transformExpression(fallbackExpr, stateNames);
+          let attrs = ` when="{${whenExpr}}"`;
+          if (fallbackExpr)
+            attrs += ` fallback="{${fallbackExpr}}"`;
+          const childrenStr2 = children.map((c) => serialize(c, scope, isInScope, isRaw, path6)).join("");
+          return `<pulse-show${attrs} style="display:contents"><template data-pulse-template>${childrenStr2}</template></pulse-show>`;
+        }
         if (scope._componentNames && scope._componentNames.includes(originalTagName)) {
           const { attrsStr: attrsStr2 } = serializeAttributes(node, scope, isInScope);
-          const childrenStr2 = children.map((c, i2) => serialize(c, scope, isInScope, isRaw, [...path5, i2])).join("");
+          const childrenStr2 = children.map((c, i2) => serialize(c, scope, isInScope, isRaw, [...path6, i2])).join("");
           return `<div data-pulse-component="${originalTagName}"${attrsStr2} style="display:contents"><template data-pulse-template>${childrenStr2}</template></div>`;
         }
         const tagName = originalTagName.toLowerCase();
@@ -39777,7 +40247,7 @@ class TemplateTransformer {
                 const expr = this.transformExpression(rawExpr, stateNames);
                 scope._listBindings.push({
                   type: "attribute",
-                  path: [...path5],
+                  path: [...path6],
                   name: "data-on-" + key.slice(2).toLowerCase(),
                   expr
                 });
@@ -39788,7 +40258,7 @@ class TemplateTransformer {
                 const expr = this.transformExpression(rawExpr, stateNames);
                 scope._listBindings.push({
                   type: "attribute",
-                  path: [...path5],
+                  path: [...path6],
                   name: key,
                   expr
                 });
@@ -39807,7 +40277,7 @@ class TemplateTransformer {
         let extraAttrs = "";
         if (bindId)
           extraAttrs += ` data-pulse-id="${bindId}"`;
-        const childrenStr = children.map((c, i2) => serialize(c, scope, isInScope, isRaw, [...path5, i2])).join("");
+        const childrenStr = children.map((c, i2) => serialize(c, scope, isInScope, isRaw, [...path6, i2])).join("");
         const voidElements = new Set(["area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "param", "source", "track", "wbr"]);
         if (voidElements.has(tagName) && children.length === 0) {
           return `<${tagName}${attrsStr}${extraAttrs} />`;
@@ -39821,10 +40291,10 @@ class TemplateTransformer {
   }
 }
 
-// src/server/compiler/page-compiler.ts
-import path5 from "path";
+// src/server/page-compiler.ts
+import path6 from "path";
 
-// src/server/compiler/mount-script-generator.ts
+// src/server/mount-script-generator.ts
 function getMountScript(imports, hasListPrimitive, hasShowPrimitive) {
   return `
       // Hydrate
@@ -39848,7 +40318,7 @@ function getMountScript(imports, hasListPrimitive, hasShowPrimitive) {
     `;
 }
 
-// src/server/compiler/page-compiler.ts
+// src/server/page-compiler.ts
 class PageCompiler {
   config;
   scriptParser;
@@ -39893,7 +40363,7 @@ class PageCompiler {
           }
         }
       });
-      replacements.sort((a, b) => b.start - a.start);
+      replacements.sort((a, b2) => b2.start - a.start);
       for (const rep of replacements) {
         magicString = magicString.slice(0, rep.start) + rep.value + magicString.slice(rep.end);
       }
@@ -39940,11 +40410,11 @@ class PageCompiler {
     }
   }
   compileInteractive(template, scriptResult, styleTag, filePath) {
-    const pageName = path5.basename(filePath, ".pulse");
+    const pageName = path6.basename(filePath, ".pulse");
     const imports = [];
-    const pageDir = path5.dirname(filePath);
+    const pageDir = path6.dirname(filePath);
     scriptResult.imports.forEach((imp) => {
-      const resolvedPath = path5.resolve(pageDir, imp.source);
+      const resolvedPath = path6.resolve(pageDir, imp.source);
       imp.names.forEach((n) => {
         imports.push({ name: n, path: imp.source, resolvedPath });
       });
@@ -39980,7 +40450,7 @@ class PageCompiler {
     const { html, bindings, templates } = this.templateTransformer.transform(template, [...stateVarsWithSetters, ...computedVars], componentNames, declarations);
     const mountScript = getMountScript(imports, hasListPrimitive, hasShowPrimitive);
     const handlerEntries = [
-      ...functions.map((f) => `${f.name}: ${f.name}`),
+      ...functions.map((f2) => `${f2.name}: ${f2.name}`),
       ...stateVars.map((sv) => {
         const setterName = sv.setterName || "set" + sv.name.charAt(0).toUpperCase() + sv.name.slice(1);
         return `${setterName}: ${setterName}`;
@@ -39995,7 +40465,7 @@ class PageCompiler {
         return `${setterName}: ${setterName}`;
       }),
       ...computedVars.map((c) => `${c.name}: ${c.name}`),
-      ...functions.map((f) => `${f.name}: ${f.name}`),
+      ...functions.map((f2) => `${f2.name}: ${f2.name}`),
       ...declarations.map((d) => `${d.name}: ${d.name}`),
       "...components"
     ];
@@ -40132,8 +40602,8 @@ ${template}`;
   }
 }
 
-// src/server/compiler/component-compiler.ts
-import path6 from "path";
+// src/server/component-compiler.ts
+import path7 from "path";
 class ComponentCompiler2 {
   config;
   scriptParser;
@@ -40146,7 +40616,7 @@ class ComponentCompiler2 {
     this.htmlParser = new HTMLParser;
   }
   async compile(filePath, content) {
-    const componentName = path6.basename(filePath, ".pulse");
+    const componentName = path7.basename(filePath, ".pulse");
     const root = this.htmlParser.parse(content);
     let styles = "";
     let scriptContent = "";
@@ -40223,7 +40693,7 @@ ${imports.map((i2) => {
             }
           }
         });
-        replacements.sort((a, b) => b.start - a.start);
+        replacements.sort((a, b2) => b2.start - a.start);
         for (const rep of replacements) {
           magicString = magicString.slice(0, rep.start) + rep.value + magicString.slice(rep.end);
         }
@@ -40235,8 +40705,8 @@ ${imports.map((i2) => {
       }
     };
     const hasState = stateVars.length > 0 || computedVars.length > 0;
-    const simpleHash = componentName.split("").reduce((a, b) => {
-      a = (a << 5) - a + b.charCodeAt(0);
+    const simpleHash = componentName.split("").reduce((a, b2) => {
+      a = (a << 5) - a + b2.charCodeAt(0);
       return a & a;
     }, 0);
     const scopeId = `data-v-${Math.abs(simpleHash).toString(36)}`;
@@ -40293,8 +40763,8 @@ export default function ${componentName}(props) {
         moduleCode += `  ${transformedCode}
 `;
       });
-      functions.forEach((f) => {
-        const transformedCode = transformUserCode(f.code);
+      functions.forEach((f2) => {
+        const transformedCode = transformUserCode(f2.code);
         moduleCode += `  ${transformedCode}
 `;
       });
@@ -40392,7 +40862,7 @@ export default function ${componentName}(props) {
 `;
         }
       });
-      moduleCode += `  const handlers = { ${functions.map((f) => `${f.name}: ${f.name}`).join(", ")} };
+      moduleCode += `  const handlers = { ${functions.map((f2) => `${f2.name}: ${f2.name}`).join(", ")} };
 `;
       moduleCode += `  container.__pulseHandlers = handlers;
 
@@ -40433,8 +40903,8 @@ export default function ${componentName}(props) {
       moduleCode += `}
 `;
     } else {
-      const simpleHash2 = componentName.split("").reduce((a, b) => {
-        a = (a << 5) - a + b.charCodeAt(0);
+      const simpleHash2 = componentName.split("").reduce((a, b2) => {
+        a = (a << 5) - a + b2.charCodeAt(0);
         return a & a;
       }, 0);
       const scopeId2 = `data-v-${Math.abs(simpleHash2).toString(36)}`;
@@ -40571,6 +41041,7 @@ class DevServer {
   watcher;
   analyzer;
   compiler;
+  safeCompiler;
   pageCompiler;
   lastError;
   hotReload;
@@ -40593,6 +41064,7 @@ class DevServer {
     this.templateTransformer = new TemplateTransformer;
     this.pageCompiler = new PageCompiler(config, this.scriptParser, this.templateTransformer);
     this.compiler = new ComponentCompiler2(config, this.scriptParser, this.templateTransformer);
+    this.safeCompiler = new SafeCompiler(this.compiler);
     this.reactivityTransformer = new ReactivityTransformer;
     this.compiledComponents = new Map;
   }
@@ -40660,18 +41132,18 @@ class DevServer {
         this.lastError = undefined;
         this.hmr.clearError();
       }
-      const pagesDir = path7.resolve(this.config.root, this.config.pages.dir);
+      const pagesDir = path8.resolve(this.config.root, this.config.pages.dir);
       let pagePath;
       if (pathname === "/") {
-        pagePath = path7.join(pagesDir, "index.pulse");
+        pagePath = path8.join(pagesDir, "index.pulse");
       } else {
         const cleanPath = pathname.slice(1);
         if (cleanPath.endsWith("/")) {
-          pagePath = path7.join(pagesDir, cleanPath.slice(0, -1) + ".pulse");
+          pagePath = path8.join(pagesDir, cleanPath.slice(0, -1) + ".pulse");
         } else {
-          pagePath = path7.join(pagesDir, cleanPath + ".pulse");
+          pagePath = path8.join(pagesDir, cleanPath + ".pulse");
         }
-        const indexPath = path7.join(pagesDir, cleanPath, "index.pulse");
+        const indexPath = path8.join(pagesDir, cleanPath, "index.pulse");
         const indexFile = Bun.file(indexPath);
         if (await indexFile.exists()) {
           pagePath = indexPath;
@@ -40688,9 +41160,9 @@ class DevServer {
       let html;
       if (cached) {
         html = cached;
-        console.log(`\uD83D\uDCE6 Cache hit: ${path7.basename(pagePath)}`);
+        console.log(`\uD83D\uDCE6 Cache hit: ${path8.basename(pagePath)}`);
       } else {
-        console.log(`\uD83D\uDD28 Compiling: ${path7.basename(pagePath)}`);
+        console.log(`\uD83D\uDD28 Compiling: ${path8.basename(pagePath)}`);
         html = await this.pageCompiler.compile(pagePath, content);
         this.cache.set(pagePath, hash, html, []);
         this.moduleGraph.updateModule(pagePath, hash, html);
@@ -40698,7 +41170,7 @@ class DevServer {
       return new Response(html, {
         headers: {
           "Content-Type": "text/html; charset=utf-8",
-          "X-Pulse-Page": path7.basename(pagePath),
+          "X-Pulse-Page": path8.basename(pagePath),
           "Cache-Control": "no-cache, no-store, must-revalidate"
         }
       });
@@ -40727,8 +41199,13 @@ class DevServer {
   }
   async serveRuntime(pathname) {
     const runtimePath = pathname.replace("/runtime/", "");
+    let frameworkRuntimeDir = path8.resolve(import.meta.dir, "../runtime");
+    const coreCheck = Bun.file(path8.join(frameworkRuntimeDir, "core.ts"));
+    if (!await coreCheck.exists()) {
+      frameworkRuntimeDir = path8.resolve(import.meta.dir, "../../src/runtime");
+    }
     const serveTsFile = async (fileName) => {
-      const filePath = path7.join(this.config.root, "../pulse-v5/src/runtime", fileName);
+      const filePath = path8.join(frameworkRuntimeDir, fileName);
       const file = Bun.file(filePath);
       if (await file.exists()) {
         const content = await file.text();
@@ -40741,7 +41218,7 @@ class DevServer {
           }
         });
       }
-      return new Response(`console.error("Runtime file ${fileName} not found")`, { status: 404 });
+      return new Response(`console.error("Runtime file ${fileName} not found at ${filePath}")`, { status: 404 });
     };
     if (runtimePath === "core.js") {
       return await serveTsFile("core.ts");
@@ -40753,28 +41230,18 @@ class DevServer {
       return await serveTsFile("primitives/show.ts");
     }
     if (runtimePath === "dom.js") {
-      const domPath = path7.join(this.config.root, "../pulse-v5/src/bundler/runtime/dom.ts");
-      const file = Bun.file(domPath);
-      if (await file.exists()) {
-        const content = await file.text();
-        const transpiler = new Bun.Transpiler({ loader: "ts" });
-        const js = await transpiler.transform(content);
-        return new Response(js, {
-          headers: { "Content-Type": "application/javascript" }
-        });
-      }
-      return new Response('console.error("DOM Runtime not found")', { status: 404 });
+      return await serveTsFile("dom.ts");
     }
     return new Response('console.error("Runtime file not found")', { status: 404 });
   }
   async serveComponent(pathname) {
     try {
       const cleanPathname = pathname.endsWith(".js") ? pathname.slice(0, -3) : pathname;
-      const componentPath = path7.join(this.config.root, cleanPathname);
+      const componentPath = path8.join(this.config.root, cleanPathname);
       let file = Bun.file(componentPath);
       let foundPath = componentPath;
       if (!await file.exists()) {
-        const srcPath = path7.join(this.config.root, "src", cleanPathname);
+        const srcPath = path8.join(this.config.root, "src", cleanPathname);
         file = Bun.file(srcPath);
         if (await file.exists()) {
           foundPath = srcPath;
@@ -40786,10 +41253,16 @@ class DevServer {
       const hash = this.cache.computeHash(content);
       let compiled = this.compiledComponents.get(foundPath);
       if (!compiled || !this.cache.get(foundPath, hash)) {
-        console.log(`\uD83D\uDD28 Compiling component: ${path7.basename(foundPath)}`);
-        compiled = await this.compiler.compile(foundPath, content);
-        this.compiledComponents.set(foundPath, compiled);
-        this.cache.set(foundPath, hash, compiled, []);
+        console.log(`\uD83D\uDD28 Compiling component: ${path8.basename(foundPath)}`);
+        const result = await this.safeCompiler.compile(foundPath, content);
+        if (result.isOk()) {
+          compiled = result.value.code;
+          this.compiledComponents.set(foundPath, compiled);
+          this.cache.set(foundPath, hash, compiled, []);
+        } else {
+          const err = result.error;
+          throw err;
+        }
       }
       return new Response(compiled, {
         headers: {
@@ -40815,10 +41288,16 @@ class DevServer {
       const hash = this.cache.computeHash(content);
       let compiled = this.compiledComponents.get(filePath);
       if (!compiled || !this.cache.get(filePath, hash)) {
-        console.log(`\uD83D\uDD28 Compiling component: ${path7.basename(filePath)}`);
-        compiled = await this.compiler.compile(filePath, content);
-        this.compiledComponents.set(filePath, compiled);
-        this.cache.set(filePath, hash, compiled, []);
+        console.log(`\uD83D\uDD28 Compiling component: ${path8.basename(filePath)}`);
+        const result = await this.safeCompiler.compile(filePath, content);
+        if (result.isOk()) {
+          compiled = result.value.code;
+          this.compiledComponents.set(filePath, compiled);
+          this.cache.set(filePath, hash, compiled, []);
+        } else {
+          const err = result.error;
+          throw err;
+        }
       }
       return new Response(compiled, {
         headers: {
@@ -40828,35 +41307,61 @@ class DevServer {
       });
     } catch (error) {
       console.error("Component serve error:", error);
-      return new Response(`console.error("Component serve error: ${error.message}")`, {
-        status: 500,
+      return new Response(this.generateErrorComponent(error, filePath), {
         headers: { "Content-Type": "application/javascript" }
       });
     }
   }
   async serveModule(pathname) {
     const modulePath = pathname.replace("/__modules/", "");
-    const srcPath = path7.join(this.config.root, modulePath);
+    const srcPath = path8.join(this.config.root, modulePath);
     const file = Bun.file(srcPath);
     if (!await file.exists()) {
       return new Response('console.error("Module not found")', { status: 404 });
     }
     if (modulePath.endsWith(".pulse")) {
       const content = await file.text();
-      const compiled = await this.compiler.compile(srcPath, content);
-      return new Response(compiled, {
-        headers: { "Content-Type": "application/javascript" }
-      });
+      const result = await this.safeCompiler.compile(srcPath, content);
+      if (result.isOk()) {
+        const compiled = result.value.code;
+        return new Response(compiled, {
+          headers: { "Content-Type": "application/javascript" }
+        });
+      } else {
+        const err = result.error;
+        console.error("Module compilation error:", err);
+        return new Response(`console.error("Module compilation error: ${err.message}")`, {
+          status: 500,
+          headers: { "Content-Type": "application/javascript" }
+        });
+      }
     }
     return new Response(file);
   }
   async servePublic(pathname) {
-    const publicPath = path7.join(this.config.root, pathname);
+    const publicPath = path8.join(this.config.root, pathname);
     const file = Bun.file(publicPath);
     if (await file.exists()) {
       return new Response(file);
     }
     return new Response("Not Found", { status: 404 });
+  }
+  generateErrorComponent(error, path9) {
+    return `
+      export default function ErrorComponent() {
+        const el = document.createElement('div');
+        el.style.cssText = 'border: 2px solid red; padding: 20px; margin: 10px; background: #fff0f0; border-radius: 8px; font-family: monospace;';
+        el.innerHTML = \`
+          <h3 style="color: #d32f2f; margin-top: 0;">\u26A0\uFE0F Component Error</h3>
+          <p><strong>File:</strong> ${path9}</p>
+          <div style="background: #ffebee; padding: 10px; border-radius: 4px; overflow-x: auto;">
+            <p style="margin: 0; color: #b71c1c;"><strong>Error:</strong> ${error.message.replace(/`/g, "\\`")}</p>
+          </div>
+          <pre style="margin-top: 10px; font-size: 11px; color: #555;">${(error.stack || "").replace(/`/g, "\\`")}</pre>
+        \`;
+        return el;
+      }
+    `;
   }
   startFileWatcher() {
     this.watcher.watch(this.config.root, {
@@ -40865,11 +41370,11 @@ class DevServer {
       extensions: [".pulse", ".ts", ".css", ".js"]
     }, (event) => {
       const filePath = event.file;
-      console.log(`\uD83D\uDCDD File ${event.type}: ${path7.basename(filePath)}`);
+      console.log(`\uD83D\uDCDD File ${event.type}: ${path8.basename(filePath)}`);
       this.cache.invalidate(filePath);
       if (this.config.devServer.hmr) {
         if (filePath.endsWith(".css")) {
-          this.hmr.broadcast({ type: "css-update", path: "/" + path7.relative(this.config.root, filePath) });
+          this.hmr.broadcast({ type: "css-update", path: "/" + path8.relative(this.config.root, filePath) });
         } else {
           this.hmr.broadcast({ type: "full-reload" });
         }
