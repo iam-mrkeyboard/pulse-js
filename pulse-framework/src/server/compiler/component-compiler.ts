@@ -13,6 +13,20 @@ import { HTMLParser, type ParsedNode } from '../../bundler/compiler/html-parser'
 import * as acorn from 'acorn';
 import { walk } from 'estree-walker';
 
+
+/** Split leading JS from markup when authors omit <script> tags. */
+function peelBareScript(content: string): { script: string; template: string } | null {
+  // Find first HTML tag that looks like markup (not a comment)
+  const match = content.match(/<[A-Za-z\/!]/);
+  if (!match || match.index === undefined || match.index === 0) return null;
+  const script = content.slice(0, match.index).trim();
+  const template = content.slice(match.index).trim();
+  if (!script) return null;
+  // Heuristic: must look like JS (const/let/function/import)
+  if (!/\b(const|let|var|function|import|export)\b/.test(script)) return null;
+  return { script, template };
+}
+
 export class ComponentCompiler {
   private config: PulseConfig;
   private scriptParser: ScriptParser;
@@ -29,28 +43,35 @@ export class ComponentCompiler {
   public async compile(filePath: string, content: string): Promise<string> {
     const componentName = path.basename(filePath, '.pulse');
 
-    // Parse AST
-    const root = this.htmlParser.parse(content);
-
     let styles = '';
     let scriptContent = '';
     let template = '';
 
+    // Peel bare leading script BEFORE HTML parse (JS is not valid HTML)
+    const peeled = peelBareScript(content);
+    let htmlSource = content;
+    if (peeled) {
+      scriptContent = peeled.script;
+      htmlSource = peeled.template;
+    }
+
+    // Parse AST
+    const root = this.htmlParser.parse(htmlSource);
+
     // Extract parts using AST
+    // Support both <script>...</script> and bare leading script (Counter.pulse style)
     if (root.children) {
       root.children.forEach(node => {
         if (node.type === 'element') {
           if (node.tag === 'style') {
-            // Extract styles
             if (node.children) styles += node.children.map(c => this.serializeNode(c)).join('');
           } else if (node.tag === 'script') {
-            // Extract script
             if (node.children) scriptContent += node.children.map(c => this.serializeNode(c)).join('');
           } else {
-            // Template content (everything else)
             template += this.serializeNode(node);
           }
         } else if (node.type === 'text' || node.type === 'comment' || node.type === 'expression') {
+          // Defer: bare script is leading text before any template element
           template += this.serializeNode(node);
         }
       });
@@ -59,6 +80,15 @@ export class ComponentCompiler {
     styles = styles.trim();
     scriptContent = scriptContent.trim();
     template = template.trim();
+
+    // Bare script fallback: no <script> tag — peel JS preamble from template
+    if (!scriptContent && template) {
+      const bare = peelBareScript(template);
+      if (bare) {
+        scriptContent = bare.script;
+        template = bare.template;
+      }
+    }
 
     // We need to identify declarations vs state.
     const { stateVars, computedVars, functions, declarations, imports } = this.scriptParser.parse(scriptContent);
@@ -242,10 +272,12 @@ export default function ${componentName}(props) {
       });
 
       moduleCode += `  const state = {\n`;
-      stateVars.forEach(({ name }, i) => {
+      stateVars.forEach(({ name, setterName }) => {
+        const setter = setterName || `set_${name}`;
         moduleCode += `    get ${name}() { return get_${name}(); },\n`;
+        moduleCode += `    set ${name}(v) { ${setter}(v); },\n`;
       });
-      // Add computed to state
+      // Add computed to state (read-only)
       computedVars.forEach(({ name }) => {
         moduleCode += `    get ${name}() { return ${name}(); },\n`;
       });
@@ -309,7 +341,7 @@ export default function ${componentName}(props) {
         if (binding.type === 'text') {
           moduleCode += `  createEffect(() => {\n`;
           moduleCode += `    const el = container.querySelector('[data-bind="${binding.targetId}"]');\n`;
-          moduleCode += `    if (el) el.textContent = ${binding.expression};\n`;
+          moduleCode += `    if (el) el.textContent = String(${binding.expression});\n`;
           moduleCode += `  });\n\n`;
         } else {
           moduleCode += `  createEffect(() => {\n`;

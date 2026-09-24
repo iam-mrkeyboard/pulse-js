@@ -238,12 +238,11 @@ export class DevServer {
 
   private async serveRuntime(pathname: string): Promise<Response> {
     const runtimePath = pathname.replace('/runtime/', '');
+    // Framework package root (this file lives in src/server/)
+    const frameworkSrc = path.resolve(import.meta.dir, '..');
 
-    // Common helper to serve TS files from src/runtime
-    const serveTsFile = async (fileName: string) => {
-      const filePath = path.join(this.config.root, '../pulse-v5/src/runtime', fileName);
-      const file = Bun.file(filePath);
-
+    const serveTsFile = async (absolutePath: string) => {
+      const file = Bun.file(absolutePath);
       if (await file.exists()) {
         const content = await file.text();
         const transpiler = new Bun.Transpiler({ loader: 'ts' });
@@ -255,40 +254,21 @@ export class DevServer {
           },
         });
       }
-      return new Response(`console.error("Runtime file ${fileName} not found")`, { status: 404 });
+      return new Response(`console.error("Runtime file not found: ${absolutePath}")`, { status: 404 });
     };
 
-    // Core runtime
     if (runtimePath === 'core.js') {
-      return await serveTsFile('core.ts');
+      return await serveTsFile(path.join(frameworkSrc, 'runtime/core.ts'));
     }
-
-    // Primitives
     if (runtimePath === 'primitives/list.js') {
-      return await serveTsFile('primitives/list.ts');
+      return await serveTsFile(path.join(frameworkSrc, 'runtime/primitives/list.ts'));
     }
     if (runtimePath === 'primitives/show.js') {
-      return await serveTsFile('primitives/show.ts');
+      return await serveTsFile(path.join(frameworkSrc, 'runtime/primitives/show.ts'));
     }
-
-
-    // DOM Runtime (New in v0.9)
     if (runtimePath === 'dom.js') {
-      const domPath = path.join(this.config.root, '../pulse-v5/src/bundler/runtime/dom.ts');
-      // In a real build, this should be compiled/bundled. 
-      // For dev mode, we can serve the raw TS if Bun handles it, or basic transform.
-      // Bun.transpile? Or just serve the file and let the browser module loader handle it?
-      // Browser doesn't understand TS. We need to transpile.
-      const file = Bun.file(domPath);
-      if (await file.exists()) {
-        const content = await file.text();
-        const transpiler = new Bun.Transpiler({ loader: 'ts' });
-        const js = await transpiler.transform(content);
-        return new Response(js, {
-          headers: { 'Content-Type': 'application/javascript' },
-        });
-      }
-      return new Response('console.error("DOM Runtime not found")', { status: 404 });
+      // Single DOM runtime: bundler/runtime/dom.ts (also re-exported as runtime/dom.ts)
+      return await serveTsFile(path.join(frameworkSrc, 'bundler/runtime/dom.ts'));
     }
 
     return new Response('console.error("Runtime file not found")', { status: 404 });
