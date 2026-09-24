@@ -1,6 +1,6 @@
 import * as acorn from 'acorn';
 import { walk } from 'estree-walker';
-import type { ReactivityInfo } from '../types';
+import type { ReactivityInfo } from './types';
 
 export class ReactivityAnalyzer {
   analyze(code: string): ReactivityInfo {

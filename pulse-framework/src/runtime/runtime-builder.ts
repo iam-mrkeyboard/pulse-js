@@ -6,7 +6,7 @@ import type {
   DependencyGraph,
   PrimitiveType,
   CompilationContext,
-} from '../types';
+} from '../bundler/types';
 import { minify } from 'terser';
 import path from 'node:path';
 // import { LIST_PRIMITIVE_SOURCE } from './primitives/list';
@@ -55,7 +55,7 @@ export class RuntimeBuilder {
     const primitives = new Set<PrimitiveType>();
 
     for (const node of graph.nodes.values()) {
-      node.primitives.forEach((p) => primitives.add(p));
+      node.primitives.forEach((p: PrimitiveType) => primitives.add(p));
     }
 
     return primitives;

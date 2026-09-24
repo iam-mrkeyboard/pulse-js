@@ -3,7 +3,7 @@
 // Intelligent code splitting and island detection
 // ============================================================================
 
-import type { DependencyGraph, ComponentNode } from '../types';
+import type { DependencyGraph, ComponentNode } from './types';
 
 export class CodeSplitter {
   split(graph: DependencyGraph): Map<string, Set<string>> {
@@ -38,7 +38,7 @@ export class CodeSplitter {
 
       const deps = graph.edges.get(path);
       if (deps) {
-        deps.forEach((dep) => {
+        deps.forEach((dep: string) => {
           collected.add(dep);
           collect(dep);
         });
