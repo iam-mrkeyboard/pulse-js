@@ -210,7 +210,7 @@ export class DevServer {
       const clientScript = `
         <script type="module">
           import Page from '${clientModuleUrl}';
-          import { hydrate } from '/runtime/dom.js';
+          import { hydrate } from '/runtime/hydration.js';
           
           const app = document.getElementById('app');
           hydrate(Page, app);
@@ -312,6 +312,21 @@ export class DevServer {
     // DOM Runtime
     if (runtimePath === 'dom.js') {
       return await serveTsFile('dom.ts');
+    }
+
+    // Hydration + SSR markers (browser resolves relative imports from these modules)
+    if (runtimePath === 'hydration.js') {
+      return await serveTsFile('hydration.ts');
+    }
+    if (runtimePath === 'ssr-markers.js') {
+      return await serveTsFile('ssr-markers.ts');
+    }
+
+    // Generic fallback: /runtime/foo/bar.js → foo/bar.ts under the runtime dir
+    if (runtimePath.endsWith('.js')) {
+      const tsName = runtimePath.replace(/\.js$/, '.ts');
+      const candidate = await serveTsFile(tsName);
+      if (candidate.status !== 404) return candidate;
     }
 
     return new Response('console.error("Runtime file not found")', { status: 404 });

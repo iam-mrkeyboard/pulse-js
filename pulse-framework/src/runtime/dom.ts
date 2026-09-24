@@ -441,3 +441,5 @@ if (typeof window !== 'undefined') {
   });
 }
 
+// Re-export adopt-and-bind API (dev-server historically imported hydrate from dom.js).
+export { hydrate, hydrateAll, renderToString } from './hydration.js';
