@@ -49723,7 +49723,7 @@ class ErrorOverlay {
     </div>
 
     <div class="footer">
-      <div class="badge badge-pulse">Pulse v0.15.0</div>
+      <div class="badge badge-pulse">Pulse v0.16.0</div>
       <div class="reload-hint">
         Edit file to reload automatically
       </div>
@@ -58666,7 +58666,7 @@ class DevServer {
     });
     this.startFileWatcher();
     console.log(`
-\u26A1 Pulse v0.15.0 Dev Server running
+\u26A1 Pulse v0.16.0 Dev Server running
 `);
     console.log(`  Local:    http://localhost:${port}`);
     console.log(`  Network:  http://0.0.0.0:${port}`);
@@ -90848,7 +90848,7 @@ function createDefaultConfig(partial = {}) {
 // src/cli/index.ts
 var import_picocolors7 = __toESM(require_picocolors(), 1);
 console.log("--- PULSE CLI DEBUG: Using source from src/cli/index.ts ---");
-var PULSE_VERSION = "0.13.0";
+var PULSE_VERSION = "0.16.0";
 async function main() {
   const { values: values2, positionals } = parseArgs({
     args: Bun.argv.slice(2),

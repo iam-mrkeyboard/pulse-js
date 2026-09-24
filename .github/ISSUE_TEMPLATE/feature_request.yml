@@ -1,0 +1,33 @@
+name: Feature request
+description: Suggest an idea for Pulse
+title: "[feat] "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: Check [ROADMAP.md](https://github.com/iam-mrkeyboard/pulse-js/blob/master/ROADMAP.md) before filing — your idea may already be listed.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem / motivation
+      description: What problem does this solve?
+      placeholder: As a developer, I want…
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: How should Pulse behave?
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Other approaches you thought about
+  - type: textarea
+    id: extra
+    attributes:
+      label: Additional context
+      description: Links, sketches, related issues

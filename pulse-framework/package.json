@@ -1,7 +1,7 @@
 {
   "name": "pulse",
-  "version": "0.15.0",
-  "description": "The fastest web framework - 0-1.2KB runtime with islands architecture (Early Development)",
+  "version": "0.16.0",
+  "description": "The fastest web framework - lightweight islands architecture (pre-1.0; runtime size re-measured — see README)",
   "main": "./dist/index.js",
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",

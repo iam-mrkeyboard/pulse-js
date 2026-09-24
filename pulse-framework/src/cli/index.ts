@@ -7,7 +7,7 @@ import type { PulseConfig } from '../bundler/types';
 import { createDefaultConfig } from '../bundler/types';
 import pc from 'picocolors';
 
-const PULSE_VERSION = '0.13.0';
+const PULSE_VERSION = '0.16.0';
 
 async function main() {
   const { values, positionals } = parseArgs({

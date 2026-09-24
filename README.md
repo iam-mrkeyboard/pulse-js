@@ -1,47 +1,48 @@
 # ⚡ Pulse
 
-**The Fastest Web Framework** — 0-1.2KB runtime with fine-grained reactivity and islands architecture.
+**A Bun-native web framework** with fine-grained signal reactivity and islands architecture.
 
-[![Version](https://img.shields.io/badge/version-0.13.0-blue.svg)](https://github.com/ibrahimkeyboad/pulse-js)
+[![Version](https://img.shields.io/badge/version-0.16.0-blue.svg)](https://github.com/iam-mrkeyboard/pulse-js)
+[![CI](https://github.com/iam-mrkeyboard/pulse-js/actions/workflows/ci.yml/badge.svg)](https://github.com/iam-mrkeyboard/pulse-js/actions/workflows/ci.yml)
 [![Bun](https://img.shields.io/badge/Bun-Native-black.svg)](https://bun.sh)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
-Pulse is a modern web framework built from the ground up for speed. It combines the developer experience of signals-based reactivity with the performance of islands architecture and a runtime so small it's practically invisible.
+## Status
+
+Pulse is **pre-1.0**. Public APIs may change between minor versions. See [CHANGELOG.md](CHANGELOG.md) and [ROADMAP.md](ROADMAP.md).
+
+**Runtime size (local measurement, 2026-09-24):** client runtime modules (`core` + `dom` + `hydration` + `error-boundary` + `List`/`Show` + SSR markers) build to about **14 KB** minified / **~5.5 KB** gzip (`bun build --minify` + `gzip -9`). Source under `pulse-framework/src/runtime` is ~36–41 KB before minify. Older README claims of “0–1.2KB” / “0.8KB” were **not verified** and have been removed; re-measure after further tree-shaking.
 
 ---
 
 ## ✨ Key Features
 
-- 📦 **Invisible Runtime**: Core runtime is just **0.8KB** gzipped.
-- 🏝️ **Islands Architecture**: Ship zero JavaScript by default; hydrate only what's interactive.
-- 🎯 **Fine-Grained Reactivity**: Signal-based state management for surgical DOM updates without a Virtual DOM.
-- ⚡ **Bun-Native**: Built to leverage the full power of the Bun runtime for sub-100ms HMR and blazing fast SSR.
-- 🎨 **Scoped Styling**: Built-in CSS scoping for component-level styles.
-- 🔒 **Secure by Design**: AST-based compilation that avoids `eval()` and `new Function()`.
+- 🏝️ **Islands Architecture** — Ship static HTML by default; hydrate interactive islands.
+- 🎯 **Fine-Grained Reactivity** — Signal-based updates without a Virtual DOM.
+- ⚡ **Bun-Native** — Dev server, bundler, and tests on Bun.
+- 🎨 **Scoped Styling** — Component-level CSS scoping built in.
+- 💧 **Adopt-and-bind hydration** — Reuse SSR DOM with `data-p-*` markers (v0.16).
+- 🔒 **Hardened bindings** — Expression eval via `safeEvalExpr`; error UI uses `textContent` (not `innerHTML`).
 
 ---
 
 ## 🏝️ Architecture: Why Pulse?
 
-Most frameworks ship a massive JavaScript bundle to every user, even for static pages. Pulse uses **Islands Architecture**, meaning:
-1. **HTML First**: Your pages are rendered as static HTML on the server.
-2. **Selective Hydration**: Only components marked as interactive ("islands") are hydrated on the client.
-3. **Zero Overhead**: If a page has no interactive components, it ships **zero** JavaScript to the user.
+Most frameworks ship a large JavaScript bundle even for mostly static pages. Pulse uses **Islands Architecture**:
+
+1. **HTML First** — Pages render as static HTML on the server.
+2. **Selective Hydration** — Only interactive islands hydrate on the client.
+3. **Minimal client JS** — No islands means little or no framework JS for that page.
 
 ---
 
 ## 🚀 Quick Start
 
-Get a new Pulse project up and running in seconds:
-
 ```bash
 # Create a new project
 bun create pulse my-app
 
-# Navigate to the directory
 cd my-app
-
-# Start the development server
 bun run dev
 ```
 
@@ -50,7 +51,7 @@ bun run dev
 ```html
 <script>
   const [count, setCount] = createSignal(0);
-  const doubled = createMemo(() => count * 2);
+  const doubled = createMemo(() => count() * 2);
 </script>
 
 <div class="counter">
@@ -71,40 +72,29 @@ bun run dev
 
 ---
 
-## 📊 Comparison
-
-| Feature | Pulse | React | Vue | Svelte |
-| :--- | :---: | :---: | :---: | :---: |
-| **Runtime Size** | **~0.8KB** | 42KB | 34KB | 2KB |
-| **Reactivity** | **Signals** | VDOM | Proxy | Compiler |
-| **Bun Native** | **✓ Yes** | ✗ | ✗ | ✗ |
-| **Islands** | **✓ Built-in** | ✗ | ✗ | ✗ |
-
----
-
 ## 🏗️ Project Structure
 
 ```text
-├── extension/          # VS Code Extension for Pulse
-├── pulse-framework/    # Core framework & compiler
-└── pulse-app/          # Example/Starter application
+├── extension/          # VS Code Extension for Pulse (v1.5.0 — separate cadence)
+├── pulse-framework/    # Core framework & compiler (v0.16.0)
+├── pulse-app/          # Docs / example application (v0.16.0)
+└── bench/              # Local HeadlessChrome microbenchmarks
 ```
 
 ---
 
-## 🗺️ Roadmap
+## 📚 Docs & community
 
-- [x] Core Signal Reactivity
-- [x] Islands Architecture Hydration
-- [x] Scoped CSS Support
-- [ ] Pulse DevTools Browser Extension
-- [ ] Integrated Pulse Store for Global State
-- [ ] Native Mobile Support via Pulse Bridge
+- [CHANGELOG.md](CHANGELOG.md) — release history
+- [ROADMAP.md](ROADMAP.md) — Now / Next / Later
+- [CONTRIBUTING.md](CONTRIBUTING.md) — setup, tests, Conventional Commits, PRs
+- [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md)
+- [SECURITY.md](SECURITY.md) — private vulnerability reporting
 
 ## 🤝 Contributing
 
-Contributions are welcome! Please check our [Contributing Guide](CONTRIBUTING.md) to get started.
+Contributions are welcome! Please read [CONTRIBUTING.md](CONTRIBUTING.md) before opening a PR.
 
 ## 📄 License
 
-Pulse is [MIT Licensed](LICENSE).
+`package.json` declares **MIT**, but **no `LICENSE` file is present in the repository yet**. The maintainer should add an MIT license text file (or correct the license field) before publishing packages.
