@@ -15,6 +15,9 @@ Historical entries for **v0.6.0–v0.15.0** are reconstructed from the project's
 - `createSelector` and `createRoot` on the core runtime (Solid-style selected-row updates; List disposes row effects on remove).
 - Longest-increasing-subsequence reorder in the keyed `List` middle range (after prefix/suffix skip).
 - Production browser runtime files under `dist/runtime/` and `pulse/runtime` package exports.
+- `dist/index.d.ts` emitted from `tsconfig.dts.json` so package `types`/`exports` resolve after build.
+- Dev-only `console.warn` when `List` sees duplicate keys (Map reconcile keeps last; no production cost).
+- List remounts a row when the key is unchanged but the item object identity changes (immutable plain-object updates).
 
 ### Fixed
 
@@ -24,6 +27,17 @@ Historical entries for **v0.6.0–v0.15.0** are reconstructed from the project's
 - Compiled SFCs import `pulse/runtime` instead of `/runtime/*.js`.
 - `RuntimeBuilder` emits a non-empty production runtime (path + TS transpile).
 - Script transform skips locally shadowed state names (`const data` inside `buildData`).
+- `pulse-app` depends on `file:../pulse-framework` (Bun `link:` failed against package name `pulse`).
+- Dev server imports and serves real `hydrate` (`/runtime/hydration.js` + allowlist).
+- Nested template-literal class attributes (`class={\`btn btn-${x}\`}`) emit valid JS; docs minify with terser.
+- Template-transformer no longer uses `new Function` (shared `safeEval`); `tsc --noEmit` clean after import-path fixes.
+- Hygiene: untracked extension `out/`, framework `dist/`, logs, duplicate wasm; `.gitignore` updated.
+
+### Performance notes
+
+- Measured and **rejected**: clear via `textContent=''` (slower than `replaceChildren`); merging label+select into one effect (select ~3× worse).
+- Same-run jsfb CPU (Chrome 151, count 10): Pulse/vanilla geom mean **~1.16** (afternoon Chrome 153 was ~1.17).
+
 
 ---
 

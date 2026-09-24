@@ -5,12 +5,14 @@ Pulse is **pre-1.0**. APIs may change. This file tracks near-term work; it is no
 ## Now
 
 - Finish **comment-marker hydration** through all compiler emit paths (path-walk works today; `<!--p-->` / `<!--/p-->` bookends are defined but not fully marker-driven everywhere).
-- **js-framework-benchmark** entry and tuning (in progress).
+- **js-framework-benchmark** entry: keyed runtime bench lands geom ~1.16× vanilla (Chrome 151, count 10); clear ratio still elevated (~1.39×) — profile dispose/`replaceChildren` path.
 - Measure real **minified + gzip** runtime size and keep README claims honest (partially done in v0.16.0; re-check after further tree-shaking).
 - Wire **error-overlay-v2** into the dev server (overlay exists; integration incomplete).
+- Optional: **compiler nested-row field bindings** without remount (today: remount on item identity change; same-ref field updates need signals or a future update callback).
 
 ## Next
 
+- Documented List behavior: **duplicate keys** collapse in the Map (last wins); development warns once per update.
 - Consider **`createElement` emit** vs template `cloneNode` for tiny rows (local bench: createElement slightly faster on that shape; SFC emit still cloneNode — documented tradeoff).
 - Remove the **bundler fallback compile path** once the shared `src/compiler` covers all cases.
 - **Surgical hydration mismatch repair** (today: mismatch → client remount / fallback rather than patch).

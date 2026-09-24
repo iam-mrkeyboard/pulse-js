@@ -2,6 +2,62 @@
 
 **All numbers below are local measurements on this machine. Nothing is invented or copied from published leaderboards.**
 
+## After v0.16 perf-and-fixes branch (this PR)
+
+| Field | Value |
+| --- | --- |
+| Machine | Linux box (Africa/Dar_es_Salaam, UTC+3) |
+| Browser | Google Chrome 151.0.7922.169 (`/usr/bin/google-chrome`) |
+| Runner | js-framework-benchmark `webdriver-ts` / Puppeteer, `--headless true --count 10` |
+| CPU iterations | **10** per test |
+| Benchmarks | CPU only (`01_`–`09_`); memory/startup not run |
+| Frameworks (same run) | vanillajs, solid 1.9.3, vue 3.5.39, pulse 0.16.0 |
+| Pulse entry | `frameworks/keyed/pulse` — runtime API |
+| Date | 2026-09-24 (evening, post remount-on-identity + rejected clear/merge experiments) |
+
+Compared with the user's afternoon ratios (Chrome 153): create1k **1.14**, select **1.22**, swap **1.32**, create10k **1.20**, clear **1.20**, geom **~1.17**.
+
+### CPU results — median **total** ms (same run)
+
+| Test | vanilla JS | Solid | Vue | Pulse | Pulse / vanilla |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Create 1,000 rows | 66.2 | 69.3 | 83.9 | 73.4 | **1.11** |
+| Replace all rows | 72.0 | 77.2 | 93.4 | 83.1 | 1.15 |
+| Update every 10th row | 45.9 | 51.0 | 59.9 | 54.4 | 1.19 |
+| Select a row | 10.6 | 12.6 | 13.7 | 12.1 | **1.14** |
+| Swap two rows | 51.0 | 59.1 | 62.0 | 57.6 | **1.13** |
+| Remove a row | 35.6 | 38.7 | 46.8 | 37.8 | 1.06 |
+| Create 10,000 rows | 717.5 | 797.5 | 881.3 | 842.5 | **1.17** |
+| Append 1,000 rows | 76.4 | 85.0 | 91.7 | 89.0 | 1.16 |
+| Clear all rows | 29.4 | 39.7 | 51.0 | 40.6 | **1.39** |
+| **Geom mean vs vanilla** | **1.00** |  |  |  | **1.16** |
+
+### CPU results — median **script** ms
+
+| Test | vanilla JS | Pulse |
+| --- | ---: | ---: |
+| Create 1,000 rows | 6.0 | 11.2 |
+| Replace all rows | 10.4 | 20.6 |
+| Update every 10th row | 1.6 | 3.6 |
+| Select a row | 1.1 | 2.1 |
+| Swap two rows | 0.7 | 3.2 |
+| Remove a row | 0.9 | 1.0 |
+| Create 10,000 rows | 51.9 | 111.3 |
+| Append 1,000 rows | 5.2 | 12.1 |
+| Clear all rows | 23.8 | 34.7 |
+
+### Perf experiment keep/reject (measured, count 10)
+
+| Experiment | Result | Evidence |
+| --- | --- | --- |
+| (a) Clear via `textContent=''` when list owns host | **Rejected** | Clear median total 37.0 ms vs `replaceChildren` 32.9 ms |
+| (b) Merge label+select into one `createEffect` | **Rejected** | Select median total 39.5 ms vs two effects 12.0 ms (~3× worse) |
+| (c) Remount row when item identity changes under same key | **Kept** | Correctness for immutable plain-object updates; jsfb hot path uses same object refs + signals (no remount) |
+
+Bundle: `dist/main.js` minified **~9.4 KB**.
+
+---
+
 ## After LIS + createSelector + shared listener (this round)
 
 | Field | Value |
