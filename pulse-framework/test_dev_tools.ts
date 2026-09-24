@@ -1,6 +1,6 @@
 
 import { AutoFixer } from './src/dev/auto-fixer';
-import { CompilationError } from './src/bundler/compiler/errors-v2';
+import { CompilationError } from './src/bundler/compiler/errors';
 
 console.log('--- Testing DevTools ---');
 

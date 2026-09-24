@@ -18,7 +18,7 @@ describe('Pulse DOM Runtime', () => {
 
   test('mountPrimitives should initialize Show component', async () => {
     container.innerHTML = `
-      <pulse-show when="true">
+      <pulse-show when="{show()}">
         <template data-pulse-template>
           <span id="content">Visible</span>
         </template>

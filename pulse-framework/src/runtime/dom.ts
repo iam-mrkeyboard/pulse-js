@@ -3,6 +3,35 @@
 // Efficient DOM Runtime using Template Cloning and Path Traversal
 // ============================================================================
 
+
+const MAX_EXPR_CACHE = 256;
+const exprCache = new Map<string, Function>();
+
+/** Fallback eval for template expressions. Prefer compile-time emission. */
+function safeEvalExpr(code: string, keys: string[], values: any[]): any {
+  try {
+    if (/\b(Function|eval|import\s*\(|process|require|globalThis)\b/.test(code)) {
+      console.error('Pulse: blocked unsafe expression');
+      return undefined;
+    }
+    const cacheKey = code + '||' + keys.join(',');
+    let fn = exprCache.get(cacheKey);
+    if (!fn) {
+      if (exprCache.size >= MAX_EXPR_CACHE) {
+        const first = exprCache.keys().next().value;
+        if (first !== undefined) exprCache.delete(first);
+      }
+      const body = code.trim().startsWith('return') ? code : `return (${code})`;
+      fn = new Function(...keys, body);
+      exprCache.set(cacheKey, fn);
+    }
+    return fn(...values);
+  } catch (e) {
+    console.error('Pulse Binding Error:', code, e);
+    return undefined;
+  }
+}
+
 import { createEffect, type Accessor } from './core.js';
 
 // ----------------------------------------------------------------------------
@@ -132,12 +161,16 @@ export function mountPrimitives(
     const lists = container.querySelectorAll('pulse-list');
     lists.forEach(el => {
       const eachExpr = el.getAttribute('each');
+        const keyAttr = el.getAttribute('key');
       const asVar = el.getAttribute('as') || 'item';
       const templateId = el.getAttribute('data-template-id');
       const bindingsStr = el.getAttribute('data-bindings');
 
-      if (eachExpr && templateId && templates[templateId]) {
-        const templateHtml = templates[templateId];
+      const inlineTpl = el.querySelector('template[data-pulse-template], template');
+      const templateHtml = (templateId && templates[templateId])
+        || (inlineTpl ? inlineTpl.innerHTML : '')
+        || '';
+      if (eachExpr && templateHtml) {
         const bindings = bindingsStr ? JSON.parse(bindingsStr) : [];
 
         // Evaluate 'each' expression
@@ -148,16 +181,33 @@ export function mountPrimitives(
             // Create a function that returns the expression value using scope
             const scopeKeys = Object.keys(scope);
             const scopeValues = scopeKeys.map(k => scope[k]);
-            const fn = new Function(...scopeKeys, `return ${eachExpr.replace(/^{(.*)}$/, '$1')}`);
-            return fn(...scopeValues);
+            let result = safeEvalExpr(eachExpr.replace(/^{(.*)}$/, '$1'), scopeKeys, scopeValues);
+            // Unwrap signal accessors: each="{items}" where items is () => T[]
+            if (typeof result === 'function') result = result();
+            return Array.isArray(result) ? result : [];
           } catch (e) {
             console.error('Pulse: Failed to evaluate List each:', eachExpr, e);
             return [];
           }
         };
 
+        const keyFn = keyAttr
+          ? (item: any, index: number) => {
+              const scopeKeys = Object.keys(scope);
+              const scopeValues = scopeKeys.map(k => scope[k]);
+              const asName = asVar;
+              const keys = [...scopeKeys, asName, 'index'];
+              const values = [...scopeValues, item, index];
+              const expr = keyAttr.startsWith('{') && keyAttr.endsWith('}')
+                ? keyAttr.slice(1, -1)
+                : (keyAttr.includes('.') || keyAttr.includes('(') ? keyAttr : `${asName}.${keyAttr}`);
+              return safeEvalExpr(expr, keys, values);
+            }
+          : undefined;
+
         const listNode = primitives.List({
           each: getEach,
+          key: keyFn,
           children: (item: any, index: number) => {
             // Clone template
             // We can use the exported template function if we want, or just manual
@@ -180,8 +230,7 @@ export function mountPrimitives(
                   const keys = [...scopeKeys, asVar, 'index'];
                   const values = [...scopeValues, item, index];
 
-                  const fn = new Function(...keys, `return ${b.expr}`);
-                  return fn(...values);
+                  return safeEvalExpr(b.expr, keys, values);
                 } catch (e) {
                   return '';
                 }
@@ -226,8 +275,9 @@ export function mountPrimitives(
           try {
             const scopeKeys = Object.keys(scope);
             const scopeValues = scopeKeys.map(k => scope[k]);
-            const fn = new Function(...scopeKeys, `return ${whenExpr.replace(/^{(.*)}$/, '$1')}`);
-            return fn(...scopeValues);
+            let result = safeEvalExpr(whenExpr.replace(/^{(.*)}$/, '$1'), scopeKeys, scopeValues);
+            if (typeof result === 'function') result = result();
+            return result;
           } catch (e) { return false; }
         };
 

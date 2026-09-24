@@ -16,6 +16,11 @@ import { HTMLParser } from './html-parser';
 import { ReactivityTransformer } from './reactivity-transformer';
 import { ComponentError } from './errors';
 import { PropInferencer } from './prop-inferencer';
+import { ComponentCompiler as SharedSfcCompiler } from '../../compiler';
+import { ScriptParser } from '../../server/script-parser';
+import { TemplateTransformer } from '../../server/template-transformer';
+import type { PulseConfig } from '../types';
+
 
 export class ComponentCompiler {
   private codeGenerator: CodeGenerator;
@@ -96,6 +101,23 @@ export function ${node.name}_ssr(props = {}) {
     node: ComponentNode,
     content: string,
   ): Promise<TransformResult> {
+    // Prefer the single shared SFC compiler (server path) so build == dev output.
+    try {
+      const shared = new SharedSfcCompiler(
+        this.ctx.config as PulseConfig,
+        new ScriptParser(),
+        new TemplateTransformer(),
+      );
+      const code = await shared.compile(node.path, content);
+      return {
+        code,
+        dependencies: Array.from(node.dependencies || []),
+        sideEffects: true,
+      };
+    } catch (err) {
+      console.warn('[Pulse] Shared SFC compiler failed, falling back to bundler path:', err);
+    }
+
     try {
       // Separate logic and template
       const templateStart = content.search(/^\s*<[a-zA-Z>/]/m);

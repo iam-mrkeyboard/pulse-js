@@ -1,0 +1,510 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>Pulse Bench</title></head>
+<body>
+<pre id="out">running…</pre>
+<script>
+function median(arr) {
+  const a = arr.slice().sort((x, y) => x - y);
+  const m = Math.floor(a.length / 2);
+  return a.length % 2 ? a[m] : (a[m - 1] + a[m]) / 2;
+}
+async function measure(fn, runs = 7, warmup = 2) {
+  for (let i = 0; i < warmup; i++) await fn();
+  const times = [];
+  for (let i = 0; i < runs; i++) {
+    const t0 = performance.now();
+    await fn();
+    times.push(performance.now() - t0);
+  }
+  return median(times);
+}
+function makeItems(n, idOffset = 0) {
+  const items = new Array(n);
+  for (let i = 0; i < n; i++) {
+    items[i] = { id: idOffset + i + 1, label: 'Item ' + (idOffset + i + 1), selected: false };
+  }
+  return items;
+}
+const ROW_HTML = '<tr><td class="id"></td><td class="lbl"><a></a></td><td class="sel"></td></tr>';
+
+// Factories mirror compiled components: template/parse once, then instance create is timed.
+function makeCloneFactory() {
+  const tpl = document.createElement('template');
+  tpl.innerHTML = ROW_HTML;
+  const proto = tpl.content.firstElementChild;
+  return function create_cloneNode(n, parent) {
+    parent.textContent = '';
+    const frag = document.createDocumentFragment();
+    const items = makeItems(n);
+    for (let i = 0; i < n; i++) {
+      const it = items[i];
+      const node = proto.cloneNode(true);
+      // path walk + direct writes (framework binding style)
+      node.children[0].textContent = String(it.id);
+      node.children[1].firstChild.textContent = it.label;
+      node.children[2].textContent = 'N';
+      frag.appendChild(node);
+    }
+    parent.appendChild(frag);
+  };
+}
+function makeCreateElementFactory() {
+  return function create_createElement(n, parent) {
+    parent.textContent = '';
+    const frag = document.createDocumentFragment();
+    const items = makeItems(n);
+    for (let i = 0; i < n; i++) {
+      const it = items[i];
+      const tr = document.createElement('tr');
+      const td1 = document.createElement('td'); td1.className = 'id'; td1.textContent = String(it.id);
+      const td2 = document.createElement('td'); td2.className = 'lbl';
+      const a = document.createElement('a'); a.textContent = it.label; td2.appendChild(a);
+      const td3 = document.createElement('td'); td3.className = 'sel'; td3.textContent = 'N';
+      tr.appendChild(td1); tr.appendChild(td2); tr.appendChild(td3);
+      frag.appendChild(tr);
+    }
+    parent.appendChild(frag);
+  };
+}
+function makeInnerHTMLFactory() {
+  return function create_innerHTML(n, parent) {
+    const items = makeItems(n);
+    let html = '';
+    for (let i = 0; i < n; i++) {
+      const it = items[i];
+      html += '<tr><td class="id">' + it.id + '</td><td class="lbl"><a>' + it.label + '</a></td><td class="sel">N</td></tr>';
+    }
+    parent.innerHTML = html;
+  };
+}
+
+function setupFine(n, parent) {
+  parent.textContent = '';
+  const tpl = document.createElement('template');
+  tpl.innerHTML = ROW_HTML;
+  const proto = tpl.content.firstElementChild;
+  const frag = document.createDocumentFragment();
+  const rows = [];
+  const items = makeItems(n);
+  for (let i = 0; i < n; i++) {
+    const it = items[i];
+    const node = proto.cloneNode(true);
+    node.children[0].textContent = String(it.id);
+    node.children[1].firstChild.textContent = it.label;
+    node.children[2].textContent = 'N';
+    const labelEl = node.children[1].firstChild;
+    const selEl = node.children[2];
+    rows.push({
+      item: it,
+      setLabel(v) { labelEl.textContent = v; },
+      setSel(v) { selEl.textContent = v; },
+    });
+    frag.appendChild(node);
+  }
+  parent.appendChild(frag);
+  return rows;
+}
+function setupBatched(n, parent) {
+  parent.textContent = '';
+  const tpl = document.createElement('template');
+  tpl.innerHTML = ROW_HTML;
+  const proto = tpl.content.firstElementChild;
+  const frag = document.createDocumentFragment();
+  const rows = [];
+  const items = makeItems(n);
+  for (let i = 0; i < n; i++) {
+    const it = items[i];
+    const node = proto.cloneNode(true);
+    node.children[0].textContent = String(it.id);
+    node.children[1].firstChild.textContent = it.label;
+    node.children[2].textContent = 'N';
+    rows.push({ item: it, node });
+    frag.appendChild(node);
+  }
+  parent.appendChild(frag);
+  const dirty = new Set();
+  let scheduled = false;
+  function flush() {
+    scheduled = false;
+    dirty.forEach((i) => {
+      const r = rows[i];
+      r.node.children[1].firstChild.textContent = r.item.label;
+      r.node.children[2].textContent = r.item.selected ? 'Y' : 'N';
+    });
+    dirty.clear();
+  }
+  function schedule() {
+    if (scheduled) return;
+    scheduled = true;
+    queueMicrotask(flush);
+  }
+  return {
+    markPartial() {
+      for (let i = 0; i < rows.length; i += 10) {
+        rows[i].item.label += ' !!!';
+        dirty.add(i);
+      }
+      schedule();
+    },
+    markSingle() {
+      rows[0].item.selected = true;
+      dirty.add(0);
+      schedule();
+    },
+  };
+}
+
+function reconcile_alwaysInsert(parent, anchor, items, keyOf, render, cache) {
+  const keep = new Set();
+  for (let i = 0; i < items.length; i++) {
+    const k = keyOf(items[i]);
+    keep.add(k);
+    let node = cache.get(k);
+    if (!node) { node = render(items[i]); cache.set(k, node); }
+    parent.insertBefore(node, anchor);
+  }
+  for (const [k, node] of Array.from(cache.entries())) {
+    if (!keep.has(k)) { if (node.parentNode) node.parentNode.removeChild(node); cache.delete(k); }
+  }
+  return items.map(keyOf);
+}
+
+function reconcile_prefixSuffixMap(parent, anchor, items, keyOf, render, cache, prevKeys) {
+  const newKeys = items.map(keyOf);
+  let start = 0;
+  const minLen = Math.min(prevKeys.length, newKeys.length);
+  while (start < minLen && prevKeys[start] === newKeys[start]) start++;
+  let endOld = prevKeys.length - 1, endNew = newKeys.length - 1;
+  while (endOld >= start && endNew >= start && prevKeys[endOld] === newKeys[endNew]) {
+    endOld--; endNew--;
+  }
+  const newMid = new Set(newKeys.slice(start, endNew + 1));
+  for (let i = start; i <= endOld; i++) {
+    const k = prevKeys[i];
+    if (!newMid.has(k)) {
+      const node = cache.get(k);
+      if (node && node.parentNode) node.parentNode.removeChild(node);
+      cache.delete(k);
+    }
+  }
+  let ref = endNew + 1 < newKeys.length ? cache.get(newKeys[endNew + 1]) : anchor;
+  for (let i = endNew; i >= start; i--) {
+    const k = newKeys[i];
+    let node = cache.get(k);
+    if (!node) { node = render(items[i]); cache.set(k, node); }
+    parent.insertBefore(node, ref);
+    ref = node;
+  }
+  return newKeys;
+}
+
+function reconcile_LIS(parent, anchor, items, keyOf, render, cache, prevKeys) {
+  const newKeys = items.map(keyOf);
+  const newSet = new Set(newKeys);
+  for (const k of prevKeys) {
+    if (!newSet.has(k)) {
+      const node = cache.get(k);
+      if (node && node.parentNode) node.parentNode.removeChild(node);
+      cache.delete(k);
+    }
+  }
+  const oldIndex = new Map();
+  for (let i = 0; i < prevKeys.length; i++) oldIndex.set(prevKeys[i], i);
+  const sources = new Array(newKeys.length);
+  for (let i = 0; i < newKeys.length; i++) {
+    sources[i] = oldIndex.has(newKeys[i]) ? oldIndex.get(newKeys[i]) : -1;
+  }
+  const seq = [], idxs = [];
+  for (let i = 0; i < sources.length; i++) {
+    if (sources[i] >= 0) { seq.push(sources[i]); idxs.push(i); }
+  }
+  const n = seq.length;
+  const tailsPos = [];
+  const prev = new Array(n).fill(-1);
+  for (let i = 0; i < n; i++) {
+    let lo = 0, hi = tailsPos.length;
+    while (lo < hi) {
+      const mid = (lo + hi) >> 1;
+      if (seq[tailsPos[mid]] < seq[i]) lo = mid + 1; else hi = mid;
+    }
+    if (lo > 0) prev[i] = tailsPos[lo - 1];
+    tailsPos[lo] = i;
+  }
+  const keepIdx = new Set();
+  if (tailsPos.length) {
+    for (let k = tailsPos[tailsPos.length - 1]; k !== -1; k = prev[k]) keepIdx.add(idxs[k]);
+  }
+  for (let i = 0; i < newKeys.length; i++) {
+    if (!cache.has(newKeys[i])) cache.set(newKeys[i], render(items[i]));
+  }
+  for (let i = newKeys.length - 1; i >= 0; i--) {
+    const node = cache.get(newKeys[i]);
+    const ref = i + 1 < newKeys.length ? cache.get(newKeys[i + 1]) : anchor;
+    if (!keepIdx.has(i) || node.nextSibling !== ref) {
+      parent.insertBefore(node, ref);
+    }
+  }
+  return newKeys;
+}
+
+function mkListBench(reconcileFn) {
+  const table = document.createElement('table');
+  const tbody = document.createElement('tbody');
+  table.appendChild(tbody);
+  document.body.appendChild(table);
+  const anchor = document.createComment('a');
+  tbody.appendChild(anchor);
+  const tpl = document.createElement('template');
+  tpl.innerHTML = ROW_HTML;
+  const proto = tpl.content.firstElementChild;
+  const cache = new Map();
+  let prevKeys = [];
+  const keyOf = (it) => it.id;
+  const render = (it) => {
+    const tr = proto.cloneNode(true);
+    tr.children[0].textContent = String(it.id);
+    tr.children[1].firstChild.textContent = it.label;
+    return tr;
+  };
+  const apply = (items) => {
+    if (reconcileFn === reconcile_alwaysInsert) {
+      prevKeys = reconcile_alwaysInsert(tbody, anchor, items, keyOf, render, cache);
+    } else {
+      prevKeys = reconcileFn(tbody, anchor, items, keyOf, render, cache, prevKeys);
+    }
+  };
+  let idBump = 0;
+  const clearAll = () => {
+    for (const [, node] of Array.from(cache.entries())) {
+      if (node.parentNode) node.parentNode.removeChild(node);
+    }
+    cache.clear();
+    prevKeys = [];
+  };
+  return {
+    _items: [],
+    create(n) {
+      // Cold create: wipe cache so strategies cannot no-op after warmup
+      clearAll();
+      idBump += 1000000;
+      this._items = makeItems(n, idBump);
+      apply(this._items);
+    },
+    replaceAll(n) {
+      idBump += 1000000;
+      this._items = makeItems(n, idBump);
+      apply(this._items);
+    },
+    partialUpdate() {
+      for (let i = 0; i < this._items.length; i += 10) {
+        this._items[i].label += ' !!!';
+        const node = cache.get(this._items[i].id);
+        if (node) node.children[1].firstChild.textContent = this._items[i].label;
+      }
+    },
+    selectRow() {
+      const node = cache.get(this._items[1] && this._items[1].id);
+      if (node) node.className = 'danger';
+    },
+    swapRows() {
+      if (this._items.length < 999) return;
+      const tmp = this._items[1]; this._items[1] = this._items[998]; this._items[998] = tmp;
+      apply(this._items);
+    },
+    removeRow() { this._items.splice(1, 1); apply(this._items); },
+    append(n) {
+      const start = this._items.length ? this._items[this._items.length - 1].id + 1 : 1;
+      for (let i = 0; i < n; i++) this._items.push({ id: start + i, label: 'Item ' + (start + i), selected: false });
+      apply(this._items);
+    },
+    clear() { this._items = []; apply(this._items); },
+    destroy() { table.remove(); },
+  };
+}
+
+function vanillaOps() {
+  const table = document.createElement('table');
+  const tbody = document.createElement('tbody');
+  table.appendChild(tbody);
+  document.body.appendChild(table);
+  const tpl = document.createElement('template');
+  tpl.innerHTML = ROW_HTML;
+  const proto = tpl.content.firstElementChild;
+  let data = [];
+  let selected = null;
+  const rowMap = new Map();
+  return {
+    table,
+    create(n) {
+      tbody.textContent = ''; rowMap.clear();
+      data = makeItems(n);
+      const frag = document.createDocumentFragment();
+      for (let i = 0; i < data.length; i++) {
+        const it = data[i];
+        const tr = proto.cloneNode(true);
+        tr.children[0].textContent = String(it.id);
+        tr.children[1].firstChild.textContent = it.label;
+        rowMap.set(it.id, tr);
+        frag.appendChild(tr);
+      }
+      tbody.appendChild(frag);
+    },
+    clear() { tbody.textContent = ''; rowMap.clear(); data = []; selected = null; },
+    replaceAll(n) { this.create(n); },
+    partialUpdate() {
+      for (let i = 0; i < data.length; i += 10) {
+        data[i].label += ' !!!';
+        rowMap.get(data[i].id).children[1].firstChild.textContent = data[i].label;
+      }
+    },
+    selectRow() {
+      if (selected) selected.className = '';
+      const tr = rowMap.get(data[1] && data[1].id);
+      if (tr) { tr.className = 'danger'; selected = tr; }
+    },
+    swapRows() {
+      if (data.length < 999) return;
+      const a = data[1], b = data[998];
+      data[1] = b; data[998] = a;
+      const na = rowMap.get(a.id), nb = rowMap.get(b.id);
+      const aNext = na.nextSibling, bNext = nb.nextSibling;
+      tbody.insertBefore(nb, aNext);
+      tbody.insertBefore(na, bNext);
+    },
+    removeRow() {
+      if (!data.length) return;
+      const it = data[1] || data[0];
+      data = data.filter((x) => x.id !== it.id);
+      const n = rowMap.get(it.id);
+      if (n && n.parentNode) n.parentNode.removeChild(n);
+      rowMap.delete(it.id);
+    },
+    append(n) {
+      const start = data.length ? data[data.length - 1].id + 1 : 1;
+      const frag = document.createDocumentFragment();
+      for (let i = 0; i < n; i++) {
+        const it = { id: start + i, label: 'Item ' + (start + i), selected: false };
+        data.push(it);
+        const tr = proto.cloneNode(true);
+        tr.children[0].textContent = String(it.id);
+        tr.children[1].firstChild.textContent = it.label;
+        rowMap.set(it.id, tr);
+        frag.appendChild(tr);
+      }
+      tbody.appendChild(frag);
+    },
+  };
+}
+
+window.__BENCH__ = async function () {
+  const results = {
+    env: navigator.userAgent,
+    chrome: true,
+    machine_note: 'local Chromium via puppeteer; medians of repeated runs',
+    create: {},
+    update: {},
+    list: {},
+    vanilla: {},
+  };
+  const host = document.createElement('tbody');
+  const table = document.createElement('table');
+  table.appendChild(host);
+  document.body.appendChild(table);
+
+  {
+    const createClone = makeCloneFactory();
+    const createEl = makeCreateElementFactory();
+    const createIH = makeInnerHTMLFactory();
+    // recreate create section using factories (template hoisted)
+    for (const n of [1000, 10000]) {
+      results.create['cloneNode_' + n] = await measure(() => { createClone(n, host); host.textContent = ''; }, n === 10000 ? 5 : 9);
+      results.create['createElement_' + n] = await measure(() => { createEl(n, host); host.textContent = ''; }, n === 10000 ? 5 : 9);
+      results.create['innerHTML_' + n] = await measure(() => { createIH(n, host); host.textContent = ''; }, n === 10000 ? 5 : 9);
+    }
+
+    const rows1k = setupFine(1000, host);
+    results.update.fine_partial_1k = await measure(() => {
+      for (let i = 0; i < rows1k.length; i += 10) rows1k[i].setLabel(rows1k[i].item.label + ' !!!');
+    }, 15);
+    results.update.fine_single_1k = await measure(() => { rows1k[0].setSel('Y'); }, 21);
+    host.textContent = '';
+    const rows10k = setupFine(10000, host);
+    results.update.fine_partial_10k = await measure(() => {
+      for (let i = 0; i < rows10k.length; i += 10) rows10k[i].setLabel(rows10k[i].item.label + ' !!!');
+    }, 9);
+    results.update.fine_single_10k = await measure(() => { rows10k[0].setSel('Y'); }, 15);
+    host.textContent = '';
+    const batched1k = setupBatched(1000, host);
+    results.update.batched_partial_1k = await measure(async () => {
+      batched1k.markPartial();
+      await Promise.resolve();
+    }, 15);
+    results.update.batched_single_1k = await measure(async () => {
+      batched1k.markSingle();
+      await Promise.resolve();
+    }, 21);
+    host.textContent = '';
+    const batched10k = setupBatched(10000, host);
+    results.update.batched_partial_10k = await measure(async () => {
+      batched10k.markPartial();
+      await Promise.resolve();
+    }, 9);
+    results.update.batched_single_10k = await measure(async () => {
+      batched10k.markSingle();
+      await Promise.resolve();
+    }, 15);
+    host.textContent = '';
+  }
+
+
+  for (const [name, fn] of [
+    ['alwaysInsert', reconcile_alwaysInsert],
+    ['prefixSuffixMap', reconcile_prefixSuffixMap],
+    ['LIS', reconcile_LIS],
+  ]) {
+    const b = mkListBench(fn);
+    const r = {};
+    r.create_1k = await measure(() => b.create(1000), 5);
+    r.replace_1k = await measure(() => b.replaceAll(1000), 5);
+    b.create(1000);
+    r.partial_1k = await measure(() => b.partialUpdate(), 7);
+    r.select = await measure(() => b.selectRow(), 9);
+    b.create(1000);
+    r.swap = await measure(() => b.swapRows(), 7);
+    b.create(1000);
+    r.remove = await measure(() => b.removeRow(), 7);
+    r.create_10k = await measure(() => b.create(10000), 3, 1);
+    b.create(1000);
+    r.append_1k = await measure(() => b.append(1000), 5);
+    b.create(1000);
+    r.clear = await measure(() => b.clear(), 7);
+    results.list[name] = r;
+    b.destroy();
+  }
+
+  {
+    const v = vanillaOps();
+    const r = {};
+    r.create_1k = await measure(() => v.create(1000), 5);
+    r.replace_1k = await measure(() => v.replaceAll(1000), 5);
+    v.create(1000);
+    r.partial_1k = await measure(() => v.partialUpdate(), 7);
+    r.select = await measure(() => v.selectRow(), 9);
+    v.create(1000);
+    r.swap = await measure(() => v.swapRows(), 7);
+    v.create(1000);
+    r.remove = await measure(() => v.removeRow(), 7);
+    r.create_10k = await measure(() => v.create(10000), 3, 1);
+    v.create(1000);
+    r.append_1k = await measure(() => v.append(1000), 5);
+    v.create(1000);
+    r.clear = await measure(() => v.clear(), 7);
+    results.vanilla = r;
+    v.table.remove();
+  }
+
+  document.getElementById('out').textContent = JSON.stringify(results, null, 2);
+  return results;
+};
+</script>
+</body></html>

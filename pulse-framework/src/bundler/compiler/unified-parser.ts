@@ -151,6 +151,18 @@ export class UnifiedParser {
       .replace(/<style[\s\S]*?>[\s\S]*?<\/style>/gi, '')
       .trim();
 
+    // Bare leading script (Counter.pulse style): JS before first markup tag when no <script>
+    if (!sections.script.trim()) {
+      const m = sections.template.match(/<[A-Za-z\/!]/);
+      if (m && m.index && m.index > 0) {
+        const preamble = sections.template.slice(0, m.index).trim();
+        if (/\b(const|let|var|function|import|export)\b/.test(preamble)) {
+          sections.script = preamble;
+          sections.template = sections.template.slice(m.index).trim();
+        }
+      }
+    }
+
     return sections;
   }
 

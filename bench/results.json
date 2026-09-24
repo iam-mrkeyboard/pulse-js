@@ -1,0 +1,69 @@
+{
+  "env": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/151.0.0.0 Safari/537.36",
+  "chrome": true,
+  "machine_note": "local Chromium via puppeteer; medians of repeated runs",
+  "create": {
+    "cloneNode_1000": 4.099999999627471,
+    "createElement_1000": 3.400000000372529,
+    "innerHTML_1000": 4.3999999994412065,
+    "cloneNode_10000": 31.799999999813735,
+    "createElement_10000": 27.100000000558794,
+    "innerHTML_10000": 30
+  },
+  "update": {
+    "fine_partial_1k": 0,
+    "fine_single_1k": 0,
+    "fine_partial_10k": 0.09999999962747097,
+    "fine_single_10k": 0,
+    "batched_partial_1k": 0.09999999962747097,
+    "batched_single_1k": 0,
+    "batched_partial_10k": 1.400000000372529,
+    "batched_single_10k": 0
+  },
+  "list": {
+    "alwaysInsert": {
+      "create_1k": 4.5,
+      "replace_1k": 2.8999999994412065,
+      "partial_1k": 0,
+      "select": 0,
+      "swap": 0.599999999627471,
+      "remove": 0.5,
+      "create_10k": 30,
+      "append_1k": 5.3999999994412065,
+      "clear": 0
+    },
+    "prefixSuffixMap": {
+      "create_1k": 2.7000000001862645,
+      "replace_1k": 2.7000000001862645,
+      "partial_1k": 0,
+      "select": 0,
+      "swap": 0.5,
+      "remove": 0,
+      "create_10k": 28.199999999254942,
+      "append_1k": 2.599999999627471,
+      "clear": 0
+    },
+    "LIS": {
+      "create_1k": 2.900000000372529,
+      "replace_1k": 5.2000000001862645,
+      "partial_1k": 0,
+      "select": 0,
+      "swap": 1.5,
+      "remove": 0.7000000001862645,
+      "create_10k": 57.700000000186265,
+      "append_1k": 5.400000000372529,
+      "clear": 0
+    }
+  },
+  "vanilla": {
+    "create_1k": 2.6000000005587935,
+    "replace_1k": 2.5,
+    "partial_1k": 0.09999999962747097,
+    "select": 0,
+    "swap": 0,
+    "remove": 0,
+    "create_10k": 28.09999999962747,
+    "append_1k": 2.599999999627471,
+    "clear": 0
+  }
+}

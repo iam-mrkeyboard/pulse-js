@@ -3,7 +3,7 @@
 // Visual Error System for displaying compilation errors in the browser
 // ============================================================================
 
-import type { CompilationError } from '../bundler/compiler/errors-v2';
+import type { CompilationError } from '../bundler/compiler/errors';
 
 export class VisualErrorSystem {
   private overlay: HTMLElement | null = null;

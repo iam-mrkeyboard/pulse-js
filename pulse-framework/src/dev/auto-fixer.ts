@@ -3,7 +3,7 @@
 // Automated Code Fixer for Pulse
 // ============================================================================
 
-import type { CompilationError } from '../bundler/compiler/errors-v2';
+import type { CompilationError } from '../bundler/compiler/errors';
 
 export interface FixSuggestion {
   description: string;

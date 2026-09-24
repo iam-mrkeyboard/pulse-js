@@ -229,10 +229,12 @@ export default function ${componentName}(props) {
       });
 
       moduleCode += `  const state = {\n`;
-      stateVars.forEach(({ name }, i) => {
+      stateVars.forEach(({ name, setterName }) => {
+        const setter = setterName || `set_${name}`;
         moduleCode += `    get ${name}() { return get_${name}(); },\n`;
+        moduleCode += `    set ${name}(v) { ${setter}(v); },\n`;
       });
-      // Add computed to state
+      // Add computed to state (read-only)
       computedVars.forEach(({ name }) => {
         moduleCode += `    get ${name}() { return ${name}(); },\n`;
       });
@@ -304,7 +306,7 @@ export default function ${componentName}(props) {
           moduleCode += `  createEffect(() => {\n`;
           // Use walk to find node
           moduleCode += `    const el = walk(container, ${pathStr});\n`;
-          moduleCode += `    if (el) el.textContent = ${binding.expression};\n`;
+          moduleCode += `    if (el) el.textContent = String(${binding.expression});\n`;
           moduleCode += `  });\n\n`;
         } else {
           // Attribute/Property binding

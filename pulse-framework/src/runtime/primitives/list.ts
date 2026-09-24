@@ -5,228 +5,193 @@ interface VirtualConfig {
   containerHeight?: number;
 }
 
-export function List(props: { each: () => any[], initialNodes?: Node[], children: (item: any, index: number) => Node, virtual?: VirtualConfig }) {
+export type ListProps = {
+  each: () => any[];
+  /** Stable key for each item. Defaults to the item value itself. */
+  key?: (item: any, index: number) => any;
+  children: (item: any, index: number) => Node;
+  initialNodes?: Node[];
+  /** Opt-in windowed rendering */
+  virtual?: VirtualConfig;
+  /** Opt-in FLIP move animations (off by default — measured as hot-path cost) */
+  flip?: boolean;
+};
 
+type Entry = { key: any; node: Node; item: any };
+
+/**
+ * Keyed List — common prefix/suffix + Map (bench winner vs always-insertBefore / LIS).
+ * Keeps restructure features: optional virtualization + opt-in FLIP.
+ */
+export function List(props: ListProps) {
   const anchor = document.createComment('List Anchor');
-  const parent = document.createDocumentFragment();
-  parent.appendChild(anchor);
+  const frag = document.createDocumentFragment();
+  frag.appendChild(anchor);
 
+  const cache = new Map<any, Entry>();
+  let prevKeys: any[] = [];
   let renderedNodes: Node[] = [];
-  // Map to store existing nodes for reuse (Keyed by item)
-  // We assume items are objects with unique identity. If primitives, this might fail duplicates.
-  // Pulse recommendation: Use objects for lists.
-  const nodeCache = new Map<any, Node>();
+  let hydrating = !!(props.initialNodes && props.initialNodes.length > 0);
 
-  let isHydrating = !!(props.initialNodes && props.initialNodes.length > 0);
-
-  // Virtualization State
   const [getScrollTop, setScrollTop] = createSignal(0);
-  let resizeObserver: ResizeObserver | null = null;
   let scrollContainer: HTMLElement | null = null;
 
-  if (isHydrating && props.initialNodes) {
-    props.initialNodes.forEach((node, i) => {
-      parent.insertBefore(node, anchor);
-      renderedNodes.push(node);
-    });
-    isHydrating = true;
+  if (hydrating && props.initialNodes) {
+    for (const n of props.initialNodes) {
+      frag.insertBefore(n, anchor);
+      renderedNodes.push(n);
+    }
   }
 
-  // FLIP Helpers
+  const keyOf = (item: any, index: number) =>
+    props.key ? props.key(item, index) : item;
+
   const getRects = (nodes: Node[]) => {
     const rects = new Map<Node, DOMRect>();
-    nodes.forEach(n => {
+    for (const n of nodes) {
       if (n instanceof Element) rects.set(n, n.getBoundingClientRect());
-    });
+    }
     return rects;
   };
 
   createEffect(() => {
-    const container = anchor.parentNode as HTMLElement;
-    if (!container) return;
+    const parent = anchor.parentNode as HTMLElement | null;
+    if (!parent) return;
 
-    // --- Virtualization Setup ---
     if (props.virtual && !scrollContainer) {
-      scrollContainer = container;
-      // Ensure container handles scroll if not body
-      // We assume container is the scroll parent for now.
-
-      const onScroll = () => {
-        setScrollTop(scrollContainer!.scrollTop);
-      };
+      scrollContainer = parent;
+      const onScroll = () => setScrollTop(scrollContainer!.scrollTop);
       scrollContainer.addEventListener('scroll', onScroll, { passive: true });
-
-      // Cleanup
-      onCleanup(() => {
-        scrollContainer?.removeEventListener('scroll', onScroll);
-      });
+      onCleanup(() => scrollContainer?.removeEventListener('scroll', onScroll));
     }
 
     let items: any[] = [];
     try {
-      const result = props.each();
-      // console.log('Pulse [List] each result:', result);
-      if (Array.isArray(result)) items = result;
-    } catch (err) {
-      console.error('Pulse: Error evaluating List "each":', err);
+      const r = props.each();
+      if (Array.isArray(r)) items = r;
+    } catch (e) {
+      console.error('Pulse List each error:', e);
     }
 
-    // --- Virtualization Filter ---
-    let visibleItems = items;
     let startIndex = 0;
-
+    let workItems = items;
     if (props.virtual) {
       const { rowHeight } = props.virtual;
       const scrollTop = getScrollTop();
-      const containerHeight = props.virtual.containerHeight || scrollContainer?.clientHeight || window.innerHeight;
-
-      const totalHeight = items.length * rowHeight;
+      const containerHeight =
+        props.virtual.containerHeight || scrollContainer?.clientHeight || window.innerHeight;
       startIndex = Math.floor(scrollTop / rowHeight);
-      const endIndex = Math.min(items.length, Math.ceil((scrollTop + containerHeight) / rowHeight) + 2); // Buffer
-
-      visibleItems = items.slice(startIndex, endIndex);
-
-      // Pad container to simulate full height 
-      // We need a spacer. Since we can't easily inject a sibling spacer in this structure without breaking flows,
-      // we might set padding on the container or use a specific spacer element?
-      // Simple Pulse trick: Set min-height on the container if possible, or transform first item?
-      // Let's assume the user handles the container styling, or we use a spacer.
-      // For now, simple "recycle" logic without height simulation (infinite scroll style)? 
-      // No, scrollbar needs height. 
-      // Let's set a spacer div if not present? 
-      // Or just transform translate the items to their absolute positions? 
-      // Translate Y is best for virtual lists.
+      const endIndex = Math.min(
+        items.length,
+        Math.ceil((scrollTop + containerHeight) / rowHeight) + 2,
+      );
+      workItems = items.slice(startIndex, endIndex);
     }
 
-    if (isHydrating) {
-      items.forEach((item, i) => {
-        const node = renderedNodes[i];
+    const newKeys = workItems.map((it, i) => keyOf(it, startIndex + i));
+
+    if (hydrating) {
+      const nodes = props.initialNodes || renderedNodes;
+      for (let i = 0; i < workItems.length; i++) {
+        const k = newKeys[i];
+        const node = nodes[i];
         if (node) {
-          nodeCache.set(item, node);
-          (node as any).__pulse_item = item;
+          cache.set(k, { key: k, node, item: workItems[i] });
+          (node as any).__pulse_item = workItems[i];
         }
-      });
-      isHydrating = false;
-      return; // Hydration done
+      }
+      prevKeys = newKeys;
+      hydrating = false;
+      return;
     }
 
-    // --- FLIP: First ---
-    // Snapshot positions of current nodes that are visually present
-    const prevRects = getRects(renderedNodes);
+    const prevRects = props.flip && !props.virtual ? getRects(renderedNodes) : null;
 
-    const newRenderedNodes: Node[] = [];
+    // --- prefix / suffix + Map ---
+    let start = 0;
+    const minLen = Math.min(prevKeys.length, newKeys.length);
+    while (start < minLen && prevKeys[start] === newKeys[start]) start++;
 
-    // Reconciliation (Reuse)
-    visibleItems.forEach((item, index) => {
-      const actualIndex = startIndex + index;
-      let node = nodeCache.get(item);
+    let endOld = prevKeys.length - 1;
+    let endNew = newKeys.length - 1;
+    while (endOld >= start && endNew >= start && prevKeys[endOld] === newKeys[endNew]) {
+      endOld--;
+      endNew--;
+    }
 
-      if (!node) {
-        // Create new
+    const newMid = new Set(newKeys.slice(start, endNew + 1));
+    for (let i = start; i <= endOld; i++) {
+      const k = prevKeys[i];
+      if (!newMid.has(k)) {
+        const entry = cache.get(k);
+        if (entry) {
+          if (entry.node.parentNode) entry.node.parentNode.removeChild(entry.node);
+          cache.delete(k);
+        }
+      }
+    }
+
+    let ref: Node =
+      endNew + 1 < newKeys.length
+        ? (cache.get(newKeys[endNew + 1])?.node ?? anchor)
+        : anchor;
+
+    for (let i = endNew; i >= start; i--) {
+      const k = newKeys[i];
+      let entry = cache.get(k);
+      if (!entry) {
+        let node: Node;
         try {
-          // console.log('Pulse [List] Creating node for item:', item);
-          node = props.children(item, actualIndex);
-          // console.log('Pulse [List] Created node:', node);
-          (node as any).__pulse_item = item;
-          // nodeCache.set(item, node); // Cache immediately? Only if unique objects.
+          node = props.children(workItems[i], startIndex + i);
         } catch (e) {
-          console.error('Pulse List Render Error:', e);
+          console.error('Pulse List render error:', e);
+          node = document.createComment('list-error');
         }
+        (node as any).__pulse_item = workItems[i];
+        entry = { key: k, node, item: workItems[i] };
+        cache.set(k, entry);
       }
 
-      if (node) {
-        newRenderedNodes.push(node);
-        nodeCache.set(item, node); // Refresh cache
-
-        // Virtual Position
-        if (props.virtual && node instanceof HTMLElement) {
-          node.style.position = 'absolute';
-          node.style.top = `${actualIndex * props.virtual.rowHeight}px`;
-          node.style.left = '0';
-          node.style.right = '0';
-        }
+      if (props.virtual && entry.node instanceof HTMLElement) {
+        const actualIndex = startIndex + i;
+        entry.node.style.position = 'absolute';
+        entry.node.style.top = `${actualIndex * props.virtual.rowHeight}px`;
+        entry.node.style.left = '0';
+        entry.node.style.right = '0';
       }
-    });
 
-    // Cleanup Loop: Remove nodes not in newRenderedNodes
-    // Be careful not to remove nodes that are just off-screen (virtualized out) BUT cached?
-    // If we destroy off-screen, we save RAM. 
-    // Pulse: "Recycle" list.
-    // If node is NOT in observable view, we remove from DOM. 
-    // Valid.
-
-    // But we need to keep them in cache if we want to reuse DOM nodes?
-    // Actually, "Recycle" means we reuse the DOM node for a DIFFERENT item.
-    // My simple re-use by Item Key isn't true recycling (it's Keyed Reordering).
-    // True recycling (Pool) matches by Type not Key. 
-    // The prompt asked for "Recycle List".
-    // Implementing true recycling needs separating Data from View. 
-    // props.children(item) creates a view bound to item.
-    // If we recycle the view, we must update the bindings. 
-    // The current architecture binds CLOSURES to items `() => item.name`.
-    // We can't easily swap `item` inside a closure.
-    // So True Recycling is hard without Signal-based Swap.
-    // Fallback: Efficient Keyed Reuse + Destroy off-screen. (Virtualization).
-
-    // Cleanup:
-    const newSet = new Set(newRenderedNodes);
-    renderedNodes.forEach(n => {
-      if (!newSet.has(n) && n.parentNode) {
-        n.parentNode.removeChild(n);
-        // We do NOT delete from nodeCache to allow re-appearing? 
-        // If we want to save memory for 10k lines, we SHOULD delete.
-        // But if we delete, we lose state.
-        // For a Code Editor, scrolling back up should restore state.
-        // Let's keep in cache for now? No, 10k nodes in memory is heavy.
-        // Let's trust the user to manage state outside or allow cache?
-        // Prompt: "destroy DOM nodes that scroll off-screen".
-        // Use WeakMap? Or just let it go.
-        // Let's Remove from cache if not in current visible set to free memory.
-        const item = (n as any).__pulse_item;
-        // Check if item is still in the full list? 
-        // If just scrolled off, maybe keep? 
-        // For simplicity: destroy.
-      }
-    });
-
-    // Reattach/Reorder
-    // We insert in order before anchor.
-    newRenderedNodes.forEach(node => {
-      container.insertBefore(node, anchor);
-    });
-
-    // --- FLIP: Last, Invert, Play ---
-    // Only if not virtualizing (Virtual uses absolute positioning, incompatible with standard FLIP flow usually, 
-    // as it jumps instantly. But we can animate Scroll?)
-    // FLIP is useful for Reordering (Drag and drop).
-    // If not virtual, we animate.
-    if (!props.virtual) {
-      newRenderedNodes.forEach(node => {
-        if (node instanceof HTMLElement) {
-          const prev = prevRects.get(node);
-          if (prev) {
-            const current = node.getBoundingClientRect();
-            const dx = prev.left - current.left;
-            const dy = prev.top - current.top;
-
-            if (dx !== 0 || dy !== 0) {
-              // Invert
-              node.style.transform = `translate(${dx}px, ${dy}px)`;
-              node.style.transition = 'none';
-
-              // Play
-              requestAnimationFrame(() => {
-                node.style.transform = '';
-                node.style.transition = 'transform 0.3s ease-out';
-              });
-            }
-          }
-        }
-      });
+      parent.insertBefore(entry.node, ref);
+      ref = entry.node;
     }
 
-    renderedNodes = newRenderedNodes;
+    const newRendered: Node[] = [];
+    for (const k of newKeys) {
+      const e = cache.get(k);
+      if (e) newRendered.push(e.node);
+    }
+
+    if (prevRects && !props.virtual) {
+      for (const node of newRendered) {
+        if (!(node instanceof HTMLElement)) continue;
+        const prev = prevRects.get(node);
+        if (!prev) continue;
+        const current = node.getBoundingClientRect();
+        const dx = prev.left - current.left;
+        const dy = prev.top - current.top;
+        if (dx !== 0 || dy !== 0) {
+          node.style.transform = `translate(${dx}px, ${dy}px)`;
+          node.style.transition = 'none';
+          requestAnimationFrame(() => {
+            node.style.transform = '';
+            node.style.transition = 'transform 0.3s ease-out';
+          });
+        }
+      }
+    }
+
+    prevKeys = newKeys;
+    renderedNodes = newRendered;
   });
 
-  return parent;
+  return frag;
 }
