@@ -181,20 +181,55 @@ export function List(props: ListProps) {
       if (cache.size > 0) {
         for (const entry of cache.values()) entry.dispose?.();
         cache.clear();
-        if (props.host) {
-          const keep: Node[] = [];
-          for (const child of Array.from(parent.childNodes)) {
-            if (child === anchor || (child as Element).tagName === 'TEMPLATE') keep.push(child);
-          }
-          parent.replaceChildren(...keep);
-          if (anchor.parentNode !== parent) parent.appendChild(anchor);
-        } else {
-          parent.replaceChildren(anchor);
+      }
+      // Fast clear: when the list exclusively owns the host (no TEMPLATE keepers),
+      // textContent='' is cheaper than replaceChildren of many nodes.
+      if (props.host) {
+        const keep: Node[] = [];
+        for (const child of Array.from(parent.childNodes)) {
+          if (child === anchor || (child as Element).tagName === 'TEMPLATE') keep.push(child);
         }
+        parent.replaceChildren(...keep);
+        if (anchor.parentNode !== parent) parent.appendChild(anchor);
+      } else {
+        parent.replaceChildren(anchor);
       }
       prevKeys = newKeys;
       renderedNodes = [];
       return;
+    }
+
+    // Same key sequence: remount only rows whose item identity changed (immutable updates).
+    // Unchanged object refs keep their DOM (signals inside handle field updates).
+    if (prevKeys.length === newKeys.length) {
+      let keysSame = true;
+      for (let i = 0; i < newKeys.length; i++) {
+        if (prevKeys[i] !== newKeys[i]) {
+          keysSame = false;
+          break;
+        }
+      }
+      if (keysSame) {
+        for (let i = 0; i < newKeys.length; i++) {
+          const k = newKeys[i];
+          const item = workItems[i];
+          const entry = cache.get(k);
+          if (!entry) {
+            const neu = mountChild(item, startIndex + i, k);
+            parent.insertBefore(neu.node, anchor);
+            continue;
+          }
+          if (entry.item !== item) {
+            const refNode = entry.node.nextSibling;
+            dropEntry(k);
+            const neu = mountChild(item, startIndex + i, k);
+            parent.insertBefore(neu.node, refNode);
+          }
+        }
+        prevKeys = newKeys;
+        renderedNodes = newKeys.map((k) => cache.get(k)!.node).filter(Boolean);
+        return;
+      }
     }
 
     let start = 0;
@@ -229,11 +264,13 @@ export function List(props: ListProps) {
         const k = newKeys[i];
         let entry = cache.get(k);
         if (!entry) entry = mountChild(workItems[i], startIndex + i, k);
-        else {
-          entry.item = workItems[i];
-          (entry.node as any).__pulse_data = workItems[i];
+        else if (entry.item !== workItems[i]) {
+          dropEntry(k);
+          entry = mountChild(workItems[i], startIndex + i, k);
         }
         place(entry, i);
+        // Remount/drop can detach `ref` (e.g. duplicate keys collapsing in the Map).
+        if (ref !== anchor && ref.parentNode !== parent) ref = anchor;
         parent.insertBefore(entry.node, ref);
         ref = entry.node;
       }
@@ -253,8 +290,11 @@ export function List(props: ListProps) {
           dropEntry(k);
         } else {
           const entry = cache.get(k);
-          if (entry) {
-            entry.item = workItems[newIndex];
+          if (entry && entry.item !== workItems[newIndex]) {
+            // Key survived but item identity changed — remount so bindings refresh.
+            dropEntry(k);
+            // Will remount in the placement loop below.
+          } else if (entry) {
             (entry.node as any).__pulse_data = workItems[newIndex];
           }
           newIndexToOldIndexMap[newIndex - start] = i + 1;

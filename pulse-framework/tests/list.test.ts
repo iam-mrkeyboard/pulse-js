@@ -152,3 +152,53 @@ describe('List duplicate keys', () => {
     }
   });
 });
+
+describe('List item identity remount', () => {
+  test('same key with new object remounts the row', () => {
+    const host = document.createElement('div');
+    document.body.appendChild(host);
+    const [items, setItems] = createSignal([{ id: 1, label: 'a' }]);
+    let mounts = 0;
+    List({
+      each: () => items(),
+      key: (r: any) => r.id,
+      children: (r: any) => {
+        mounts++;
+        const el = document.createElement('div');
+        el.textContent = r.label;
+        el.dataset.id = String(r.id);
+        return el;
+      },
+      host,
+    } as any);
+    expect(mounts).toBe(1);
+    expect(host.firstElementChild?.textContent).toBe('a');
+    setItems([{ id: 1, label: 'b' }]);
+    expect(mounts).toBe(2);
+    expect(host.firstElementChild?.textContent).toBe('b');
+    host.remove();
+  });
+
+  test('same key same object reference does not remount', () => {
+    const host = document.createElement('div');
+    document.body.appendChild(host);
+    const row = { id: 1, label: 'a' };
+    const [items, setItems] = createSignal([row]);
+    let mounts = 0;
+    List({
+      each: () => items(),
+      key: (r: any) => r.id,
+      children: (r: any) => {
+        mounts++;
+        const el = document.createElement('div');
+        el.textContent = r.label;
+        return el;
+      },
+      host,
+    } as any);
+    expect(mounts).toBe(1);
+    setItems([row]); // same ref
+    expect(mounts).toBe(1);
+    host.remove();
+  });
+});
