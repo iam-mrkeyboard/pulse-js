@@ -211,23 +211,21 @@ function activeCount() {
   </div>
   
   <ul>
-    <List each={filteredTodos} key={(todo) => todo.id}>
-      {(todo) => (
-        <li class={todo.completed ? 'completed' : ''}>
-          <input 
-            type="checkbox" 
-            checked={todo.completed}
-            onChange={() => toggleTodo(todo.id)}
-          />
-          <span>{todo.text}</span>
-          <button class="delete-btn" onClick={() => deleteTodo(todo.id)}>×</button>
-        </li>
-      )}
+    <List each={filteredTodos} as="todo" key={todo.id}>
+      <li class={todo.completed ? 'completed' : ''}>
+        <input 
+          type="checkbox" 
+          checked={todo.completed}
+          onChange={() => toggleTodo(todo.id)}
+        />
+        <span>{todo.text}</span>
+        <button class="delete-btn" onClick={() => deleteTodo(todo.id)}>×</button>
+      </li>
     </List>
   </ul>
   
   <div class="footer">
-    <span>{activeCoun items left</span>
+    <span>{activeCount()} items left</span>
     <button class="clear-btn" onClick={clearCompleted}>Clear Completed</button>
   </div>
 </div>
