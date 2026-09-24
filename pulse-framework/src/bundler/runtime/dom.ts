@@ -3,12 +3,23 @@
 
 // Cache for compiled expressions to improve performance
 const expressionCache = new Map<string, Function>();
+const MAX_EXPR_CACHE = 256;
 
+/** Evaluate a compiler- or template-provided expression. Prefer compile-time emission; this is a fallback. */
 const safeEvaluate = (code: string, keys: string[], values: any[]) => {
   try {
+    // Reject obvious exfiltration / constructor escapes in dynamic path
+    if (/\b(Function|eval|import|process|require|globalThis|window)\b/.test(code)) {
+      console.error('Pulse: blocked unsafe expression');
+      return undefined;
+    }
     const cacheKey = code + '||' + keys.join(',');
     let fn = expressionCache.get(cacheKey);
     if (!fn) {
+      if (expressionCache.size >= MAX_EXPR_CACHE) {
+        const first = expressionCache.keys().next().value;
+        if (first !== undefined) expressionCache.delete(first);
+      }
       const body = code.trim().startsWith('return') ? code : `return (${code})`;
       fn = new Function(...keys, body);
       expressionCache.set(cacheKey, fn);
@@ -50,6 +61,27 @@ const initEventDelegator = () => {
           if (handler) {
             handler(e);
           }
+        }
+      }
+
+      // Component-compiler path: data-on-click="{increment}" + container.__pulseHandlers
+      const onAttr = `data-on-${type}`;
+      const onEl = target.closest(`[${onAttr}]`) as HTMLElement | null;
+      if (onEl) {
+        const raw = onEl.getAttribute(onAttr) || '';
+        let name = raw.trim();
+        if (name.startsWith('{') && name.endsWith('}')) name = name.slice(1, -1).trim();
+        // Support "{e => foo()}" lightly: extract trailing fn call name
+        const call = name.match(/^([A-Za-z_]\w*)\s*\(/);
+        if (call) name = call[1];
+        let node: HTMLElement | null = onEl;
+        while (node) {
+          const handlers = (node as any).__pulseHandlers;
+          if (handlers && typeof handlers[name] === 'function') {
+            handlers[name](e);
+            break;
+          }
+          node = node.parentElement;
         }
       }
     }, true);
@@ -226,7 +258,10 @@ const getPath = (root: Node, target: Node): number[] => {
   return path;
 };
 
+export function ensureEventDelegation() { initEventDelegator(); }
+
 export function mountPrimitives(container: HTMLElement, scope: any, config: { List?: any, Show?: any, components?: any, createEffect?: Function, templates?: Map<string, string>, bindings?: any[] }) {
+  initEventDelegator();
   const { List, Show, components, createEffect, templates, bindings } = config;
 
   if (List) {
@@ -259,8 +294,24 @@ export function mountPrimitives(container: HTMLElement, scope: any, config: { Li
         }
       }
 
+      const keyAttr = el.getAttribute('key');
+      const keyFn = keyAttr
+        ? (item: any, index: number) => {
+            const keys = Object.keys(scope);
+            const values = Object.values(scope);
+            keys.push(as, 'index');
+            values.push(item, index);
+            // key="{todo.id}" or key="id"
+            const expr = keyAttr.startsWith('{') && keyAttr.endsWith('}')
+              ? keyAttr.slice(1, -1)
+              : (keyAttr.includes('.') || keyAttr.includes('(') ? keyAttr : `${as}.${keyAttr}`);
+            return safeEvaluate(expr, keys, values);
+          }
+        : undefined;
+
       const listComp = List({
         each: eachGetter,
+        key: keyFn,
         initialNodes: initialNodes,
         children: (item: any, index: number) => {
           const div = document.createElement('div');

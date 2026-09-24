@@ -1,75 +1,113 @@
-// Reactivity System Implementation
+// Pulse reactivity — fine-grained signals (measured: effect-per-binding + direct DOM writes beat batched DOM flush)
 
-let activeEffect: (() => void) | null = null;
-const effectStack: (() => void)[] = [];
+let activeEffect: Effect | null = null;
 
-export function createSignal<T>(initialValue: T) {
-  let value = initialValue;
-  const subscribers = new Set<() => void>();
+export type Accessor<T> = () => T;
+export type Setter<T> = (v: T | ((prev: T) => T)) => void;
+export type Signal<T> = [Accessor<T>, Setter<T>];
 
-  const read = () => {
-    if (activeEffect) {
-      if (!subscribers.has(activeEffect)) {
-        // console.log('[Pulse Core] Signal read: subscribing effect.', 'Subscribers:', subscribers.size + 1);
-        subscribers.add(activeEffect);
-      }
-    } else {
-      // console.log('[Pulse Core] Signal read: no active effect. Value:', value);
+interface ReactiveNode {
+  subscribers: Set<Effect>;
+}
+
+interface Effect {
+  run: () => void;
+  deps: Set<ReactiveNode>;
+  cleanups: Array<() => void>;
+  disposed: boolean;
+}
+
+let batchDepth = 0;
+const batchQueue = new Set<Effect>();
+
+function cleanupEffect(effect: Effect) {
+  for (const node of effect.deps) node.subscribers.delete(effect);
+  effect.deps.clear();
+  for (const c of effect.cleanups) {
+    try { c(); } catch (e) { console.error(e); }
+  }
+  effect.cleanups = [];
+}
+
+function queueEffect(effect: Effect) {
+  if (effect.disposed) return;
+  if (batchDepth > 0) {
+    batchQueue.add(effect);
+  } else {
+    effect.run();
+  }
+}
+
+export function batch<T>(fn: () => T): T {
+  batchDepth++;
+  try {
+    return fn();
+  } finally {
+    batchDepth--;
+    if (batchDepth === 0 && batchQueue.size) {
+      const q = [...batchQueue];
+      batchQueue.clear();
+      for (const e of q) e.run();
+    }
+  }
+}
+
+export function createSignal<T>(initial: T): Signal<T> {
+  let value = initial;
+  const node: ReactiveNode = { subscribers: new Set() };
+
+  const read: Accessor<T> = () => {
+    if (activeEffect && !activeEffect.disposed) {
+      node.subscribers.add(activeEffect);
+      activeEffect.deps.add(node);
     }
     return value;
   };
 
-  const write = (newValue: T | ((prev: T) => T)) => {
-    // Handle function updates
-    const nextValue = typeof newValue === 'function'
-      ? (newValue as Function)(value)
-      : newValue;
-
-    if (value !== nextValue) {
-      // console.log('[Pulse Core] Signal write:', value, '->', nextValue, 'Subscribers:', subscribers.size);
-      value = nextValue;
-      // Notify subscribers
-      // Snapshot to avoid infinite loops if effects mutate same signal
-      const runQueue = [...Array.from(subscribers)];
-      if (runQueue.length > 0) {
-        // console.log('[Pulse Core] Notifying', runQueue.length, 'subscribers');
-      } else {
-        // console.warn('[Pulse Core] Signal updated but no subscribers!');
-      }
-      runQueue.forEach(fn => fn());
+  const write: Setter<T> = (next) => {
+    const v = typeof next === 'function' ? (next as (p: T) => T)(value) : next;
+    if (!Object.is(value, v)) {
+      value = v;
+      for (const sub of [...node.subscribers]) queueEffect(sub);
     }
   };
 
-  return [read, write] as const;
+  return [read, write];
 }
 
-export function createEffect(fn: () => void) {
-  const effect = () => {
-    if (effectStack.includes(effect)) return; // Prevent recursive cycles
-
-    try {
+export function createEffect(fn: () => void | (() => void)): () => void {
+  const effect: Effect = {
+    deps: new Set(),
+    cleanups: [],
+    disposed: false,
+    run() {
+      if (effect.disposed) return;
+      cleanupEffect(effect);
+      const prev = activeEffect;
       activeEffect = effect;
-      effectStack.push(effect);
-      fn();
-    } finally {
-      effectStack.pop();
-      activeEffect = effectStack[effectStack.length - 1] || null;
-    }
+      try {
+        const result = fn();
+        if (typeof result === 'function') effect.cleanups.push(result);
+      } finally {
+        activeEffect = prev;
+      }
+    },
   };
-
-  effect(); // Initial run
+  effect.run();
+  return () => {
+    effect.disposed = true;
+    cleanupEffect(effect);
+  };
 }
 
-export function createMemo<T>(fn: () => T) {
-  const [val, setVal] = createSignal<T>(undefined as any);
-
-  createEffect(() => {
-    setVal(fn());
-  });
-
-  return val;
+export function onCleanup(fn: () => void) {
+  if (activeEffect) activeEffect.cleanups.push(fn);
 }
 
-export function createDerived<T>(fn: () => T) {
-  return createMemo(fn);
+export function createMemo<T>(fn: () => T): Accessor<T> {
+  const [get, set] = createSignal<T>(undefined as T);
+  createEffect(() => set(fn()));
+  return get;
 }
+
+export const createDerived = createMemo;

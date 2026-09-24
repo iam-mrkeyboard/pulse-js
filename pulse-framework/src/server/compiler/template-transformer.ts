@@ -248,7 +248,12 @@ export class TemplateTransformer {
           const asAttr = node.attributes?.get('as');
           const asVar = (typeof asAttr === 'string' ? asAttr : asAttr?.code) || 'item';
 
+          const keyAttr = node.attributes?.get('key');
+          let keyExpr = typeof keyAttr === 'string' ? keyAttr : keyAttr?.code;
+          if (keyExpr) keyExpr = this.transformExpression(keyExpr, stateNames);
+
           let attrs = ` each="{${eachExpr}}" as="${asVar}"`;
+          if (keyExpr) attrs += ` key="{${keyExpr}}"`;
           const listScope = { ...scope, _listBindings: [], _listBindingCount: 0 };
 
           // For List children, we reset path to [] because they are root of the template
