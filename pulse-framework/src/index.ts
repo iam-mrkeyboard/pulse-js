@@ -37,7 +37,8 @@ export type {
 export { createDefaultConfig } from './bundler/types';
 
 // Runtime exports (for user code)
-export { hydrate, hydrateAll } from './runtime/hydration';
+export { hydrate, hydrateAll, renderToString } from './runtime/hydration';
+export { P_HYDRATED, P_KEY, P_LIST, P_SHOW, markRoot, markKey } from './runtime/ssr-markers';
 
 // Server exports
 export { DevServer } from './server/dev-server';

@@ -82,3 +82,15 @@ Same winners confirmed after porting PR #1 onto `local-restructure`:
 | create_10k | 28.2 | 30.0 | 57.7 | 28.1 |
 
 Create 10k rows: createElement=27.100000000558794, cloneNode=31.799999999813735, innerHTML=30
+
+## Hydrate vs remount (1,000 keyed rows) — local measurement
+
+Measured in the same HeadlessChrome harness (`bench/run.mjs`). SSR HTML is already in the document (as after page load). **hydrate** = walk existing nodes + Map adopt + bind text; **remount** = `replaceChildren` + recreate 1k elements.
+
+| Path | Median (ms) |
+|------|-------------|
+| remount_1k | ~1.0 |
+| hydrate_1k | ~0.2 |
+
+Hydrate adopt is ~5× faster than remount for this case (no node allocation). Numbers are local Chromium medians; not a public benchmark claim.
+

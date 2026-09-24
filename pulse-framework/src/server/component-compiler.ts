@@ -344,6 +344,7 @@ export default function ${componentName}(props) {
       moduleCode += `  }\n\n`;
 
       moduleCode += `  mountPrimitives(container);\n`;
+      moduleCode += `  if (container && container.setAttribute) container.setAttribute('data-p-h', '1');\n`;
       moduleCode += `  return container;\n`;
       moduleCode += `}\n`;
     } else {
