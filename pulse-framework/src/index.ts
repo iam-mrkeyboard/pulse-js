@@ -37,6 +37,19 @@ export type {
 export { createDefaultConfig } from './bundler/types';
 
 // Runtime exports (for user code)
+export {
+  createSignal,
+  createEffect,
+  createMemo,
+  createSelector,
+  createRoot,
+  batch,
+  untrack,
+  onCleanup,
+} from './runtime/core';
+export { List } from './runtime/primitives/list';
+export { Show } from './runtime/primitives/show';
+export { walk, template, mountPrimitives, text, setAttribute, on } from './runtime/dom';
 export { hydrate, hydrateAll, renderToString } from './runtime/hydration';
 export { P_HYDRATED, P_KEY, P_LIST, P_SHOW, markRoot, markKey } from './runtime/ssr-markers';
 

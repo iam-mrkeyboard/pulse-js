@@ -16,12 +16,22 @@
     "./runtime": {
       "import": "./dist/runtime/core.js"
     },
+    "./runtime/dom": {
+      "import": "./dist/runtime/dom.js"
+    },
+    "./runtime/list": {
+      "import": "./dist/runtime/primitives/list.js"
+    },
+    "./runtime/show": {
+      "import": "./dist/runtime/primitives/show.js"
+    },
     "./cli": {
       "import": "./dist/cli/index.js"
     }
   },
   "scripts": {
-    "build": "bun build ./src/index.ts --outdir ./dist --target bun --format esm --sourcemap=none --external lightningcss && bun build ./src/cli/index.ts --outdir ./dist/cli --target bun --format esm --sourcemap=none --external lightningcss",
+    "build": "bun build ./src/index.ts --outdir ./dist --target bun --format esm --sourcemap=none --external lightningcss && bun build ./src/cli/index.ts --outdir ./dist/cli --target bun --format esm --sourcemap=none --external lightningcss && bun ./scripts/build-runtime.ts",
+    "build:runtime": "bun ./scripts/build-runtime.ts",
     "dev": "bun run src/cli/index.ts dev",
     "test": "bun test",
     "type-check": "tsc --noEmit",

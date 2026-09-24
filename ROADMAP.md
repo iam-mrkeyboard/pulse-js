@@ -26,10 +26,14 @@ Pulse is **pre-1.0**. APIs may change. This file tracks near-term work; it is no
 
 ---
 
-## From code audit (pending)
+## From code audit
 
-> **This section is reserved for findings from a forthcoming code audit.**
-> Do not treat it as committed work until it is filled in by the maintainer.
+Fixed in the post-v0.16.0 bench round:
 
-<!-- Maintainer: paste audit items here. -->
+1. Empty production runtime — `RuntimeBuilder` looked in the wrong directory after the file move and minified TypeScript with terser; it now resolves `src/runtime` / `dist/runtime` and transpiles TS first.
+2. Missing `dist/runtime/*.js` — `bun run build` emits browser ESM runtime files; `./runtime` package exports resolve.
+3. Runtime APIs not exported — `createSignal`, `createSelector`, `List`, `Show`, DOM helpers are on the package index.
+4. Compiler `/runtime/*.js` imports — compiled SFCs import `pulse/runtime` (import map + package exports).
+5. List item class/attribute bindings hoisted or dropped — they stay in per-item `data-bindings`.
+6. Scope-unaware identifier rewrite — local `const data` is no longer rewritten to `get_data`.
 

@@ -200,7 +200,7 @@ export class TemplateTransformer {
 
           let attrs = ` each="{${eachExpr}}" as="${asVar}"`;
           if (keyExpr) attrs += ` key="{${keyExpr}}"`;
-          const listScope = { ...scope, _listBindings: [], _listBindingCount: 0 };
+          const listScope = { ...scope, _listBindings: [], _listBindingCount: 0, _asVar: asVar };
 
           // Reset path for children of List Item
           const rawTemplate = children.map((c, i) => serialize(c, listScope, true, isRaw, [i])).join('');
@@ -297,15 +297,44 @@ export class TemplateTransformer {
             }
 
             // Regular attribute binding
+            const isExprAttr = typeof val !== 'string' || (valStr.startsWith('{') && valStr.endsWith('}'));
+            const expr = isExprAttr
+              ? (typeof val === 'string' ? valStr.slice(1, -1) : val.code)
+              : null;
+
+            if (isInScope && expr !== null && Array.isArray(scope._listBindings)) {
+              // Keep list-item bindings (class, attrs) on the item, not the page root.
+              const asVar = (scope as any)._asVar as string | undefined;
+              const dependsOnItem = asVar ? expr.includes(asVar) : true;
+              const dependsOnState = Array.from(stateNames).some(name => expr.includes(name));
+              if (dependsOnItem || dependsOnState || expr.includes('?')) {
+                scope._listBindings.push({
+                  type: 'attribute',
+                  path: [...path],
+                  name: key,
+                  expr: this.transformExpression(expr, stateNames),
+                });
+                return;
+              }
+            }
+
             const hasStateDep = valStr.includes('{') && Array.from(stateNames).some(name => valStr.includes(name));
-            if (hasStateDep) {
-              const expr = valStr.slice(1, -1);
-              const expressionCode = this.transformExpression(expr, stateNames);
+            if (hasStateDep && !isInScope) {
+              const inner = valStr.slice(1, -1);
+              const expressionCode = this.transformExpression(inner, stateNames);
               bindings.push({
                 type: 'attribute',
                 path: [...path],
                 name: key,
                 expression: expressionCode
+              });
+            } else if (hasStateDep && isInScope && Array.isArray(scope._listBindings)) {
+              const inner = valStr.slice(1, -1);
+              scope._listBindings.push({
+                type: 'attribute',
+                path: [...path],
+                name: key,
+                expr: this.transformExpression(inner, stateNames),
               });
             } else {
               attrsStr += ` ${key}="${valStr.replaceAll('"', '&quot;')}"`;

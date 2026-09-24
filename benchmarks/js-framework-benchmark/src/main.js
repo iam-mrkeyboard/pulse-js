@@ -1,12 +1,11 @@
 /**
  * Pulse keyed entry for js-framework-benchmark.
  *
- * FALLBACK (runtime API): This file is hand-written against Pulse's public
- * runtime (createSignal / batch / createEffect / keyed List / template), NOT
- * vanilla DOM reconciliation. See ../COMPILER_NOTES.md and ../src/App.pulse
- * for why the SFC compiler output was not shipped.
+ * Uses Pulse's public runtime (createSignal / batch / createEffect /
+ * createSelector / keyed List / template). See ../COMPILER_NOTES.md and
+ * ../src/App.pulse for the SFC form.
  */
-import { createSignal, createEffect, batch } from "../pulse-runtime/core.ts";
+import { createSignal, createEffect, batch, createSelector } from "../pulse-runtime/core.ts";
 import { List } from "../pulse-runtime/primitives/list.ts";
 
 const adjectives = ["pretty", "large", "big", "small", "tall", "short", "long", "handsome", "plain", "quaint", "clean", "elegant", "easy", "angry", "crazy", "helpful", "mushy", "odd", "unsightly", "adorable", "important", "inexpensive", "cheap", "expensive", "fancy"];
@@ -31,10 +30,11 @@ const buildData = (count) => {
 
 const rowTemplate = document.createElement("template");
 rowTemplate.innerHTML =
-  '<tr><td class="col-md-1"></td><td class="col-md-4"><a></a></td><td class="col-md-1"><a><span class="glyphicon glyphicon-remove" aria-hidden="true"></span></a></td><td class="col-md-6"></td></tr>';
+  '<tr><td class="col-md-1"></td><td class="col-md-4"><a class="lbl"></a></td><td class="col-md-1"><a class="remove"><span class="remove glyphicon glyphicon-remove" aria-hidden="true"></span></a></td><td class="col-md-6"></td></tr>';
 
 const [data, setData] = createSignal([]);
 const [selected, setSelected] = createSignal(null);
+const isSelected = createSelector(selected);
 
 const run = () => {
   setData(buildData(1000));
@@ -106,39 +106,40 @@ function App() {
   preload.setAttribute("aria-hidden", "true");
   root.appendChild(preload);
 
-  // Keyed List — Pulse runtime primitive (prefix/suffix + Map)
+  tbody.addEventListener("click", (e) => {
+    const t = e.target;
+    if (!(t instanceof Element)) return;
+    const tr = t.closest("tr");
+    if (!tr || !tbody.contains(tr)) return;
+    const id = +tr.dataset.id;
+    if (!id) return;
+    if (t.closest("a.remove, span.remove")) {
+      setData((d) => {
+        const idx = d.findIndex((r) => r.id === id);
+        if (idx === -1) return d;
+        const next = d.slice();
+        next.splice(idx, 1);
+        return next;
+      });
+      return;
+    }
+    if (t.closest("a.lbl")) setSelected(id);
+  });
+
   const listFrag = List({
     each: () => data(),
     key: (row) => row.id,
     children: (row) => {
       const tr = rowTemplate.content.firstChild.cloneNode(true);
-      const idTd = tr.children[0];
+      tr.dataset.id = String(row.id);
+      tr.children[0].textContent = String(row.id);
       const labelA = tr.children[1].firstChild;
-      const removeA = tr.children[2].firstChild;
-
-      idTd.textContent = String(row.id);
-
-      // Fine-grained label binding (reads row.label signal)
       createEffect(() => {
         labelA.textContent = row.label();
       });
-
-      // Select highlighting — each row tracks selected()
       createEffect(() => {
-        tr.className = selected() === row.id ? "danger" : "";
+        tr.className = isSelected(row.id) ? "danger" : "";
       });
-
-      labelA.addEventListener("click", () => setSelected(row.id));
-      removeA.addEventListener("click", () => {
-        setData((d) => {
-          const idx = d.findIndex((r) => r.id === row.id);
-          if (idx === -1) return d;
-          const next = d.slice();
-          next.splice(idx, 1);
-          return next;
-        });
-      });
-
       return tr;
     },
   });

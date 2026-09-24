@@ -2,6 +2,66 @@
 
 **All numbers below are local measurements on this machine. Nothing is invented or copied from published leaderboards.**
 
+## After LIS + createSelector + shared listener (this round)
+
+| Field | Value |
+| --- | --- |
+| Machine | Linux box (Africa/Dar_es_Salaam, UTC+3) |
+| Browser | Google Chrome 153.0.8010.36 (`/usr/bin/google-chrome-stable`) |
+| Runner | js-framework-benchmark `webdriver-ts` / Puppeteer, `--headless true --count 10` |
+| CPU iterations | **10** per test |
+| Benchmarks | CPU only (`01_`–`09_`) |
+| Pulse entry | `frameworks/keyed/pulse` — runtime API (`createSignal` / `batch` / `createEffect` / `createSelector` / keyed `List`) |
+| Pulse version | 0.16.0 + this round's runtime |
+| isKeyed | **PASSED** — keyed for run / remove / swap |
+| Date | 2026-09-24 (afternoon re-run) |
+
+Vanilla JS was re-run on the **same** runner, Chrome, and flags so the ratios below are comparable. Absolute milliseconds are higher than the morning table (Chrome 153 + this jsfb snapshot); use the ratios.
+
+### CPU results — median **total** ms
+
+| Test | vanilla JS | Pulse | Pulse / vanilla |
+| --- | ---: | ---: | ---: |
+| Create 1,000 rows | 155.1 | 176.2 | 1.14 |
+| Replace all rows | 153.0 | 171.9 | 1.12 |
+| Update every 10th row | 79.5 | 91.7 | 1.15 |
+| Select a row | 17.8 | 21.8 | 1.22 |
+| Swap two rows | 91.5 | 121.0 | **1.32** |
+| Remove a row | 80.2 | 84.3 | 1.05 |
+| Create 10,000 rows | 1422.2 | 1704.2 | 1.20 |
+| Append 1,000 rows | 156.2 | 177.9 | 1.14 |
+| Clear all rows | 52.8 | 63.3 | 1.20 |
+| **Geom mean vs vanilla** | **1.00** |  | **1.17** |
+| Geom mean without swap | 1.00 |  | 1.15 |
+
+### CPU results — median **script** ms
+
+| Test | vanilla JS | Pulse |
+| --- | ---: | ---: |
+| Create 1,000 rows | 12.8 | 29.1 |
+| Replace all rows | 18.3 | 40.7 |
+| Update every 10th row | 2.2 | 6.4 |
+| Select a row | 1.3 | 3.0 |
+| Swap two rows | 1.1 | **6.8** |
+| Remove a row | 1.6 | 1.5 |
+| Create 10,000 rows | 102.1 | 261.6 |
+| Append 1,000 rows | 11.1 | 27.1 |
+| Clear all rows | 46.1 | 55.4 |
+
+Swap **script** went from 33.5 ms in the morning to **6.8 ms**. Swap **total** went from 303.6 ms to **121.0 ms** (1.32× vanilla on this runner; morning was 6.3×).
+
+Morning geom mean vs vanilla among the four requested frameworks was **1.39**. This round vs vanilla on the same runner is **1.17** (Solid's morning geom vs vanilla was 1.13).
+
+Bundle: `dist/main.js` minified **8.71 KB** (LIS + `createSelector` + `createRoot`).
+
+Raw JSON: `results/pulse-v0.16.0-keyed_*.json` and `results/vanillajs-keyed_*.json`.
+
+---
+
+## Morning run (before this round)
+
+The table below is the first local run (Chrome 151, 10 iterations). Pulse ranked 4th of the four requested frameworks; swap caused almost all of that.
+
 | Field | Value |
 | --- | --- |
 | Machine | Linux box (Africa/Dar_es_Salaam, UTC+3) |

@@ -36,6 +36,10 @@ describe('Counter compile + click', () => {
   test('compiled Counter2 increments DOM on click (happy-dom)', async () => {
     const code = await compileComponent('src/components/Counter2.pulse');
     let mod = code
+      .replaceAll("from 'pulse/runtime/dom'", "from '../src/runtime/dom.ts'")
+      .replaceAll("from 'pulse/runtime/list'", "from '../src/runtime/primitives/list.ts'")
+      .replaceAll("from 'pulse/runtime/show'", "from '../src/runtime/primitives/show.ts'")
+      .replaceAll("from 'pulse/runtime'", "from '../src/runtime/core.ts'")
       .replaceAll('/runtime/core.js', '../src/runtime/core.ts')
       .replaceAll('/runtime/dom.js', '../src/runtime/dom.ts')
       .replaceAll('/runtime/primitives/list.js', '../src/runtime/primitives/list.ts')

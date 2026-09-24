@@ -68,10 +68,10 @@ export class ComponentCompiler {
 
     // Build module code
     let moduleCode = `
-import { createSignal, createEffect } from '/runtime/core.js';
-import { mountPrimitives as dom_mountPrimitives, walk } from '/runtime/dom.js';
-${hasListPrimitive ? "import { List } from '/runtime/primitives/list.js';" : ''}
-${hasShowPrimitive ? "import { Show } from '/runtime/primitives/show.js';" : ''}
+import { createSignal, createEffect } from 'pulse/runtime';
+import { mountPrimitives as dom_mountPrimitives, walk } from 'pulse/runtime/dom';
+${hasListPrimitive ? "import { List } from 'pulse/runtime/list';" : ''}
+${hasShowPrimitive ? "import { Show } from 'pulse/runtime/show';" : ''}
 ${imports.map(i => {
       // reconstruct import statement
       if (i.isDefault) {
@@ -99,16 +99,53 @@ ${imports.map(i => {
         let magicString = codeFragment;
         const replacements: { start: number, end: number, value: string }[] = [];
 
+        const scopeStack: Set<string>[] = [new Set()];
+        const isLocal = (name: string) => {
+          for (let i = scopeStack.length - 1; i >= 0; i--) {
+            if (scopeStack[i].has(name)) return true;
+          }
+          return false;
+        };
+        const addParams = (params: any[]) => {
+          for (const p of params || []) {
+            if (p.type === 'Identifier') scopeStack[scopeStack.length - 1].add(p.name);
+            else if (p.type === 'AssignmentPattern' && p.left?.type === 'Identifier') {
+              scopeStack[scopeStack.length - 1].add(p.left.name);
+            } else if (p.type === 'RestElement' && p.argument?.type === 'Identifier') {
+              scopeStack[scopeStack.length - 1].add(p.argument.name);
+            }
+          }
+        };
+        const isFn = (n: any) =>
+          n && (n.type === 'FunctionDeclaration' || n.type === 'FunctionExpression' || n.type === 'ArrowFunctionExpression');
+
         walk(ast as any, {
           enter(node: any, parent: any) {
+            if (isFn(node)) {
+              if (node.type === 'FunctionDeclaration' && node.id?.name) {
+                scopeStack[scopeStack.length - 1].add(node.id.name);
+              }
+              scopeStack.push(new Set());
+              if (node.id?.name && node.type !== 'FunctionDeclaration') {
+                scopeStack[scopeStack.length - 1].add(node.id.name);
+              }
+              addParams(node.params);
+            } else if (node.type === 'BlockStatement' && !isFn(parent)) {
+              scopeStack.push(new Set());
+            } else if (node.type === 'VariableDeclarator' && node.id?.type === 'Identifier') {
+              scopeStack[scopeStack.length - 1].add(node.id.name);
+            }
+
             if (node.type === 'Identifier') {
               if (allStateNames.has(node.name)) {
+                if (isLocal(node.name)) return;
                 // Avoid replacing definition key or property access
                 if (parent && (
                   (parent.type === 'Property' && parent.key === node && !parent.computed) ||
                   (parent.type === 'MemberExpression' && parent.property === node && !parent.computed) ||
                   (parent.type === 'VariableDeclarator' && parent.id === node) ||
                   (parent.type === 'FunctionDeclaration' && parent.id === node) ||
+                  (parent.type === 'FunctionExpression' && parent.id === node) ||
                   // Don't unwrap if it's the declaration we are transforming!
                   (parent.type === 'AssignmentPattern' && parent.left === node)
                 )) return;
@@ -127,6 +164,13 @@ ${imports.map(i => {
                   value: replacement
                 });
               }
+            }
+          },
+          leave(node: any, parent: any) {
+            if (isFn(node)) {
+              scopeStack.pop();
+            } else if (node.type === 'BlockStatement' && !isFn(parent)) {
+              scopeStack.pop();
             }
           }
         });
@@ -262,6 +306,7 @@ export default function ${componentName}(props) {
       });
       // Add props
       moduleCode += `    props: props, \n`; // Allow props access
+      moduleCode += `    state: state, \n`;
       moduleCode += `  }; \n\n`;
 
       // Mount primitives helper using Runtime

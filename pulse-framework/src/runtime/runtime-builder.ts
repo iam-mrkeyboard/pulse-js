@@ -61,26 +61,52 @@ export class RuntimeBuilder {
     return primitives;
   }
 
-  private async buildCoreRuntime(): Promise<string> {
-    const corePath = path.resolve(import.meta.dir, '../../runtime/core.ts');
-    const file = Bun.file(corePath);
-    if (await file.exists()) {
-      return this.minifyCode(await file.text());
+  private async resolveRuntimeSource(relTs: string, relJs: string): Promise<string> {
+    const dir = import.meta.dir;
+    const candidates = [
+      path.join(dir, relTs),
+      path.join(dir, relJs),
+      path.join(dir, 'runtime', relJs),
+      path.join(dir, '../runtime', relJs),
+      path.join(dir, '../../src/runtime', relTs),
+      path.join(dir, '../src/runtime', relTs),
+    ];
+    for (const candidate of candidates) {
+      const file = Bun.file(candidate);
+      if (await file.exists()) {
+        const text = await file.text();
+        if (!text) continue;
+        if (candidate.endsWith('.ts')) {
+          const transpiler = new Bun.Transpiler({ loader: 'ts', target: 'browser' });
+          return await transpiler.transform(text);
+        }
+        return text;
+      }
     }
     return '';
   }
 
-  private async buildPrimitive(primitive: PrimitiveType): Promise<string> {
-    const fileName = `${primitive.toLowerCase()}.ts`;
-    const primitivePath = path.resolve(import.meta.dir, '../../runtime/primitives', fileName);
-    const file = Bun.file(primitivePath);
-
-    if (await file.exists()) {
-      return this.minifyCode(await file.text());
+  private async buildCoreRuntime(): Promise<string> {
+    const code = await this.resolveRuntimeSource('core.ts', 'core.js');
+    if (!code) {
+      console.warn('[RuntimeBuilder] core runtime not found');
+      return '';
     }
+    return this.minifyCode(code);
+  }
 
-    console.warn(`[RuntimeBuilder] Primitive ${primitive} not found at ${primitivePath}`);
-    return '';
+  private async buildPrimitive(primitive: PrimitiveType): Promise<string> {
+    const fileName = `${primitive.toLowerCase()}`;
+    const code = await this.resolveRuntimeSource(
+      `primitives/${fileName}.ts`,
+      `primitives/${fileName}.js`,
+    );
+
+    if (!code) {
+      console.warn(`[RuntimeBuilder] Primitive ${primitive} not found`);
+      return '';
+    }
+    return this.minifyCode(code);
   }
 
   private async minifyCode(code: string): Promise<string> {

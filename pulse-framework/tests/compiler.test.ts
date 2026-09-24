@@ -1,6 +1,9 @@
 import { describe, test, expect } from 'bun:test';
 import { TemplateTransformer } from '../src/server/template-transformer';
 import { HTMLParser } from '../src/bundler/compiler/html-parser';
+import { ComponentCompiler } from '../src/server/component-compiler';
+import { ScriptParser } from '../src/server/script-parser';
+import { createDefaultConfig } from '../src/bundler/types';
 
 describe('Pulse Compiler: TemplateTransformer', () => {
   const transformer = new TemplateTransformer();
@@ -47,6 +50,26 @@ describe('Pulse Compiler: TemplateTransformer', () => {
     expect(result.html).toContain('data-template-id=');
   });
 
+  test('keeps list item class bindings on the item, not the page root', () => {
+    const template = `
+      <List each={data} as="row" key={row.id}>
+        <tr class={selected === row.id ? "danger" : ""}>
+          <td>{row.id}</td>
+        </tr>
+      </List>
+    `;
+    const root = parser.parse(template);
+    const stateVars = [
+      { name: 'data', value: '[]' },
+      { name: 'selected', value: 'null' },
+    ];
+    const result = transformer.transform(root, stateVars);
+    expect(result.bindings.find((b) => b.name === 'class')).toBeUndefined();
+    expect(result.html).toContain('data-bindings=');
+    expect(result.html).toContain('danger');
+    expect(result.html).toMatch(/data-bindings="[^"]*class/);
+  });
+
   test('should transform bindings correctly', () => {
     const template = `<button onclick={increment}>Count: {count}</button>`;
 
@@ -74,5 +97,41 @@ describe('Pulse Compiler: TemplateTransformer', () => {
     // Initial check: HTML should NOT contain legacy data-ids
     expect(result.html).not.toContain('data-bind=');
     expect(result.html).not.toContain('data-pulse-id=');
+  });
+});
+
+describe('Pulse SFC compiler', () => {
+  test('emits package runtime specifiers and keeps list class bindings in-item', async () => {
+    const compiler = new ComponentCompiler(
+      createDefaultConfig({ build: { minify: false } }),
+      new ScriptParser(),
+      new TemplateTransformer(),
+    );
+    const source = `
+<script>
+const state = { data: [], selected: null };
+function buildData(count) {
+  const data = new Array(count);
+  for (let i = 0; i < count; i++) data[i] = { id: i, label: 'x' };
+  return data;
+}
+function select(id) { state.selected = id; }
+</script>
+<List each={state.data} as="row" key={row.id}>
+  <tr class={state.selected === row.id ? "danger" : ""}>
+    <td>{row.id}</td>
+    <a onClick={() => select(row.id)}>{row.label}</a>
+  </tr>
+</List>
+`;
+    const code = await compiler.compile('App.pulse', source);
+    expect(code).toContain("from 'pulse/runtime'");
+    expect(code).toContain("from 'pulse/runtime/list'");
+    expect(code).not.toContain("from '/runtime/");
+    expect(code).not.toMatch(/walk\(container[\s\S]*row\.id/);
+    expect(code).toContain('danger');
+    expect(code).toMatch(/const data = new Array/);
+    expect(code).toMatch(/data\[i\] = \{ id: i/);
+    expect(code).not.toMatch(/get_data\[i\]/);
   });
 });

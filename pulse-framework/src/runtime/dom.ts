@@ -257,6 +257,36 @@ export function mountPrimitives(
             if (keyFn && node instanceof Element) {
               try { markKey(node, keyFn(item, index)); } catch {}
             }
+            if (node instanceof Element || clone instanceof DocumentFragment) {
+              const rootEl = node instanceof Element ? node : clone;
+              const eventEls: Element[] = [];
+              if (rootEl instanceof Element) eventEls.push(rootEl);
+              if ((rootEl as ParentNode).querySelectorAll) {
+                eventEls.push(...Array.from((rootEl as ParentNode).querySelectorAll('[data-on-click],[data-on-input],[data-on-change]')));
+              }
+              const seen = new Set<Element>();
+              for (const el of eventEls) {
+                if (seen.has(el)) continue;
+                seen.add(el);
+                for (const attr of Array.from(el.attributes || [])) {
+                  if (!attr.name.startsWith('data-on-')) continue;
+                  const evt = attr.name.slice('data-on-'.length);
+                  const expr = attr.value.replace(/^\{|\}$/g, '');
+                  el.addEventListener(evt, (event) => {
+                    try {
+                      const scopeKeys = Object.keys(scope);
+                      const scopeValues = scopeKeys.map((k) => scope[k]);
+                      const keys = [...scopeKeys, asVar, 'row', 'index', 'e'];
+                      const values = [...scopeValues, item, item, index, event];
+                      const result = safeEvalExpr(expr, keys, values);
+                      if (typeof result === 'function') result(event);
+                    } catch (err) {
+                      console.error('Pulse list event error:', expr, err);
+                    }
+                  });
+                }
+              }
+            }
             return node;
           }
         });

@@ -12,7 +12,18 @@ Historical entries for **v0.6.0–v0.15.0** are reconstructed from the project's
 
 ### Added
 
-- Nothing yet. Add new entries here.
+- `createSelector` and `createRoot` on the core runtime (Solid-style selected-row updates; List disposes row effects on remove).
+- Longest-increasing-subsequence reorder in the keyed `List` middle range (after prefix/suffix skip).
+- Production browser runtime files under `dist/runtime/` and `pulse/runtime` package exports.
+
+### Fixed
+
+- Row swap no longer `insertBefore`s the whole middle of the list.
+- Empty list clear uses a bulk `replaceChildren` path.
+- List item `class` / attribute bindings stay on the item instead of being hoisted.
+- Compiled SFCs import `pulse/runtime` instead of `/runtime/*.js`.
+- `RuntimeBuilder` emits a non-empty production runtime (path + TS transpile).
+- Script transform skips locally shadowed state names (`const data` inside `buildData`).
 
 ---
 

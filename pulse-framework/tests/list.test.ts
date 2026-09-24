@@ -94,4 +94,34 @@ describe('Keyed List (prefix/suffix + Map)', () => {
     setItems([]);
     expect(rows().length).toBe(0);
   });
+
+  test('distant swap reuses nodes and does not move the whole list', () => {
+    const initial = Array.from({ length: 20 }, (_, i) => ({ id: i + 1, label: String(i + 1) }));
+    const [items, setItems] = createSignal(initial);
+    const rows = mount(() => items());
+    const before = rows();
+    const n1 = before[1];
+    const n18 = before[18];
+
+    let moves = 0;
+    const parent = n1.parentNode as HTMLElement;
+    const orig = parent.insertBefore.bind(parent);
+    parent.insertBefore = ((node: Node, ref: Node | null) => {
+      moves++;
+      return orig(node, ref);
+    }) as any;
+
+    const next = items().slice();
+    const tmp = next[1];
+    next[1] = next[18];
+    next[18] = tmp;
+    setItems(next);
+
+    const after = rows();
+    expect(after[1]).toBe(n18);
+    expect(after[18]).toBe(n1);
+    expect(after[0]).toBe(before[0]);
+    expect(after[19]).toBe(before[19]);
+    expect(moves).toBeLessThanOrEqual(4);
+  });
 });

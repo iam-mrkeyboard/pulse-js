@@ -22,7 +22,11 @@ interface Effect {
   execute(): void;
   cleanup?: () => void;
   dependencies: Set<ReactiveNode>;
+  disposed?: boolean;
 }
+
+/** Nested createRoot owners collect child effects for disposal. */
+let ownerStack: Effect[][] | null = null;
 
 // ----------------------------------------------------------------------------
 // Core Primitives
@@ -60,6 +64,7 @@ export function createSignal<T>(initialValue: T): Signal<T> {
 export function createEffect(fn: () => void | (() => void)) {
   const effect: Effect = {
     execute() {
+      if (effect.disposed) return;
       // Cleanup previous dependencies
       cleanup(effect);
 
@@ -78,7 +83,34 @@ export function createEffect(fn: () => void | (() => void)) {
     dependencies: new Set()
   };
 
+  if (ownerStack && ownerStack.length > 0) {
+    ownerStack[ownerStack.length - 1].push(effect);
+  }
+
   effect.execute();
+}
+
+/**
+ * Collect effects created inside `fn` and return a disposer.
+ * List uses this so removed rows drop their effects (createSelector, label, …).
+ */
+export function createRoot<T>(fn: (dispose: () => void) => T): T {
+  const owned: Effect[] = [];
+  if (!ownerStack) ownerStack = [];
+  ownerStack.push(owned);
+  let closed = false;
+  const dispose = () => {
+    if (closed) return;
+    closed = true;
+    for (let i = owned.length - 1; i >= 0; i--) disposeEffect(owned[i]);
+    owned.length = 0;
+  };
+  try {
+    return fn(dispose);
+  } finally {
+    ownerStack.pop();
+    if (ownerStack.length === 0) ownerStack = null;
+  }
 }
 
 export function onCleanup(fn: () => void) {
@@ -118,6 +150,11 @@ function cleanup(effect: Effect) {
   }
 }
 
+function disposeEffect(effect: Effect) {
+  effect.disposed = true;
+  cleanup(effect);
+}
+
 // Batching & Scheduler
 const batchQueue = new Set<Effect>();
 let batchDepth = 0;
@@ -139,19 +176,66 @@ function flushUpdates() {
     const effects = Array.from(batchQueue);
     batchQueue.clear();
     effects.forEach(effect => {
-      // We might need to check disposal if we support it
-      effect.execute();
+      if (!effect.disposed) effect.execute();
     });
   }
 }
 
 // Internal Helper to queue effect
 function queueEffect(effect: Effect) {
+  if (effect.disposed) return;
   if (batchDepth > 0) {
     batchQueue.add(effect);
   } else {
     effect.execute();
   }
+}
+
+/**
+ * Selector that only notifies subscribers whose match status changed.
+ * `isSelected(key)` is O(1) to read; a source update wakes the keys that
+ * entered or left the match (typically 2 for a selected-id).
+ */
+export function createSelector<T, U = T>(
+  source: Accessor<T>,
+  equals: (key: U, value: T) => boolean = (key, value) => (key as unknown as T) === value,
+): (key: U) => boolean {
+  const subs = new Map<U, Set<Effect>>();
+  let current = untrack(source);
+  let primed = false;
+
+  createEffect(() => {
+    const next = source();
+    const prev = current;
+    current = next;
+    if (primed) {
+      for (const [key, effects] of [...subs]) {
+        if (equals(key, prev) !== equals(key, next)) {
+          for (const effect of [...effects]) {
+            queueEffect(effect);
+          }
+        }
+      }
+    }
+    primed = true;
+  });
+
+  return (key: U) => {
+    if (context) {
+      let set = subs.get(key);
+      if (!set) {
+        set = new Set();
+        subs.set(key, set);
+      }
+      set.add(context);
+      const effect = context;
+      onCleanup(() => {
+        set!.delete(effect);
+        if (set!.size === 0) subs.delete(key);
+      });
+    }
+    return equals(key, current);
+  };
 }
 
 // Untrack: Run a function without tracking dependencies

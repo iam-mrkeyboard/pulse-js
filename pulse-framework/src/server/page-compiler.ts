@@ -227,6 +227,10 @@ export class PageCompiler {
     const importMap = {
       imports: {
         "pulse": "/runtime/core.js",
+        "pulse/runtime": "/runtime/core.js",
+        "pulse/runtime/dom": "/runtime/dom.js",
+        "pulse/runtime/list": "/runtime/primitives/list.js",
+        "pulse/runtime/show": "/runtime/primitives/show.js",
         "pulse/dom": "/runtime/dom.js",
         "pulse/list": "/runtime/primitives/list.js",
         "pulse/show": "/runtime/primitives/show.js"
