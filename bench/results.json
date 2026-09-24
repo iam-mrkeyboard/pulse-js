@@ -3,67 +3,72 @@
   "chrome": true,
   "machine_note": "local Chromium via puppeteer; medians of repeated runs",
   "create": {
-    "cloneNode_1000": 4.099999999627471,
-    "createElement_1000": 3.400000000372529,
-    "innerHTML_1000": 4.3999999994412065,
-    "cloneNode_10000": 31.799999999813735,
-    "createElement_10000": 27.100000000558794,
-    "innerHTML_10000": 30
+    "cloneNode_1000": 5,
+    "createElement_1000": 5.099999999627471,
+    "innerHTML_1000": 5.2999999998137355,
+    "cloneNode_10000": 33.60000000055879,
+    "createElement_10000": 43.200000000186265,
+    "innerHTML_10000": 34.5
   },
   "update": {
     "fine_partial_1k": 0,
     "fine_single_1k": 0,
-    "fine_partial_10k": 0.09999999962747097,
+    "fine_partial_10k": 0.5,
     "fine_single_10k": 0,
     "batched_partial_1k": 0.09999999962747097,
     "batched_single_1k": 0,
-    "batched_partial_10k": 1.400000000372529,
+    "batched_partial_10k": 1.3999999994412065,
     "batched_single_10k": 0
   },
   "list": {
     "alwaysInsert": {
-      "create_1k": 4.5,
-      "replace_1k": 2.8999999994412065,
-      "partial_1k": 0,
+      "create_1k": 3.099999999627471,
+      "replace_1k": 3.1000000005587935,
+      "partial_1k": 0.09999999962747097,
       "select": 0,
-      "swap": 0.599999999627471,
-      "remove": 0.5,
-      "create_10k": 30,
-      "append_1k": 5.3999999994412065,
+      "swap": 0.7999999998137355,
+      "remove": 0.7999999998137355,
+      "create_10k": 48.90000000037253,
+      "append_1k": 6.2000000001862645,
       "clear": 0
     },
     "prefixSuffixMap": {
-      "create_1k": 2.7000000001862645,
-      "replace_1k": 2.7000000001862645,
+      "create_1k": 3.2000000001862645,
+      "replace_1k": 3.2999999998137355,
       "partial_1k": 0,
       "select": 0,
-      "swap": 0.5,
+      "swap": 0.7000000001862645,
       "remove": 0,
-      "create_10k": 28.199999999254942,
-      "append_1k": 2.599999999627471,
+      "create_10k": 31.700000000186265,
+      "append_1k": 2.2999999998137355,
       "clear": 0
     },
     "LIS": {
-      "create_1k": 2.900000000372529,
-      "replace_1k": 5.2000000001862645,
+      "create_1k": 3,
+      "replace_1k": 3.7999999998137355,
       "partial_1k": 0,
       "select": 0,
-      "swap": 1.5,
-      "remove": 0.7000000001862645,
-      "create_10k": 57.700000000186265,
-      "append_1k": 5.400000000372529,
+      "swap": 1.099999999627471,
+      "remove": 0.2999999998137355,
+      "create_10k": 57.30000000074506,
+      "append_1k": 4.2999999998137355,
       "clear": 0
     }
   },
   "vanilla": {
-    "create_1k": 2.6000000005587935,
-    "replace_1k": 2.5,
+    "create_1k": 2.900000000372529,
+    "replace_1k": 2.8999999994412065,
     "partial_1k": 0.09999999962747097,
     "select": 0,
     "swap": 0,
     "remove": 0,
-    "create_10k": 28.09999999962747,
-    "append_1k": 2.599999999627471,
+    "create_10k": 30.09999999962747,
+    "append_1k": 2.7000000001862645,
     "clear": 0
+  },
+  "hydrate": {
+    "remount_1k": 1,
+    "hydrate_1k": 0.20000000018626451,
+    "note": "local Chromium; SSR already in DOM; hydrate=adopt walk, remount=rebuild children"
   }
 }
