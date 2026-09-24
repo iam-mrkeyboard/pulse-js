@@ -140,7 +140,7 @@ export class DevServer {
     // Start file watching
     this.startFileWatcher();
 
-    console.log(`\n⚡ Pulse v0.15.0 Dev Server running\n`);
+    console.log(`\n⚡ Pulse v0.16.0 Dev Server running\n`);
     console.log(`  Local:    http://localhost:${port}`);
     console.log(`  Network:  http://0.0.0.0:${port}`);
     console.log(
