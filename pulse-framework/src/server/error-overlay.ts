@@ -313,7 +313,7 @@ export class ErrorOverlay {
     </div>
 
     <div class="footer">
-      <div class="badge badge-pulse">Pulse v0.15.0</div>
+      <div class="badge badge-pulse">Pulse v0.16.0</div>
       <div class="reload-hint">
         Edit file to reload automatically
       </div>

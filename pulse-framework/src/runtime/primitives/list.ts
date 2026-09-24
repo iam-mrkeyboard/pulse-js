@@ -1,4 +1,5 @@
 import { createEffect, createSignal, onCleanup } from '../core.js';
+import { P_KEY, markKey, collectKeyedRows } from '../ssr-markers.js';
 
 interface VirtualConfig {
   rowHeight: number;
@@ -7,39 +8,49 @@ interface VirtualConfig {
 
 export type ListProps = {
   each: () => any[];
-  /** Stable key for each item. Defaults to the item value itself. */
   key?: (item: any, index: number) => any;
   children: (item: any, index: number) => Node;
   initialNodes?: Node[];
-  /** Opt-in windowed rendering */
+  /** When set, reconcile inside this host (no replaceWith). Preferred for SSR/hydration. */
+  host?: Element;
   virtual?: VirtualConfig;
-  /** Opt-in FLIP move animations (off by default — measured as hot-path cost) */
   flip?: boolean;
 };
 
 type Entry = { key: any; node: Node; item: any };
 
 /**
- * Keyed List — common prefix/suffix + Map (bench winner vs always-insertBefore / LIS).
- * Keeps restructure features: optional virtualization + opt-in FLIP.
+ * Keyed List — prefix/suffix + Map.
+ * Host mode keeps SSR rows in place and adopts them by data-p-key.
  */
 export function List(props: ListProps) {
   const anchor = document.createComment('List Anchor');
   const frag = document.createDocumentFragment();
-  frag.appendChild(anchor);
 
   const cache = new Map<any, Entry>();
   let prevKeys: any[] = [];
   let renderedNodes: Node[] = [];
-  let hydrating = !!(props.initialNodes && props.initialNodes.length > 0);
+  let hydrating = false;
 
   const [getScrollTop, setScrollTop] = createSignal(0);
   let scrollContainer: HTMLElement | null = null;
 
-  if (hydrating && props.initialNodes) {
-    for (const n of props.initialNodes) {
-      frag.insertBefore(n, anchor);
-      renderedNodes.push(n);
+  // Place anchor
+  if (props.host) {
+    // Adopt existing keyed rows already in the host
+    const existing = collectKeyedRows(props.host);
+    if (existing.length > 0 || (props.initialNodes && props.initialNodes.length > 0)) {
+      hydrating = true;
+    }
+    props.host.appendChild(anchor);
+  } else {
+    frag.appendChild(anchor);
+    if (props.initialNodes && props.initialNodes.length > 0) {
+      hydrating = true;
+      for (const n of props.initialNodes) {
+        frag.insertBefore(n, anchor);
+        renderedNodes.push(n);
+      }
     }
   }
 
@@ -54,8 +65,14 @@ export function List(props: ListProps) {
     return rects;
   };
 
+  const tagNode = (node: Node, k: any) => {
+    if (node instanceof Element) markKey(node, k);
+    (node as any).__pulse_item = k;
+    return node;
+  };
+
   createEffect(() => {
-    const parent = anchor.parentNode as HTMLElement | null;
+    const parent = (props.host || anchor.parentNode) as HTMLElement | null;
     if (!parent) return;
 
     if (props.virtual && !scrollContainer) {
@@ -91,23 +108,35 @@ export function List(props: ListProps) {
     const newKeys = workItems.map((it, i) => keyOf(it, startIndex + i));
 
     if (hydrating) {
-      const nodes = props.initialNodes || renderedNodes;
+      // Adopt by key from host children / initialNodes
+      const byKey = new Map<any, Node>();
+      if (props.host) {
+        for (const { key, node } of collectKeyedRows(props.host)) {
+          byKey.set(key, node);
+          // also allow numeric/string coercion
+          byKey.set(String(key), node);
+        }
+      }
+      const fallbackNodes = props.initialNodes || renderedNodes;
       for (let i = 0; i < workItems.length; i++) {
         const k = newKeys[i];
-        const node = nodes[i];
+        let node =
+          byKey.get(k) ??
+          byKey.get(String(k)) ??
+          fallbackNodes[i];
         if (node) {
+          tagNode(node, k);
           cache.set(k, { key: k, node, item: workItems[i] });
-          (node as any).__pulse_item = workItems[i];
         }
       }
       prevKeys = newKeys;
+      renderedNodes = newKeys.map((k) => cache.get(k)!.node).filter(Boolean);
       hydrating = false;
       return;
     }
 
     const prevRects = props.flip && !props.virtual ? getRects(renderedNodes) : null;
 
-    // --- prefix / suffix + Map ---
     let start = 0;
     const minLen = Math.min(prevKeys.length, newKeys.length);
     while (start < minLen && prevKeys[start] === newKeys[start]) start++;
@@ -147,7 +176,7 @@ export function List(props: ListProps) {
           console.error('Pulse List render error:', e);
           node = document.createComment('list-error');
         }
-        (node as any).__pulse_item = workItems[i];
+        tagNode(node, k);
         entry = { key: k, node, item: workItems[i] };
         cache.set(k, entry);
       }
@@ -193,5 +222,6 @@ export function List(props: ListProps) {
     renderedNodes = newRendered;
   });
 
-  return frag;
+  // Host mode: list lives inside host; return host for identity. Otherwise return fragment.
+  return props.host ? (props.host as unknown as DocumentFragment) : frag;
 }

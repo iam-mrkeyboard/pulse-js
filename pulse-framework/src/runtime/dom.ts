@@ -33,6 +33,7 @@ function safeEvalExpr(code: string, keys: string[], values: any[]): any {
 }
 
 import { createEffect, type Accessor } from './core.js';
+import { P_LIST, P_SHOW, P_KEY, markKey, markRoot } from './ssr-markers.js';
 
 // ----------------------------------------------------------------------------
 // Template Management
@@ -205,31 +206,33 @@ export function mountPrimitives(
             }
           : undefined;
 
-        const listNode = primitives.List({
+        // Adopt existing SSR rows (skip <template>)
+        const initialNodes = Array.from(el.childNodes).filter(
+          (n) => n.nodeType === Node.ELEMENT_NODE && (n as HTMLElement).tagName !== 'TEMPLATE'
+        );
+
+        el.setAttribute('data-p-list', '1');
+
+        primitives.List({
           each: getEach,
           key: keyFn,
+          host: el,
+          initialNodes,
           children: (item: any, index: number) => {
-            // Clone template
-            // We can use the exported template function if we want, or just manual
             const t = document.createElement('template');
             t.innerHTML = templateHtml;
             const clone = t.content.cloneNode(true);
 
-            // Apply bindings
-            // bindings is array of { type: 'text'|'attribute', path: number[], expr: string, name?: string }
             bindings.forEach((b: any) => {
               const target = walk(clone, b.path);
               if (!target) return;
 
-              // Eval expression with item and index
               const run = () => {
                 try {
                   const scopeKeys = Object.keys(scope);
                   const scopeValues = scopeKeys.map(k => scope[k]);
-                  // Add item and index to scope
                   const keys = [...scopeKeys, asVar, 'index'];
                   const values = [...scopeValues, item, index];
-
                   return safeEvalExpr(b.expr, keys, values);
                 } catch (e) {
                   return '';
@@ -250,12 +253,14 @@ export function mountPrimitives(
               });
             });
 
-            // console.log('Pulse [dom] Clone created:', clone);
-            return (clone as DocumentFragment).firstElementChild || clone;
+            const node = (clone as DocumentFragment).firstElementChild || clone;
+            if (keyFn && node instanceof Element) {
+              try { markKey(node, keyFn(item, index)); } catch {}
+            }
+            return node;
           }
         });
-
-        el.replaceWith(listNode);
+        // Keep pulse-list host in the tree (SSR/hydration identity)
       }
     });
   }
@@ -281,22 +286,25 @@ export function mountPrimitives(
           } catch (e) { return false; }
         };
 
-        const showNode = primitives.Show({
+        const initialNodes = Array.from(el.childNodes).filter(
+          (n) => n.nodeType === Node.ELEMENT_NODE && (n as HTMLElement).tagName !== 'TEMPLATE'
+        );
+
+        el.setAttribute('data-p-show', '1');
+
+        primitives.Show({
           when: getWhen,
-          fallback: fallbackExpr ? () => document.createTextNode(fallbackExpr || '') : undefined, // Todo: support element fallback
+          host: el,
+          initialNodes,
+          fallback: fallbackExpr ? () => document.createTextNode(fallbackExpr || '') : undefined,
           children: () => {
             const t = document.createElement('template');
             t.innerHTML = content;
             const clone = t.content.cloneNode(true);
             return (clone as DocumentFragment).firstElementChild || clone;
-            // Note: Bindings inside Show are not fully handled here recursively yet.
-            // This assumes strict separation or verifying children bindings.
-            // For now, this mounts the static content of Show.
           }
         });
-
-
-        el.replaceWith(showNode);
+        // Keep pulse-show host (adopt SSR branch)
       }
     });
   }
@@ -384,12 +392,10 @@ function handleEvent(event: Event) {
   }
 }
 
-// Hydration Helper
-export function hydrate(Component: any, container: HTMLElement) {
-  // We assume the SSR output rendered the component as the first child of the container
-  const hydrationRoot = container.firstElementChild;
+// Hydration Helper (prefer runtime/hydration.ts for full adopt-and-bind API)
+export function hydrateDOM(Component: any, container: HTMLElement) {
+  const hydrationRoot = container.firstElementChild as HTMLElement | null;
   if (hydrationRoot) {
-    // Pass the existing root as _hydrationNode to the component
     Component({ _hydrationNode: hydrationRoot });
   } else {
     console.warn('Pulse Hydration: No SSR root found, falling back to mount.');

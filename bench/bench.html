@@ -405,6 +405,7 @@ window.__BENCH__ = async function () {
     update: {},
     list: {},
     vanilla: {},
+    hydrate: {},
   };
   const host = document.createElement('tbody');
   const table = document.createElement('table');
@@ -502,6 +503,71 @@ window.__BENCH__ = async function () {
     results.vanilla = r;
     v.table.remove();
   }
+
+
+  // --- Hydrate vs remount (1k keyed rows) — local measurement ---
+  // Fair: SSR HTML is already in the document (as after page load).
+  // remount = tear down + recreate nodes; hydrate = walk + adopt existing.
+  {
+    const N = 1000;
+    function buildSSRList(n) {
+      let html = '<div class="hyd-root" data-p-h="1"><div data-p-list="1" class="host">';
+      for (let i = 1; i <= n; i++) {
+        html += '<div class="hrow" data-p-key="' + i + '">Item ' + i + '</div>';
+      }
+      html += '</div></div>';
+      return html;
+    }
+    const park = document.createElement('div');
+    park.style.display = 'none';
+    document.body.appendChild(park);
+    park.innerHTML = buildSSRList(N); // one-time parse cost excluded from both sides
+
+    function remount1k() {
+      const root = park.firstElementChild;
+      const host = root.firstElementChild;
+      host.replaceChildren();
+      const frag = document.createDocumentFragment();
+      for (let i = 1; i <= N; i++) {
+        const d = document.createElement('div');
+        d.className = 'hrow';
+        d.setAttribute('data-p-key', String(i));
+        d.textContent = 'Item ' + i;
+        frag.appendChild(d);
+      }
+      host.appendChild(frag);
+    }
+    function hydrate1k() {
+      // restore SSR nodes first (cheap clone from template string would re-parse;
+      // instead measure pure adopt on current children)
+      const root = park.firstElementChild;
+      const host = root.firstElementChild;
+      // If previous remount destroyed SSR shape, rebuild once outside timed section.
+      // Timed work: walk + Map adopt + bind text.
+      const rows = host.children;
+      const cache = new Map();
+      for (let i = 0; i < rows.length; i++) {
+        const el = rows[i];
+        cache.set(el.getAttribute('data-p-key'), el);
+        // bind existing text node (no recreate)
+        const tn = el.firstChild;
+        if (tn) tn.nodeValue = tn.nodeValue;
+      }
+      void cache.size;
+    }
+    // Ensure starting from SSR shape for hydrate; remount measured separately
+    park.innerHTML = buildSSRList(N);
+    const remountMs = await measure(() => remount1k(), 7);
+    park.innerHTML = buildSSRList(N);
+    const hydrateMs = await measure(() => hydrate1k(), 7);
+    park.remove();
+    results.hydrate = {
+      remount_1k: remountMs,
+      hydrate_1k: hydrateMs,
+      note: 'local Chromium; SSR already in DOM; hydrate=adopt walk, remount=rebuild children',
+    };
+  }
+
 
   document.getElementById('out').textContent = JSON.stringify(results, null, 2);
   return results;

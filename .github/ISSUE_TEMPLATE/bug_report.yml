@@ -1,0 +1,57 @@
+name: Bug report
+description: Report a bug in Pulse (framework, CLI, or docs app)
+title: "[bug] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for filing a bug. Please search existing issues first.
+        **Security issues:** use [GitHub Security Advisories](https://github.com/iam-mrkeyboard/pulse-js/security/advisories/new), not this form.
+  - type: input
+    id: version
+    attributes:
+      label: Pulse version
+      description: Output of `pulse --version` or `pulse-framework` package version
+      placeholder: "0.16.0"
+    validations:
+      required: true
+  - type: input
+    id: bun-version
+    attributes:
+      label: Bun version
+      description: Output of `bun --version`
+      placeholder: "1.1.x"
+    validations:
+      required: true
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: Clear description of the bug
+      placeholder: Describe the unexpected behavior…
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      placeholder: What did you expect to happen?
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Reproduction steps
+      description: Minimal steps or a small `.pulse` snippet
+      placeholder: |
+        1. …
+        2. …
+      render: markdown
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs / stack trace
+      render: shell

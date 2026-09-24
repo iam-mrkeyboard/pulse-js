@@ -7,6 +7,7 @@ import { type PulseConfig } from '../bundler/types';
 import path from 'node:path';
 import { type ComponentCompiler } from './component-compiler';
 import { type PageCompiler } from './page-compiler';
+import { markRoot } from '../runtime/ssr-markers';
 
 // Register DOM globals once
 GlobalRegistrator.register();
@@ -103,7 +104,8 @@ export class SSRRenderer {
       // Component returns a DOM Node (HappyDOM node)
       const rootNode = Component(props);
 
-      // Serialize
+      // Mark for hydration and serialize
+      if (rootNode instanceof Element) markRoot(rootNode);
       return rootNode.outerHTML;
 
     } catch (error: any) {
