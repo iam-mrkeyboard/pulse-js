@@ -80,8 +80,7 @@ Scopes are optional (`fix(runtime): …`). Breaking changes: add `!` after the t
 3. Do not force-push shared long-lived branches (`master`, integration branches) without maintainer agreement.
 4. Fill out the PR template. Link related issues when applicable.
 5. Wait for CI (`bun install` + `bun test` + `bun run build` in `pulse-framework`) to pass.
-   The workflow YAML lives at `.github/ci-workflow.yml` until it can be installed as
-   `.github/workflows/ci.yml` (requires a token with the `workflow` scope).
+   The workflow lives at `.github/workflows/ci.yml` and runs on pushes to `master` and all pull requests.
 
 ## How releases are cut
 

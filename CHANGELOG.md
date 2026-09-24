@@ -8,6 +8,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 Historical entries for **v0.6.0–v0.15.0** are reconstructed from the project's own blog posts
 (`pulse-app/src/pages/blog/`). Those versions were never tagged on GitHub.
 
+## [Unreleased]
+
+### Added
+
+- Nothing yet. Add new entries here.
+
+---
+
 ## [0.16.0] - 2026-09-24
 
 ### Added
@@ -220,4 +228,5 @@ Reconstructed from blog post *Pulse v0.6 Initial*.
 Only **v0.16.0** is expected to receive a Git tag when this release is cut.
 Older versions (**v0.6.0–v0.15.0**) were never tagged on this repository; compare links for them are omitted.
 
+[Unreleased]: https://github.com/iam-mrkeyboard/pulse-js/compare/v0.16.0...HEAD
 [0.16.0]: https://github.com/iam-mrkeyboard/pulse-js/releases/tag/v0.16.0
