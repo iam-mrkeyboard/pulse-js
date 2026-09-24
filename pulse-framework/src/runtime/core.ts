@@ -1,75 +1,166 @@
-// Reactivity System Implementation
+// ============================================================================
+// FILE: src/runtime/core.ts
+// Automatic Dependency Tracking Reactivity System
+// ============================================================================
 
-let activeEffect: (() => void) | null = null;
-const effectStack: (() => void)[] = [];
+// Global context for dependency tracking
+let context: Effect | null = null;
 
-export function createSignal<T>(initialValue: T) {
+// ----------------------------------------------------------------------------
+// Types
+// ----------------------------------------------------------------------------
+
+export type Accessor<T> = () => T;
+export type Setter<T> = (newValue: T | ((prev: T) => T)) => void;
+export type Signal<T> = [Accessor<T>, Setter<T>];
+
+interface ReactiveNode {
+  subscribers: Set<Effect>;
+}
+
+interface Effect {
+  execute(): void;
+  cleanup?: () => void;
+  dependencies: Set<ReactiveNode>;
+}
+
+// ----------------------------------------------------------------------------
+// Core Primitives
+// ----------------------------------------------------------------------------
+
+export function createSignal<T>(initialValue: T): Signal<T> {
   let value = initialValue;
-  const subscribers = new Set<() => void>();
+  const node: ReactiveNode = { subscribers: new Set() };
 
   const read = () => {
-    if (activeEffect) {
-      if (!subscribers.has(activeEffect)) {
-        // console.log('[Pulse Core] Signal read: subscribing effect.', 'Subscribers:', subscribers.size + 1);
-        subscribers.add(activeEffect);
-      }
-    } else {
-      // console.log('[Pulse Core] Signal read: no active effect. Value:', value);
+    if (context) {
+      context.dependencies.add(node);
+      node.subscribers.add(context);
     }
     return value;
   };
 
   const write = (newValue: T | ((prev: T) => T)) => {
-    // Handle function updates
-    const nextValue = typeof newValue === 'function'
-      ? (newValue as Function)(value)
-      : newValue;
-
+    const nextValue = newValue instanceof Function ? newValue(value) : newValue;
     if (value !== nextValue) {
-      // console.log('[Pulse Core] Signal write:', value, '->', nextValue, 'Subscribers:', subscribers.size);
       value = nextValue;
       // Notify subscribers
-      // Snapshot to avoid infinite loops if effects mutate same signal
-      const runQueue = [...Array.from(subscribers)];
-      if (runQueue.length > 0) {
-        // console.log('[Pulse Core] Notifying', runQueue.length, 'subscribers');
-      } else {
-        // console.warn('[Pulse Core] Signal updated but no subscribers!');
+      // We need to copy subscribers to avoid infinite loops if an effect modifies the signal it reads?
+      // Usually reactivity systems batch or copy.
+      const subs = [...node.subscribers];
+      for (const sub of subs) {
+        queueEffect(sub);
       }
-      runQueue.forEach(fn => fn());
     }
   };
 
-  return [read, write] as const;
+  return [read, write];
 }
 
-export function createEffect(fn: () => void) {
-  const effect = () => {
-    if (effectStack.includes(effect)) return; // Prevent recursive cycles
+export function createEffect(fn: () => void | (() => void)) {
+  const effect: Effect = {
+    execute() {
+      // Cleanup previous dependencies
+      cleanup(effect);
 
-    try {
-      activeEffect = effect;
-      effectStack.push(effect);
-      fn();
-    } finally {
-      effectStack.pop();
-      activeEffect = effectStack[effectStack.length - 1] || null;
-    }
+      const prevContext = context;
+      context = effect;
+
+      try {
+        const result = fn();
+        if (typeof result === 'function') {
+          effect.cleanup = result;
+        }
+      } finally {
+        context = prevContext;
+      }
+    },
+    dependencies: new Set()
   };
 
-  effect(); // Initial run
+  effect.execute();
 }
 
-export function createMemo<T>(fn: () => T) {
-  const [val, setVal] = createSignal<T>(undefined as any);
+export function onCleanup(fn: () => void) {
+  if (context) {
+    const prev = context.cleanup;
+    context.cleanup = prev
+      ? () => { prev(); fn(); }
+      : fn;
+  }
+}
+
+export function createMemo<T>(fn: () => T): Accessor<T> {
+  const [signal, setSignal] = createSignal<T>(undefined as any);
 
   createEffect(() => {
-    setVal(fn());
+    setSignal(fn());
   });
 
-  return val;
+  return signal;
 }
 
-export function createDerived<T>(fn: () => T) {
-  return createMemo(fn);
+// ----------------------------------------------------------------------------
+// Internal Helpers
+// ----------------------------------------------------------------------------
+
+function cleanup(effect: Effect) {
+  // Remove this effect from all its dependencies' subscriber lists
+  for (const dep of effect.dependencies) {
+    dep.subscribers.delete(effect);
+  }
+  effect.dependencies.clear();
+
+  // Run user cleanup
+  if (effect.cleanup) {
+    effect.cleanup();
+    effect.cleanup = undefined;
+  }
+}
+
+// Batching & Scheduler
+const batchQueue = new Set<Effect>();
+let batchDepth = 0;
+
+export function batch(fn: () => void) {
+  batchDepth++;
+  try {
+    fn();
+  } finally {
+    batchDepth--;
+    if (batchDepth === 0) {
+      flushUpdates();
+    }
+  }
+}
+
+function flushUpdates() {
+  if (batchQueue.size > 0) {
+    const effects = Array.from(batchQueue);
+    batchQueue.clear();
+    effects.forEach(effect => {
+      // We might need to check disposal if we support it
+      effect.execute();
+    });
+  }
+}
+
+// Internal Helper to queue effect
+function queueEffect(effect: Effect) {
+  if (batchDepth > 0) {
+    batchQueue.add(effect);
+  } else {
+    effect.execute();
+  }
+}
+
+// Untrack: Run a function without tracking dependencies
+export function untrack<T>(fn: () => T): T {
+  const prevContext = context;
+  context = null;
+  try {
+    return fn();
+  } finally {
+    context = prevContext;
+  }
 }

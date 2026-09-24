@@ -1,355 +1,736 @@
-
-import { PulseParser, ParsedNode, NodeRange, Attribute } from './parser';
-import * as path from 'path';
-import * as acorn from 'acorn';
-import * as walk from 'acorn-walk';
-
-export const GLOBALS = new Set([
-  'console', 'window', 'document', 'setTimeout', 'setInterval',
-  'track', 'signal', 'createSignal', 'createEffect', 'createMemo', 'createStore',
-  'Math', 'JSON', 'Date', 'Array', 'Object', 'String', 'Number', 'Boolean',
-  'Map', 'Set', 'Promise', 'Error', 'undefined', 'null', 'NaN', 'Infinity',
-  'parseInt', 'parseFloat', 'isNaN', 'isFinite', 'encodeURI', 'decodeURI',
-  'module', 'require', 'exports', 'process'
-]);
-
-export interface FileSystem {
-  exists(path: string): Promise<boolean>;
-}
-
-export enum ValidationSeverity {
-  Error = 0,
-  Warning = 1,
-  Information = 2,
-  Hint = 3
-}
-
-export interface ValidationError {
-  range: NodeRange;
-  message: string;
-  code: string;
-  severity: ValidationSeverity;
-}
+import { PulseParser } from './parser';
+import { Diagnostic, DiagnosticSeverity } from 'vscode-languageserver/node';
+import { TextDocument } from 'vscode-languageserver-textdocument';
+import Parser from 'web-tree-sitter';
 
 export class PulseValidator {
   private parser: PulseParser;
-  private fs?: FileSystem;
 
-  constructor(fs?: FileSystem) {
-    this.parser = new PulseParser();
-    this.fs = fs;
+  constructor(parser: PulseParser) {
+    this.parser = parser;
   }
 
-  async validate(text: string, filePath?: string): Promise<ValidationError[]> {
-    const errors: ValidationError[] = [];
-    const root = this.parser.parse(text);
+  public async validateTextDocument(
+    document: TextDocument,
+  ): Promise<Diagnostic[]> {
+    const text = document.getText();
+    const tree = this.parser.parse(text);
 
-    this.validateNode(root, errors);
-    this.checkStateUsage(text, root, errors);
-    this.checkImports(text, errors);
-    this.checkScriptSyntax(text, root, errors);
-    this.checkScriptScope(text, root, errors);
+    if (!tree) return [];
 
-    if (this.fs && filePath) {
-      await this.checkImportExistence(text, filePath, errors);
+    const diagnostics: Diagnostic[] = [];
+
+    // 1. Find structural errors from tree-sitter
+    this.findTreeErrors(tree.rootNode, diagnostics, document);
+
+    // 2. Validate script content
+    const scriptNode = this.findScriptNode(tree.rootNode);
+    if (scriptNode) {
+      const declaredVars = this.extractDeclaredVariables(scriptNode);
+      const objectProperties = this.extractObjectProperties(scriptNode);
+      this.validateScriptContent(
+        scriptNode,
+        diagnostics,
+        document,
+        declaredVars,
+      );
+
+      // Merge object properties into declared vars for template validation
+      objectProperties.forEach((prop) => declaredVars.add(prop));
     }
 
-    return errors;
+    // 3. Validate template expressions (but skip style blocks)
+    const declaredVars = scriptNode
+      ? this.extractDeclaredVariables(scriptNode)
+      : new Set<string>();
+    const objectProperties = scriptNode
+      ? this.extractObjectProperties(scriptNode)
+      : new Set<string>();
+    objectProperties.forEach((prop) => declaredVars.add(prop));
+
+    const styleNode = this.findStyleNode(tree.rootNode);
+    this.validateTemplateExpressions(
+      tree.rootNode,
+      diagnostics,
+      document,
+      declaredVars,
+      scriptNode,
+      styleNode,
+    );
+
+    return diagnostics;
   }
 
-  private checkScriptSyntax(text: string, root: ParsedNode, errors: ValidationError[]) {
-    const scriptNode = this.findScriptNode(root);
-    if (!scriptNode || !scriptNode.children || scriptNode.children.length === 0) return;
+  // Find the script_element node
+  private findScriptNode(node: Parser.SyntaxNode): Parser.SyntaxNode | null {
+    if (node.type === 'script_element') {
+      return node;
+    }
 
-    const textChild = scriptNode.children.find(c => c.type === 'text');
-    if (!textChild || !textChild.content) return;
+    for (const child of node.children) {
+      const found = this.findScriptNode(child);
+      if (found) return found;
+    }
 
-    try {
-      acorn.parse(textChild.content, {
-        ecmaVersion: 'latest',
-        sourceType: 'module',
-        locations: true
-      });
-    } catch (err: any) {
-      if (err.loc) {
-        const lines = textChild.content.split('\n');
-        let errorOffset = 0;
-        for (let i = 0; i < err.loc.line - 1; i++) {
-          errorOffset += lines[i].length + 1;
+    return null;
+  }
+
+  // Find the style_element node
+  private findStyleNode(node: Parser.SyntaxNode): Parser.SyntaxNode | null {
+    if (node.type === 'style_element') {
+      return node;
+    }
+
+    for (const child of node.children) {
+      const found = this.findStyleNode(child);
+      if (found) return found;
+    }
+
+    return null;
+  }
+
+  // Extract object properties from arrays and objects
+  private extractObjectProperties(scriptNode: Parser.SyntaxNode): Set<string> {
+    const properties = new Set<string>();
+    const text = scriptNode.text;
+
+    // Find object literals and extract their keys
+    let i = 0;
+    while (i < text.length) {
+      if (text[i] === '{') {
+        const closeIdx = this.findMatchingBrace(text, i);
+        if (closeIdx !== -1) {
+          const content = text.substring(i + 1, closeIdx);
+
+          // Extract property names: { id: 1, title: 'test', content: 'text' }
+          const propertyMatches = this.extractPropertiesFromObject(content);
+          propertyMatches.forEach((prop) => properties.add(prop));
+
+          i = closeIdx + 1;
+        } else {
+          i++;
         }
-        errorOffset += err.loc.column;
-        const absoluteOffset = textChild.range.start + errorOffset;
-
-        errors.push({
-          range: { start: absoluteOffset, end: absoluteOffset + 1 },
-          message: `Syntax Error: ${err.message.replace(/\s\(\d+:\d+\)/, '')}`,
-          code: 'PULSE020',
-          severity: ValidationSeverity.Error
-        });
+      } else {
+        i++;
       }
     }
+
+    return properties;
   }
 
-  private checkScriptScope(text: string, root: ParsedNode, errors: ValidationError[]) {
-    const scriptNode = this.findScriptNode(root);
-    if (!scriptNode || !scriptNode.children || scriptNode.children.length === 0) return;
+  private extractPropertiesFromObject(objectContent: string): string[] {
+    const properties: string[] = [];
+    let i = 0;
 
-    const textChild = scriptNode.children.find(c => c.type === 'text');
-    if (!textChild || !textChild.content) return;
+    while (i < objectContent.length) {
+      // Skip whitespace
+      while (i < objectContent.length && /\s/.test(objectContent[i])) i++;
 
-    try {
-      const ast = acorn.parse(textChild.content, {
-        ecmaVersion: 'latest',
-        sourceType: 'module',
-        locations: true
-      });
+      // Check for property name
+      if (/[a-zA-Z_$]/.test(objectContent[i])) {
+        let propName = '';
+        while (
+          i < objectContent.length &&
+          /[a-zA-Z0-9_$]/.test(objectContent[i])
+        ) {
+          propName += objectContent[i];
+          i++;
+        }
 
-      const declared = new Set<string>();
+        // Skip whitespace
+        while (i < objectContent.length && /\s/.test(objectContent[i])) i++;
 
-      const addPattern = (node: any) => {
-        if (!node) return;
-        if (node.type === 'Identifier') declared.add(node.name);
-        else if (node.type === 'ArrayPattern') node.elements.forEach((e: any) => addPattern(e));
-        else if (node.type === 'ObjectPattern') node.properties.forEach((p: any) => addPattern(p.value));
-        else if (node.type === 'RestElement') addPattern(node.argument);
-        else if (node.type === 'AssignmentPattern') addPattern(node.left);
-      };
+        // Check if followed by : (object property)
+        if (i < objectContent.length && objectContent[i] === ':') {
+          properties.push(propName);
+        }
+      }
+      i++;
+    }
 
-      // Pass 1: Collect declarations
-      walk.simple(ast, {
-        VariableDeclarator(node: any) { addPattern(node.id); },
-        FunctionDeclaration(node: any) {
-          if (node.id) declared.add(node.id.name);
-          node.params.forEach(addPattern);
-        },
-        ArrowFunctionExpression(node: any) {
-          node.params.forEach(addPattern);
-        },
-        ImportDefaultSpecifier(node: any) { declared.add(node.local.name); },
-        ImportSpecifier(node: any) { declared.add(node.local.name); }
-      });
+    return properties;
+  }
 
-      // Pass 2: Check usage
-      walk.ancestor(ast, {
-        Identifier(node: any, ancestors: any[]) {
-          const parent = ancestors[ancestors.length - 2];
-          const name = node.name;
+  // Extract all declared variables from script block
+  private extractDeclaredVariables(scriptNode: Parser.SyntaxNode): Set<string> {
+    const variables = new Set<string>();
 
-          if (parent) {
-            if (parent.type === 'MemberExpression' && parent.property === node && !parent.computed) return;
-            if (parent.type === 'Property' && parent.key === node && !parent.computed) return;
-          }
+    // Add common globals
+    const globals = [
+      'console',
+      'window',
+      'document',
+      'Array',
+      'Object',
+      'Math',
+      'Date',
+      'JSON',
+      'setTimeout',
+      'setInterval',
+      'fetch',
+      'Promise',
+      'Error',
+      'String',
+      'Number',
+      'Boolean',
+      'undefined',
+      'null',
+      'true',
+      'false',
+      'createSignal',
+      'createMemo',
+      'createEffect',
+      'Show',
+      'For',
+      'Switch',
+      'Match',
+      'onMount',
+      'onCleanup',
+    ];
+    globals.forEach((g) => variables.add(g));
 
-          if (!declared.has(name) && !GLOBALS.has(name)) {
-            if (node.loc) {
-              const lines = textChild.content!.split('\n');
-              let errorOffset = 0;
-              for (let i = 0; i < node.loc.start.line - 1; i++) lines[i] && (errorOffset += lines[i].length + 1);
-              errorOffset += node.loc.start.column;
-              const absStart = textChild.range.start + errorOffset;
+    // Walk the script tree to find variable declarations
+    this.walkScriptForDeclarations(scriptNode, variables);
 
-              if (!errors.some(e => e.range.start === absStart)) {
-                errors.push({
-                  range: { start: absStart, end: absStart + name.length },
-                  message: `Undefined variable '${name}'`,
-                  code: 'PULSE021',
-                  severity: ValidationSeverity.Error
+    return variables;
+  }
+
+  private walkScriptForDeclarations(
+    node: Parser.SyntaxNode,
+    variables: Set<string>,
+  ): void {
+    const text = node.text;
+
+    // Look for patterns in raw_text (the script content)
+    if (node.type === 'raw_text') {
+      const lines = text.split('\n');
+
+      for (const line of lines) {
+        const trimmed = line.trim();
+
+        // const/let/var declarations
+        if (
+          trimmed.startsWith('const ') ||
+          trimmed.startsWith('let ') ||
+          trimmed.startsWith('var ')
+        ) {
+          const parts = trimmed.split(/\s+/);
+          if (parts.length >= 2) {
+            let varPart = parts[1];
+
+            // Handle destructuring: const [a, b] = ...
+            if (varPart.startsWith('[')) {
+              const endBracket = varPart.indexOf(']');
+              if (endBracket !== -1) {
+                const destructured = varPart.substring(1, endBracket);
+                const vars = destructured.split(',');
+                vars.forEach((v) => {
+                  const cleanVar = v.trim().split('=')[0].trim();
+                  if (cleanVar && this.isValidIdentifier(cleanVar)) {
+                    variables.add(cleanVar);
+                  }
                 });
+              }
+            }
+            // Handle object destructuring: const { a, b } = ...
+            else if (varPart.startsWith('{')) {
+              const endBrace = this.findMatchingBrace(
+                trimmed,
+                varPart.indexOf('{'),
+              );
+              if (endBrace !== -1) {
+                const destructured = trimmed.substring(
+                  varPart.indexOf('{') + 1,
+                  endBrace,
+                );
+                const vars = destructured.split(',');
+                vars.forEach((v) => {
+                  const cleanVar = v.trim().split(':')[0].trim();
+                  if (cleanVar && this.isValidIdentifier(cleanVar)) {
+                    variables.add(cleanVar);
+                  }
+                });
+              }
+            }
+            // Regular variable: const name = ...
+            else {
+              const cleanVar = varPart.split('=')[0].split(',')[0].trim();
+              if (cleanVar && this.isValidIdentifier(cleanVar)) {
+                variables.add(cleanVar);
               }
             }
           }
         }
-      });
 
-    } catch (e) { }
+        // Function declarations: function name() {...}
+        if (trimmed.startsWith('function ')) {
+          const parts = trimmed.split(/\s+/);
+          if (parts.length >= 2) {
+            const funcName = parts[1].split('(')[0].trim();
+            if (funcName && this.isValidIdentifier(funcName)) {
+              variables.add(funcName);
+            }
+          }
+        }
+
+        // Import statements: import Name from '...'
+        if (trimmed.startsWith('import ')) {
+          if (trimmed.includes(' from ')) {
+            const beforeFrom = trimmed.split(' from ')[0];
+            const importName = beforeFrom.replace('import', '').trim();
+            if (importName && this.isValidIdentifier(importName)) {
+              variables.add(importName);
+            }
+          }
+        }
+      }
+    }
+
+    // Recurse through children
+    for (const child of node.children) {
+      this.walkScriptForDeclarations(child, variables);
+    }
   }
 
-  private findScriptNode(node: ParsedNode): ParsedNode | null {
-    if (node.tag === 'script') return node;
+  private findMatchingBrace(text: string, startIdx: number): number {
+    let depth = 0;
+    for (let i = startIdx; i < text.length; i++) {
+      if (text[i] === '{') depth++;
+      if (text[i] === '}') {
+        depth--;
+        if (depth === 0) return i;
+      }
+    }
+    return -1;
+  }
+
+  private isValidIdentifier(str: string): boolean {
+    if (!str || str.length === 0) return false;
+    if (!/^[a-zA-Z_$]/.test(str[0])) return false;
+    for (let i = 1; i < str.length; i++) {
+      if (!/[a-zA-Z0-9_$]/.test(str[i])) return false;
+    }
+    return true;
+  }
+
+  // Validate script content
+  private validateScriptContent(
+    scriptNode: Parser.SyntaxNode,
+    diagnostics: Diagnostic[],
+    document: TextDocument,
+    declaredVars: Set<string>,
+  ): void {
+    const scriptText = scriptNode.text;
+    const scriptStart = scriptNode.startIndex;
+
+    // Walk through the script to find errors
+    this.walkScriptForErrors(
+      scriptNode,
+      diagnostics,
+      document,
+      scriptStart,
+      declaredVars,
+    );
+  }
+
+  private walkScriptForErrors(
+    node: Parser.SyntaxNode,
+    diagnostics: Diagnostic[],
+    document: TextDocument,
+    scriptStart: number,
+    declaredVars: Set<string>,
+  ): void {
+    // Check for ERROR nodes (syntax errors)
+    if (node.type === 'ERROR') {
+      diagnostics.push({
+        severity: DiagnosticSeverity.Error,
+        range: {
+          start: document.positionAt(node.startIndex),
+          end: document.positionAt(node.endIndex),
+        },
+        message: `Syntax error: Unexpected token at "${node.text.substring(0, 20)}..."`,
+        source: 'Pulse',
+      });
+    }
+
+    // Check text content for specific patterns
+    if (node.type === 'raw_text') {
+      this.checkScriptTextForErrors(
+        node.text,
+        node.startIndex,
+        diagnostics,
+        document,
+        declaredVars,
+      );
+    }
+
+    // Recurse
+    for (const child of node.children) {
+      this.walkScriptForErrors(
+        child,
+        diagnostics,
+        document,
+        scriptStart,
+        declaredVars,
+      );
+    }
+  }
+
+  private checkScriptTextForErrors(
+    text: string,
+    startOffset: number,
+    diagnostics: Diagnostic[],
+    document: TextDocument,
+    declaredVars: Set<string>,
+  ): void {
+    const lines = text.split('\n');
+    let currentOffset = startOffset;
+
+    for (let lineIdx = 0; lineIdx < lines.length; lineIdx++) {
+      const line = lines[lineIdx];
+      const trimmed = line.trim();
+
+      // Skip empty lines and comments
+      if (!trimmed || trimmed.startsWith('//') || trimmed.startsWith('/*')) {
+        currentOffset += line.length + 1;
+        continue;
+      }
+
+      // Check for incomplete const/let/var declarations
+      if (
+        trimmed.startsWith('const ') ||
+        trimmed.startsWith('let ') ||
+        trimmed.startsWith('var ')
+      ) {
+        const keyword = trimmed.split(' ')[0];
+        const rest = trimmed.substring(keyword.length).trim();
+
+        // Check various invalid patterns:
+        // 1. Just "const" with nothing after (or just semicolon)
+        // 2. "const varName" without =
+        // 3. "const varName;" without =
+
+        const hasEquals = rest.includes('=');
+        const isEmpty = !rest || rest === ';';
+        const isJustIdentifier =
+          rest && !hasEquals && !rest.includes('{') && !rest.includes('[');
+
+        if (isEmpty) {
+          // Case: "const" or "const;"
+          const keywordPos = currentOffset + line.indexOf(keyword);
+          diagnostics.push({
+            severity: DiagnosticSeverity.Error,
+            range: {
+              start: document.positionAt(keywordPos),
+              end: document.positionAt(keywordPos + keyword.length),
+            },
+            message: `Empty '${keyword}' declaration. Specify a variable name and value.`,
+            source: 'Pulse',
+          });
+        } else if (isJustIdentifier) {
+          // Case: "const varName" or "const varName;"
+          const varName = rest.split(/[;\s]/)[0].trim();
+
+          if (varName && this.isValidIdentifier(varName)) {
+            const keywordPos = currentOffset + line.indexOf(keyword);
+            diagnostics.push({
+              severity: DiagnosticSeverity.Error,
+              range: {
+                start: document.positionAt(keywordPos),
+                end: document.positionAt(keywordPos + trimmed.length),
+              },
+              message: `Variable '${varName}' is declared with '${keyword}' but not initialized. Add '= value'.`,
+              source: 'Pulse',
+            });
+          }
+        }
+      }
+
+      // Check for random semicolon-separated identifiers (like: fk;ak;fk;kfkkf)
+      const isStandaloneLine =
+        !trimmed.includes('=') &&
+        !trimmed.includes(':') &&
+        !trimmed.includes('(') &&
+        !trimmed.includes(')') &&
+        !trimmed.includes('{') &&
+        !trimmed.includes('}') &&
+        !trimmed.includes('[') &&
+        !trimmed.includes(']') &&
+        !trimmed.startsWith('//') &&
+        !trimmed.startsWith('/*') &&
+        !trimmed.startsWith('const') &&
+        !trimmed.startsWith('let') &&
+        !trimmed.startsWith('var') &&
+        !trimmed.startsWith('function') &&
+        !trimmed.startsWith('import') &&
+        !trimmed.startsWith('export');
+
+      if (isStandaloneLine && trimmed.includes(';')) {
+        const parts = trimmed.split(';').filter((p) => p.trim());
+        let allIdentifiers = true;
+        let hasMultiple = parts.length > 1;
+
+        for (const part of parts) {
+          const p = part.trim();
+          if (p && !this.isValidIdentifier(p)) {
+            allIdentifiers = false;
+            break;
+          }
+        }
+
+        if (allIdentifiers && hasMultiple && parts.length > 0) {
+          const pos = currentOffset + line.indexOf(trimmed);
+          diagnostics.push({
+            severity: DiagnosticSeverity.Error,
+            range: {
+              start: document.positionAt(pos),
+              end: document.positionAt(pos + trimmed.length),
+            },
+            message: `Invalid syntax: '${trimmed}'. This looks like random identifiers separated by semicolons.`,
+            source: 'Pulse',
+          });
+        }
+      }
+
+      // Check for HTML entities
+      if (
+        trimmed.includes('&lt;') ||
+        trimmed.includes('&gt;') ||
+        trimmed.includes('&amp;') ||
+        trimmed.includes('&quot;')
+      ) {
+        let entityPos = -1;
+        let entity = '';
+
+        if ((entityPos = trimmed.indexOf('&lt;')) !== -1) entity = '&lt;';
+        else if ((entityPos = trimmed.indexOf('&gt;')) !== -1) entity = '&gt;';
+        else if ((entityPos = trimmed.indexOf('&amp;')) !== -1)
+          entity = '&amp;';
+        else if ((entityPos = trimmed.indexOf('&quot;')) !== -1)
+          entity = '&quot;';
+
+        if (entityPos !== -1) {
+          const pos = currentOffset + line.indexOf(entity);
+          diagnostics.push({
+            severity: DiagnosticSeverity.Error,
+            range: {
+              start: document.positionAt(pos),
+              end: document.positionAt(pos + entity.length),
+            },
+            message: `HTML entity '${entity}' is not allowed in JavaScript code.`,
+            source: 'Pulse',
+          });
+        }
+      }
+
+      currentOffset += line.length + 1; // +1 for \n
+    }
+  }
+
+  // Validate expressions in templates {...}
+  private validateTemplateExpressions(
+    node: Parser.SyntaxNode,
+    diagnostics: Diagnostic[],
+    document: TextDocument,
+    declaredVars: Set<string>,
+    scriptNode: Parser.SyntaxNode | null,
+    styleNode: Parser.SyntaxNode | null,
+  ): void {
+    // Skip if we're inside the script block or style block
+    if (
+      scriptNode &&
+      node.startIndex >= scriptNode.startIndex &&
+      node.endIndex <= scriptNode.endIndex
+    ) {
+      return;
+    }
+
+    if (
+      styleNode &&
+      node.startIndex >= styleNode.startIndex &&
+      node.endIndex <= styleNode.endIndex
+    ) {
+      return;
+    }
+
+    const text = node.text;
+
+    // Look for {...} patterns in text nodes
+    if (node.type === 'text' || node.type === 'raw_text') {
+      let i = 0;
+      while (i < text.length) {
+        if (text[i] === '{') {
+          const closeIdx = this.findMatchingBrace(text, i);
+          if (closeIdx !== -1) {
+            const expression = text.substring(i + 1, closeIdx).trim();
+            const exprStart = node.startIndex + i + 1;
+
+            this.validateExpression(
+              expression,
+              exprStart,
+              diagnostics,
+              document,
+              declaredVars,
+            );
+            i = closeIdx + 1;
+          } else {
+            i++;
+          }
+        } else {
+          i++;
+        }
+      }
+    }
+
+    // Recurse through children
+    for (const child of node.children) {
+      this.validateTemplateExpressions(
+        child,
+        diagnostics,
+        document,
+        declaredVars,
+        scriptNode,
+        styleNode,
+      );
+    }
+  }
+
+  private validateExpression(
+    expression: string,
+    startOffset: number,
+    diagnostics: Diagnostic[],
+    document: TextDocument,
+    declaredVars: Set<string>,
+  ): void {
+    // Check for HTML entities in expressions
+    if (expression.includes('&lt;') || expression.includes('&gt;')) {
+      let entity = '';
+      let entityIdx = -1;
+
+      if ((entityIdx = expression.indexOf('&lt;')) !== -1) entity = '&lt;';
+      else if ((entityIdx = expression.indexOf('&gt;')) !== -1) entity = '&gt;';
+
+      if (entityIdx !== -1) {
+        const pos = startOffset + entityIdx;
+        diagnostics.push({
+          severity: DiagnosticSeverity.Error,
+          range: {
+            start: document.positionAt(pos),
+            end: document.positionAt(pos + entity.length),
+          },
+          message: `HTML entity '${entity}' not allowed in expressions.`,
+          source: 'Pulse',
+        });
+      }
+    }
+
+    // Extract identifiers and check if they're defined
+    const identifiers = this.extractIdentifiersWithContext(expression);
+    const keywords = [
+      'true',
+      'false',
+      'null',
+      'undefined',
+      'this',
+      'return',
+      'if',
+      'else',
+      'new',
+      'typeof',
+      'of',
+      'in',
+    ];
+
+    for (const id of identifiers) {
+      if (keywords.includes(id.name)) continue;
+
+      // Skip if it's a property access (something.property)
+      if (id.isProperty) continue;
+
+      if (!declaredVars.has(id.name)) {
+        const pos = startOffset + id.offset;
+        diagnostics.push({
+          severity: DiagnosticSeverity.Error,
+          range: {
+            start: document.positionAt(pos),
+            end: document.positionAt(pos + id.name.length),
+          },
+          message: `Variable '${id.name}' is not defined. Declare it in <script> block.`,
+          source: 'Pulse',
+        });
+      }
+    }
+  }
+
+  private extractIdentifiersWithContext(
+    expression: string,
+  ): Array<{ name: string; offset: number; isProperty: boolean }> {
+    const identifiers: Array<{
+      name: string;
+      offset: number;
+      isProperty: boolean;
+    }> = [];
+    let i = 0;
+
+    while (i < expression.length) {
+      const char = expression[i];
+
+      // Start of identifier
+      if (/[a-zA-Z_$]/.test(char)) {
+        let identifier = char;
+        let startIdx = i;
+        i++;
+
+        while (i < expression.length && /[a-zA-Z0-9_$]/.test(expression[i])) {
+          identifier += expression[i];
+          i++;
+        }
+
+        // Check if this is a property access (preceded by .)
+        const isPrecededByDot =
+          startIdx > 0 && expression[startIdx - 1] === '.';
+
+        identifiers.push({
+          name: identifier,
+          offset: startIdx,
+          isProperty: isPrecededByDot,
+        });
+      } else {
+        i++;
+      }
+    }
+
+    return identifiers;
+  }
+
+  // Find tree-sitter structural errors
+  private findTreeErrors(
+    node: Parser.SyntaxNode,
+    diagnostics: Diagnostic[],
+    document: TextDocument,
+  ): void {
+    const isMissing =
+      (node as any).isMissing === true ||
+      (typeof (node as any).isMissing === 'function' &&
+        (node as any).isMissing());
+
+    if (isMissing) {
+      if (node.type.includes('tag') || node.type === 'element') {
+        diagnostics.push({
+          severity: DiagnosticSeverity.Error,
+          range: {
+            start: document.positionAt(node.startIndex),
+            end: document.positionAt(node.endIndex),
+          },
+          message: `Syntax Error: Missing ${node.type}. Check for unclosed tags.`,
+          source: 'Pulse',
+        });
+      }
+    }
+
     if (node.children) {
       for (const child of node.children) {
-        const found = this.findScriptNode(child);
-        if (found) return found;
-      }
-    }
-    return null;
-  }
-
-  // ... (validateNode logic unchanged)
-  private validateNode(node: ParsedNode, errors: ValidationError[]) {
-    // Unclosed Tags
-    if (node.type === 'element' && !node.closed) {
-      errors.push({
-        range: node.range,
-        message: `Unclosed tag <${node.tag}>. Expected closing tag </${node.tag}>.`,
-        code: 'PULSE004',
-        severity: ValidationSeverity.Error
-      });
-    }
-
-    // Attributes
-    if (node.attributes) {
-      node.attributes.forEach((attr, name) => this.validateAttribute(attr, name, errors));
-    }
-
-    // Duplicate Slots
-    if (node.tag === 'slot' && node.parent) {
-      this.checkDuplicateSlot(node, errors);
-    }
-
-    // Children
-    if (node.children) {
-      node.children.forEach(child => this.validateNode(child, errors));
-    }
-  }
-
-  // ... (validateAttribute logic unchanged)
-  private validateAttribute(attr: Attribute, name: string, errors: ValidationError[]) {
-    // Event Format (camelCase)
-    if (name.startsWith('on')) {
-      if (!/^on[A-Z]/.test(name)) {
-        const correct = 'on' + name.slice(2).charAt(0).toUpperCase() + name.slice(3);
-        errors.push({
-          range: attr.nameRange,
-          message: `Event handlers should be camelCase: ${correct}`,
-          code: 'PULSE014',
-          severity: ValidationSeverity.Warning
-        });
-      }
-
-      // Explicit Braces for Handlers
-      if (!attr.value.startsWith('{') && !attr.value.startsWith('"{')) {
-        errors.push({
-          range: attr.valueRange,
-          message: `Event handler must use curly braces: ${name}={handler}`,
-          code: 'PULSE010',
-          severity: ValidationSeverity.Error
-        });
-      }
-    }
-
-    // React-ism check
-    if (name === 'className') {
-      errors.push({
-        range: attr.nameRange,
-        message: 'Use "class" instead of "className" in Pulse.',
-        code: 'PULSE014',
-        severity: ValidationSeverity.Warning
-      });
-    }
-  }
-
-  // ... (checkDuplicateSlot logic unchanged)
-  private checkDuplicateSlot(node: ParsedNode, errors: ValidationError[]) {
-    const siblings = node.parent?.children || [];
-    const slots = siblings.filter(c => c.tag === 'slot');
-    if (slots.length > 1 && slots.indexOf(node) > 0) {
-      errors.push({
-        range: node.range,
-        message: 'Only one <slot /> is allowed per layout component.',
-        code: 'PULSE009',
-        severity: ValidationSeverity.Error
-      });
-    }
-  }
-
-  // ... (checkStateUsage logic unchanged)
-  private checkStateUsage(text: string, root: ParsedNode, errors: ValidationError[]) {
-    const variables = this.parser.extractStateVariables(text);
-    const stateVars = new Set(variables.map(v => v.name));
-    this.validateExpressions(root, stateVars, errors);
-  }
-
-  // ... (validateExpressions logic unchanged)
-  private validateExpressions(node: ParsedNode, stateVars: Set<string>, errors: ValidationError[]) {
-    if (node.type === 'expression') {
-      this.checkExpressionContent(node.content || '', node.range, stateVars, errors);
-    }
-
-    if (node.attributes) {
-      node.attributes.forEach(attr => {
-        if (attr.value.startsWith('{')) {
-          this.checkExpressionContent(attr.value, attr.valueRange, stateVars, errors);
-        }
-      });
-    }
-
-    if (node.children) {
-      node.children.forEach(child => this.validateExpressions(child, stateVars, errors));
-    }
-  }
-
-  // ... (checkExpressionContent logic unchanged)
-  private checkExpressionContent(expr: string, range: NodeRange, stateVars: Set<string>, errors: ValidationError[]) {
-    let i = 0;
-    while (i < expr.length) {
-      const tag = 'state.';
-      const idx = expr.indexOf(tag, i);
-      if (idx === -1) break;
-
-      const startVar = idx + tag.length;
-      let endVar = startVar;
-      while (endVar < expr.length && /[a-zA-Z0-9_$]/.test(expr[endVar])) {
-        endVar++;
-      }
-
-      const varName = expr.slice(startVar, endVar);
-      if (varName && !stateVars.has(varName)) {
-        errors.push({
-          range: { start: range.start + idx, end: range.start + endVar },
-          message: `State variable '${varName}' is not declared.`,
-          code: 'PULSE005',
-          severity: ValidationSeverity.Error
-        });
-      }
-
-      i = endVar;
-    }
-  }
-
-  private checkImports(text: string, errors: ValidationError[]) {
-    const imports = this.parser.extractImports(text);
-    imports.forEach(imp => {
-      if (imp.source && imp.source.startsWith('.') && !imp.source.endsWith('.pulse')) {
-        errors.push({
-          range: imp.range,
-          message: `Pulse component imports should end with '.pulse'.`,
-          code: 'PULSE007',
-          severity: ValidationSeverity.Warning
-        });
-      }
-    });
-  }
-
-  private async checkImportExistence(text: string, currentFile: string, errors: ValidationError[]) {
-    if (!this.fs) return;
-
-    const imports = this.parser.extractImports(text);
-    const baseDir = path.dirname(currentFile);
-
-    for (const imp of imports) {
-      if (!imp.source || !imp.source.startsWith('.')) continue;
-
-      const resolvedPath = path.resolve(baseDir, imp.source);
-      // Try exact match or extensions? 
-      // Pulse imports imply exact match or standard extensions if omitted (but we warn if .pulse omitted)
-      // If extension omitted, we still check file existence.
-
-      let exists = await this.fs.exists(resolvedPath);
-      if (!exists && !path.extname(resolvedPath)) {
-        // Try implicit extensions if not found
-        exists = await this.fs.exists(resolvedPath + '.pulse') ||
-          await this.fs.exists(resolvedPath + '.ts') ||
-          await this.fs.exists(resolvedPath + '.js');
-      }
-
-      if (!exists) {
-        errors.push({
-          range: imp.range,
-          message: `Module not found: '${imp.source}'`,
-          code: 'PULSE001',
-          severity: ValidationSeverity.Error
-        });
+        this.findTreeErrors(child, diagnostics, document);
       }
     }
   }

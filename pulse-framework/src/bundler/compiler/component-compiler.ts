@@ -14,6 +14,8 @@ import { TemplateOptimizer } from './template-optimizer';
 import { CSSScoper } from './css-scoper';
 import { HTMLParser } from './html-parser';
 import { ReactivityTransformer } from './reactivity-transformer';
+import { ComponentError } from './errors';
+import { PropInferencer } from './prop-inferencer';
 
 export class ComponentCompiler {
   private codeGenerator: CodeGenerator;
@@ -21,6 +23,7 @@ export class ComponentCompiler {
   private cssScoper: CSSScoper;
   private htmlParser: HTMLParser;
   private reactivityTransformer: ReactivityTransformer;
+  private propInferencer: PropInferencer;
 
   constructor(private ctx: CompilationContext) {
     this.codeGenerator = new CodeGenerator();
@@ -29,6 +32,7 @@ export class ComponentCompiler {
     this.cssScoper = new CSSScoper();
     this.htmlParser = new HTMLParser();
     this.reactivityTransformer = new ReactivityTransformer();
+    this.propInferencer = new PropInferencer();
   }
 
   async compile(node: ComponentNode): Promise<TransformResult> {
@@ -92,49 +96,90 @@ export function ${node.name}_ssr(props = {}) {
     node: ComponentNode,
     content: string,
   ): Promise<TransformResult> {
-    // Separate logic and template
-    const templateStart = content.search(/^\s*<[a-zA-Z>/]/m);
-    const logic =
-      templateStart !== -1 ? content.substring(0, templateStart).trim() : '';
-    const template =
-      templateStart !== -1 ? content.substring(templateStart).trim() : '';
+    try {
+      // Separate logic and template
+      const templateStart = content.search(/^\s*<[a-zA-Z>/]/m);
+      const logic =
+        templateStart !== -1 ? content.substring(0, templateStart).trim() : '';
+      const template =
+        templateStart !== -1 ? content.substring(templateStart).trim() : '';
 
-    // Parse template to AST using proper HTML parser
-    const templateAST = this.parseTemplate(template);
-    node.template = templateAST;
+      // Parse template to AST using proper HTML parser
+      let templateAST;
+      try {
+        templateAST = this.parseTemplate(template);
+      } catch (e) {
+        throw new ComponentError({
+          code: 'PARSE_ERROR',
+          message: `Failed to parse component template: ${(e as Error).message}`,
+          file: node.path,
+          suggestion: 'Check for unclosed tags or invalid HTML syntax',
+          originalError: e as Error,
+        });
+      }
+      node.template = templateAST;
 
-    // Optimize template using TemplateOptimizer
-    const optimized = this.templateOptimizer.optimize(template);
+      // Optimize template using TemplateOptimizer
+      const optimized = this.templateOptimizer.optimize(template);
 
-    // Process CSS
-    let processedCSS = '';
-    if (node.styles) {
-      processedCSS = this.cssScoper.scope(node.styles, node.hash, template);
+      // Process CSS
+      let processedCSS = '';
+      if (node.styles) {
+        processedCSS = this.cssScoper.scope(node.styles, node.hash, template);
+      }
+
+      // Transform logic to use signals with proper AST transformation
+      let transformedLogic;
+      try {
+        transformedLogic = this.transformLogic(logic, node);
+      } catch (e) {
+        throw new ComponentError({
+          code: 'TRANSFORM_ERROR',
+          message: `Failed to transform component logic: ${(e as Error).message}`,
+          file: node.path,
+          suggestion: 'Check for syntax errors in your script block',
+          originalError: e as Error,
+        });
+      }
+
+      // Generate code using CodeGenerator
+      const code = this.codeGenerator.generate(
+        node,
+        optimized,
+        transformedLogic,
+        processedCSS,
+      );
+
+      // Infer props
+      const inferredProps = this.propInferencer.infer(node);
+      node.props = new Map(inferredProps.map(p => [p.name, p]));
+
+      // Cache result
+      this.ctx.cache.components.set(node.path, {
+        hash: node.hash,
+        compiled: code,
+        timestamp: Date.now(),
+      });
+
+      return {
+        code,
+        dependencies: Array.from(node.dependencies),
+        sideEffects: true,
+        inferredProps,
+      };
+    } catch (error) {
+      if (error instanceof ComponentError) {
+        throw error;
+      }
+      // Catch unexpected errors
+      throw new ComponentError({
+        code: 'COMPILE_ERROR',
+        message: `Unexpected error compiling component: ${(error as Error).message}`,
+        file: node.path,
+        suggestion: 'This might be a bug in the Pulse compiler. Please report it.',
+        originalError: error as Error,
+      });
     }
-
-    // Transform logic to use signals with proper AST transformation
-    const transformedLogic = this.transformLogic(logic, node);
-
-    // Generate code using CodeGenerator
-    const code = this.codeGenerator.generate(
-      node,
-      optimized,
-      transformedLogic,
-      processedCSS,
-    );
-
-    // Cache result
-    this.ctx.cache.components.set(node.path, {
-      hash: node.hash,
-      compiled: code,
-      timestamp: Date.now(),
-    });
-
-    return {
-      code,
-      dependencies: Array.from(node.dependencies),
-      sideEffects: true,
-    };
   }
 
   private parseTemplate(template: string): TemplateNode {

@@ -14,6 +14,8 @@ export interface ReactivityTransformResult {
   effects: string[];
 }
 
+import { ComponentError } from './errors';
+
 export class ReactivityTransformer {
   transform(code: string): ReactivityTransformResult {
     try {
@@ -31,8 +33,23 @@ export class ReactivityTransformer {
         replacement: string;
       }> = [];
 
+      // Helper to find state dependencies in a node
+      const findDependencies = (node: any): string[] => {
+        const deps = new Set<string>();
+        walk(node, {
+          enter(child: any) {
+            if (
+              child.type === 'MemberExpression' &&
+              child.object.name === 'state'
+            ) {
+              deps.add(child.property.name);
+            }
+          },
+        });
+        return Array.from(deps);
+      };
+
       // First pass: collect all state declarations
-      const self = this;
       walk(ast as any, {
         enter(node: any) {
           // Handle state.x = value
@@ -53,7 +70,8 @@ export class ReactivityTransformer {
               node.expression.right.type === 'ArrowFunctionExpression' ||
               node.expression.right.type === 'FunctionExpression'
             ) {
-              const deps = self.extractDependencies(initValue);
+              // AST-based dependency extraction
+              const deps = findDependencies(node.expression.right);
               computed.set(propName, deps);
             } else {
               signals.set(propName, initValue);
@@ -73,13 +91,7 @@ export class ReactivityTransformer {
           ) {
             const propName = node.property.name;
 
-            if (signals.has(propName)) {
-              transformedSegments.push({
-                start: node.start,
-                end: node.end,
-                replacement: `get_${propName}()`,
-              });
-            } else if (computed.has(propName)) {
+            if (signals.has(propName) || computed.has(propName)) {
               transformedSegments.push({
                 start: node.start,
                 end: node.end,
@@ -126,30 +138,14 @@ export class ReactivityTransformer {
         effects,
       };
     } catch (error) {
-      console.warn(
-        'Reactivity transformation failed, returning original code:',
-        error,
-      );
-      return {
-        code,
-        signals: new Map(),
-        computed: new Map(),
-        effects: [],
-      };
+      throw new ComponentError({
+        code: 'REACTIVITY_ERROR',
+        message: `Failed to transform reactivity: ${(error as Error).message}`,
+        file: 'unknown', // Context will be added by caller
+        suggestion: 'Check for syntax errors in your state declarations',
+        originalError: error as Error,
+      });
     }
-  }
-
-  private extractDependencies(code: string): string[] {
-    const deps: string[] = [];
-    const stateRegex = /state\.(\w+)/g;
-    let match;
-
-    while ((match = stateRegex.exec(code)) !== null) {
-      if (match[1]) {
-        deps.push(match[1]);
-      }
-    }
-
-    return deps;
   }
 }
+

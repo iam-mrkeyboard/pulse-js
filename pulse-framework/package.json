@@ -1,6 +1,6 @@
 {
   "name": "pulse",
-  "version": "0.13.0",
+  "version": "0.15.0",
   "description": "The fastest web framework - 0-1.2KB runtime with islands architecture (Early Development)",
   "main": "./dist/index.js",
   "module": "./dist/index.js",
@@ -21,7 +21,7 @@
     }
   },
   "scripts": {
-    "build": "bun build ./src/index.ts --outdir ./dist --target bun --format esm --sourcemap=none && bun build ./src/cli/index.ts --outdir ./dist/cli --target bun --format esm --sourcemap=none",
+    "build": "bun build ./src/index.ts --outdir ./dist --target bun --format esm --sourcemap=none --external lightningcss && bun build ./src/cli/index.ts --outdir ./dist/cli --target bun --format esm --sourcemap=none --external lightningcss",
     "dev": "bun run src/cli/index.ts dev",
     "test": "bun test",
     "type-check": "tsc --noEmit",
@@ -46,12 +46,16 @@
     "@types/acorn": "^6.0.4",
     "acorn": "^8.15.0",
     "estree-walker": "^3.0.3",
+    "lightningcss": "^1.31.1",
     "picocolors": "^1.0.0",
-    "terser": "^5.27.0"
+    "terser": "^5.27.0",
+    "ultrahtml": "^1.6.0"
   },
   "devDependencies": {
+    "@happy-dom/global-registrator": "^20.5.0",
     "@types/bun": "latest",
     "@types/node": "^20.11.5",
+    "happy-dom": "^20.5.0",
     "typescript": "^5.3.3"
   },
   "peerDependencies": {

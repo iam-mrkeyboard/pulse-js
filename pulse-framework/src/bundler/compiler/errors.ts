@@ -1,7 +1,173 @@
 // ============================================================================
-// FILE: src/bundler/compiler/errors.ts - NEW FILE
-// Better error classes with helpful messages
+// FILE: src/bundler/compiler/errors.ts
+// Unified Error System
 // ============================================================================
+
+// ----------------------------------------------------------------------------
+// Part 1: Strict Result Pattern & Base CompilationError (from v2)
+// ----------------------------------------------------------------------------
+
+export type Result<T, E> = Ok<T> | Err<E>;
+
+export class Ok<T> {
+  constructor(public value: T) { }
+
+  isOk(): this is Ok<T> { return true; }
+  isErr(): this is Err<any> { return false; }
+}
+
+export class Err<E> {
+  constructor(public error: E) { }
+
+  isOk(): this is Ok<any> { return false; }
+  isErr(): this is Err<E> { return true; }
+}
+
+export type CodeLine = {
+  content: string;
+  isError: boolean;
+  lineNo: number;
+  column?: number;
+  hint?: string;
+};
+
+export type CodeFrame = {
+  start: number;
+  lines: CodeLine[];
+};
+
+export interface ValidationWarning {
+  code: string;
+  message: string;
+  location?: { line: number; column: number };
+}
+
+export interface CompilationErrorOptions {
+  message: string;
+  code: string;
+  file: string;
+  title?: string;
+  location?: { line: number; column: number };
+  suggestion?: string;
+  originalError?: Error;
+  quickFixes?: QuickFix[];
+  docsUrl?: string;
+  source?: string; // For code frame generation
+}
+
+export type QuickFix = {
+  label: string;
+  apply: (source: string) => string;
+};
+
+export class CompilationError extends Error {
+  public code: string;
+  public file: string;
+  public title: string;
+  public location?: { line: number; column: number };
+  public suggestion?: string;
+  public originalError?: Error;
+  public quickFixes?: QuickFix[];
+  public docsUrl?: string;
+  public codeFrame?: CodeFrame;
+  public preview?: string; // HTML preview of error state if applicable
+
+  constructor(options: CompilationErrorOptions) {
+    super(options.message);
+    this.name = 'CompilationError';
+    this.code = options.code;
+    this.file = options.file;
+    this.title = options.title || 'Compilation Error';
+    this.location = options.location;
+    this.suggestion = options.suggestion;
+    this.originalError = options.originalError;
+    this.quickFixes = options.quickFixes;
+    this.docsUrl = options.docsUrl || 'https://pulsejs.org/docs/errors';
+
+    if (options.source && options.location) {
+      this.codeFrame = this.generateCodeFrame(options.source, options.location);
+    }
+  }
+
+  private generateCodeFrame(source: string, loc: { line: number; column: number }): CodeFrame {
+    const lines = source.split('\n');
+    const startLine = Math.max(0, loc.line - 3);
+    const endLine = Math.min(lines.length - 1, loc.line + 2);
+
+    const frameLines: CodeLine[] = [];
+    for (let i = startLine; i <= endLine; i++) {
+      frameLines.push({
+        content: lines[i],
+        lineNo: i + 1,
+        isError: i + 1 === loc.line,
+        column: i + 1 === loc.line ? loc.column : undefined,
+        hint: i + 1 === loc.line ? 'Error occurred here' : undefined
+      });
+    }
+
+    return {
+      start: startLine + 1,
+      lines: frameLines
+    };
+  }
+}
+
+export class EmptyComponentError extends CompilationError {
+  constructor(file: string) {
+    super({
+      message: 'Component file is empty',
+      code: 'EMPTY_FILE',
+      title: 'Empty Component',
+      file,
+      suggestion: 'Add a template to your component. Example: <div>Hello</div>'
+    });
+  }
+}
+
+export class InvalidStructureError extends CompilationError {
+  constructor(options: { file: string; suggestion: string; example: string }) {
+    super({
+      message: 'Invalid component structure',
+      code: 'INVALID_STRUCTURE',
+      title: 'Structural Error',
+      file: options.file,
+      suggestion: `${options.suggestion}\nExample:\n${options.example}`
+    });
+  }
+}
+
+export class ParseError extends CompilationError {
+  constructor(options: { original: Error; source: any; suggestions?: string[] }) {
+    // Determine location from original error if possible
+    const loc = (options.original as any).loc || { line: 1, column: 0 };
+
+    super({
+      message: options.original.message,
+      code: 'PARSE_ERROR',
+      title: 'Parsing Failed',
+      file: options.source.file || 'unknown', // Need to pass file path
+      location: loc,
+      originalError: options.original,
+      suggestion: options.suggestions?.join('\n')
+    });
+  }
+}
+
+export class ForbiddenPatternError extends CompilationError {
+  constructor(patterns: string[], file: string) {
+    super({
+      message: `Forbidden patterns found: ${patterns.join(', ')}`,
+      code: 'FORBIDDEN_PATTERN',
+      title: 'Forbidden Pattern',
+      file,
+      suggestion: 'Remove usage of forbidden patterns / regex based style hacks.'
+    });
+  }
+}
+
+// ----------------------------------------------------------------------------
+// Part 2: Specific Component Errors (from legacy/v1)
+// ----------------------------------------------------------------------------
 
 export class ComponentPropsError extends Error {
   constructor(
@@ -82,5 +248,44 @@ export class SlotError extends Error {
   ) {
     super(`Unknown slot: ${slotName} in component ${componentName}`);
     this.name = 'SlotError';
+  }
+}
+
+export class ComponentError extends Error {
+  public code: string;
+  public file: string;
+  public line?: number;
+  public column?: number;
+  public suggestion?: string;
+  public originalError?: Error;
+
+  constructor(options: {
+    message: string;
+    code: string;
+    file: string;
+    line?: number;
+    column?: number;
+    suggestion?: string;
+    originalError?: Error;
+  }) {
+    super(options.message);
+    this.name = 'ComponentError';
+    this.code = options.code;
+    this.file = options.file;
+    this.line = options.line;
+    this.column = options.column;
+    this.suggestion = options.suggestion;
+    this.originalError = options.originalError;
+  }
+
+  toDevError(): import('../../server/error-overlay').DevError {
+    return {
+      type: 'compile',
+      file: this.file,
+      message: this.message,
+      suggestion: this.suggestion || 'Check the component structure',
+      line: this.line,
+      column: this.column,
+    };
   }
 }

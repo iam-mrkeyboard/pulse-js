@@ -1,6 +1,6 @@
 #!/usr/bin/env bun
 //cli/index
-
+console.log("--- PULSE CLI DEBUG: Using source from src/cli/index.ts ---");
 import { parseArgs } from 'util';
 import path from 'node:path';
 import type { PulseConfig } from '../bundler/types';
@@ -54,22 +54,22 @@ async function main() {
   // Execute command
   switch (command) {
     case 'dev':
-      const { devCommand } = await import('./commands/dev');
+      const { devCommand } = await import('./dev');
       await devCommand(config);
       break;
 
     case 'build':
-      const { buildCommand } = await import('./commands/build');
+      const { buildCommand } = await import('./build');
       await buildCommand(config);
       break;
 
     case 'preview':
-      const { previewCommand } = await import('./commands/preview');
+      const { previewCommand } = await import('./preview');
       await previewCommand(config);
       break;
 
     case 'analyze':
-      const { analyzeCommand } = await import('./commands/analyze');
+      const { analyzeCommand } = await import('./analyze');
       await analyzeCommand(config);
       break;
 

@@ -6140,7 +6140,7 @@ class PropsAnalyzer {
   }
 }
 
-// src/bundler/analyzer/dependency-analyzer.ts
+// src/bundler/dependency-analyzer.ts
 import path2 from "path";
 
 class DependencyAnalyzer {
@@ -6599,8 +6599,106 @@ class HotReload {
 }
 
 // src/bundler/compiler/errors.ts
-var ComponentPropsError, ComponentImportError;
+class Ok {
+  value;
+  constructor(value) {
+    this.value = value;
+  }
+  isOk() {
+    return true;
+  }
+  isErr() {
+    return false;
+  }
+}
+
+class Err {
+  error;
+  constructor(error) {
+    this.error = error;
+  }
+  isOk() {
+    return false;
+  }
+  isErr() {
+    return true;
+  }
+}
+var CompilationError, EmptyComponentError, ParseError, ComponentPropsError, ComponentImportError, ComponentError;
 var init_errors = __esm(() => {
+  CompilationError = class CompilationError extends Error {
+    code;
+    file;
+    title;
+    location;
+    suggestion;
+    originalError;
+    quickFixes;
+    docsUrl;
+    codeFrame;
+    preview;
+    constructor(options) {
+      super(options.message);
+      this.name = "CompilationError";
+      this.code = options.code;
+      this.file = options.file;
+      this.title = options.title || "Compilation Error";
+      this.location = options.location;
+      this.suggestion = options.suggestion;
+      this.originalError = options.originalError;
+      this.quickFixes = options.quickFixes;
+      this.docsUrl = options.docsUrl || "https://pulsejs.org/docs/errors";
+      if (options.source && options.location) {
+        this.codeFrame = this.generateCodeFrame(options.source, options.location);
+      }
+    }
+    generateCodeFrame(source, loc) {
+      const lines = source.split(`
+`);
+      const startLine = Math.max(0, loc.line - 3);
+      const endLine = Math.min(lines.length - 1, loc.line + 2);
+      const frameLines = [];
+      for (let i2 = startLine;i2 <= endLine; i2++) {
+        frameLines.push({
+          content: lines[i2],
+          lineNo: i2 + 1,
+          isError: i2 + 1 === loc.line,
+          column: i2 + 1 === loc.line ? loc.column : undefined,
+          hint: i2 + 1 === loc.line ? "Error occurred here" : undefined
+        });
+      }
+      return {
+        start: startLine + 1,
+        lines: frameLines
+      };
+    }
+  };
+  EmptyComponentError = class EmptyComponentError extends CompilationError {
+    constructor(file) {
+      super({
+        message: "Component file is empty",
+        code: "EMPTY_FILE",
+        title: "Empty Component",
+        file,
+        suggestion: "Add a template to your component. Example: <div>Hello</div>"
+      });
+    }
+  };
+  ParseError = class ParseError extends CompilationError {
+    constructor(options) {
+      const loc = options.original.loc || { line: 1, column: 0 };
+      super({
+        message: options.original.message,
+        code: "PARSE_ERROR",
+        title: "Parsing Failed",
+        file: options.source.file || "unknown",
+        location: loc,
+        originalError: options.original,
+        suggestion: options.suggestions?.join(`
+`)
+      });
+    }
+  };
   ComponentPropsError = class ComponentPropsError extends Error {
     componentName;
     validationErrors;
@@ -6667,6 +6765,543 @@ Make sure the path is correct and the file has a .pulse extension`
       };
     }
   };
+  ComponentError = class ComponentError extends Error {
+    code;
+    file;
+    line;
+    column;
+    suggestion;
+    originalError;
+    constructor(options) {
+      super(options.message);
+      this.name = "ComponentError";
+      this.code = options.code;
+      this.file = options.file;
+      this.line = options.line;
+      this.column = options.column;
+      this.suggestion = options.suggestion;
+      this.originalError = options.originalError;
+    }
+    toDevError() {
+      return {
+        type: "compile",
+        file: this.file,
+        message: this.message,
+        suggestion: this.suggestion || "Check the component structure",
+        line: this.line,
+        column: this.column
+      };
+    }
+  };
+});
+
+// node_modules/ultrahtml/dist/index.js
+function I(e) {
+  let t = {};
+  if (e) {
+    let i2 = "none", r, n = "", a, l;
+    for (let c = 0;c < e.length; c++) {
+      let d = e[c];
+      i2 === "none" ? b.test(d) ? (r && (t[r] = n, r = undefined, n = ""), a = c, i2 = "key") : d === "=" && r && (i2 = "value") : i2 === "key" ? b.test(d) || (r = e.substring(a, c), d === "=" ? i2 = "value" : i2 = "none") : d === l && c > 0 && e[c - 1] !== "\\" ? l && (n = e.substring(a, c), l = undefined, i2 = "none") : (d === '"' || d === "'") && !l && (a = c + 1, l = d);
+    }
+    i2 === "key" && a != null && a < e.length && (r = e.substring(a, e.length)), r && (t[r] = n);
+  }
+  return t;
+}
+function P(e) {
+  let t = typeof e == "string" ? e : e.value, i2, r, n, a, l, c, d, m, s, u = [];
+  o.lastIndex = 0, r = i2 = { type: 0, children: [] };
+  let g = 0;
+  function h() {
+    a = t.substring(g, o.lastIndex - n[0].length), a && r.children.push({ type: 2, value: a, parent: r });
+  }
+  for (;n = o.exec(t); ) {
+    if (c = n[5] || n[8], d = n[6] || n[9], m = n[7] || n[10], x.has(r.name) && n[2] !== r.name) {
+      l = o.lastIndex - n[0].length, r.children.length > 0 && (r.children[0].value += n[0]);
+      continue;
+    } else if (c === "<!--") {
+      if (l = o.lastIndex - n[0].length, x.has(r.name))
+        continue;
+      s = { type: 3, value: d, parent: r, loc: [{ start: l, end: l + c.length }, { start: o.lastIndex - m.length, end: o.lastIndex }] }, u.push(s), s.parent.children.push(s);
+    } else if (c === "<!")
+      l = o.lastIndex - n[0].length, s = { type: 4, value: d, parent: r, loc: [{ start: l, end: l + c.length }, { start: o.lastIndex - m.length, end: o.lastIndex }] }, u.push(s), s.parent.children.push(s);
+    else if (n[1] !== "/")
+      if (h(), x.has(r.name)) {
+        g = o.lastIndex, h();
+        continue;
+      } else
+        s = { type: 1, name: n[2] + "", attributes: I(n[3]), parent: r, children: [], loc: [{ start: o.lastIndex - n[0].length, end: o.lastIndex }] }, u.push(s), s.parent.children.push(s), n[4] && n[4].indexOf("/") > -1 || D.has(s.name) ? (s.loc[1] = s.loc[0], s.isSelfClosingTag = true) : r = s;
+    else
+      h(), n[2] + "" === r.name ? (s = r, r = s.parent, s.loc.push({ start: o.lastIndex - n[0].length, end: o.lastIndex }), a = t.substring(s.loc[0].end, s.loc[1].start), s.children.length === 0 && s.children.push({ type: 2, value: a, parent: r })) : n[2] + "" === u[u.length - 1].name && u[u.length - 1].isSelfClosingTag === true && (s = u[u.length - 1], s.loc.push({ start: o.lastIndex - n[0].length, end: o.lastIndex }));
+    g = o.lastIndex;
+  }
+  return a = t.slice(g), r.children.push({ type: 2, value: a, parent: r }), i2;
+}
+function B(e, t) {
+  return new O(t).visit(e);
+}
+var S, D, x, o, b, O = class {
+  constructor(t) {
+    this.callback = t;
+  }
+  visit(t, i2, r) {
+    if (this.callback(t, i2, r), Array.isArray(t.children))
+      for (let n = 0;n < t.children.length; n++) {
+        let a = t.children[n];
+        this.visit(a, t, n);
+      }
+  }
+}, p, M, f;
+var init_dist = __esm(() => {
+  S = Symbol("Fragment");
+  D = new Set(["area", "base", "br", "col", "embed", "hr", "img", "input", "keygen", "link", "meta", "param", "source", "track", "wbr"]);
+  x = new Set(["script", "style"]);
+  o = /(?:<(\/?)([a-zA-Z][a-zA-Z0-9\:-]*)(?:\s([^>]*?))?((?:\s*\/)?)>|(<\!\-\-)([\s\S]*?)(\-\->)|(<\!)([\s\S]*?)(>))/gm;
+  b = /[\@\.a-z0-9_\:\-]/i;
+  p = Symbol("HTMLString");
+  M = Symbol("AttrString");
+  f = Symbol("RenderFn");
+});
+
+// src/bundler/compiler/unified-parser.ts
+import { transform } from "lightningcss";
+
+class Scanner {
+  pos = 0;
+  source;
+  constructor(source) {
+    this.source = source;
+  }
+  isEOF() {
+    return this.pos >= this.source.length;
+  }
+  peek() {
+    return this.source[this.pos];
+  }
+  advance(n = 1) {
+    this.pos += n;
+  }
+  match(pattern) {
+    return this.source.startsWith(pattern, this.pos);
+  }
+  scanUntil(delimiter) {
+    const start = this.pos;
+    let index = this.source.indexOf(delimiter, this.pos);
+    if (index === -1)
+      return null;
+    this.pos = index + delimiter.length;
+    return this.source.slice(start, index);
+  }
+  scanToEnd() {
+    const content = this.source.slice(this.pos);
+    this.pos = this.source.length;
+    return content;
+  }
+  reset() {
+    this.pos = 0;
+  }
+}
+
+class UnifiedParser {
+  parse(source, filePath) {
+    const sections = this.splitSections(source);
+    const script = this.parseScript(sections.script, filePath);
+    const template = this.parseTemplate(sections.template, filePath);
+    const styles = this.parseStyles(sections.styles, filePath);
+    const metadata = {
+      name: this.extractName(filePath),
+      location: { file: filePath, source }
+    };
+    return {
+      script,
+      template,
+      styles,
+      metadata
+    };
+  }
+  extractName(filePath) {
+    const parts = filePath.split("/");
+    const filename = parts[parts.length - 1];
+    return filename.replace(".pulse", "");
+  }
+  splitSections(source) {
+    const scanner = new Scanner(source);
+    const sections = {
+      script: "",
+      template: "",
+      styles: ""
+    };
+    let remaining = source;
+    const scriptOpen = source.indexOf("<script");
+    if (scriptOpen !== -1) {
+      const scriptClose = source.indexOf("</script>", scriptOpen);
+      if (scriptClose !== -1) {
+        const tagEnd = source.indexOf(">", scriptOpen);
+        if (tagEnd !== -1 && tagEnd < scriptClose) {
+          sections.script = source.slice(tagEnd + 1, scriptClose);
+        }
+      }
+    }
+    const styleOpen = source.indexOf("<style");
+    if (styleOpen !== -1) {
+      const styleClose = source.indexOf("</style>", styleOpen);
+      if (styleClose !== -1) {
+        const tagEnd = source.indexOf(">", styleOpen);
+        if (tagEnd !== -1 && tagEnd < styleClose) {
+          sections.styles = source.slice(tagEnd + 1, styleClose);
+        }
+      }
+    }
+    sections.template = source.replace(/<script[\s\S]*?>[\s\S]*?<\/script>/gi, "").replace(/<style[\s\S]*?>[\s\S]*?<\/style>/gi, "").trim();
+    return sections;
+  }
+  parseScript(code, filePath) {
+    if (!code || !code.trim())
+      return { type: "empty" };
+    try {
+      const ast = parse3(code, {
+        ecmaVersion: "latest",
+        sourceType: "module",
+        locations: true,
+        ranges: true
+      });
+      const imports = [];
+      const exports = [];
+      const signals = [];
+      const declarations = [];
+      const functions = [];
+      ast.body.forEach((node) => {
+        if (node.type === "VariableDeclaration") {
+          node.declarations.forEach((decl) => {
+            const isSignal = decl.init && decl.init.type === "CallExpression" && decl.init.callee.name === "createSignal";
+            if (decl.id.type === "Identifier") {
+              declarations.push(decl.id.name);
+              if (isSignal) {
+                signals.push({
+                  name: decl.id.name,
+                  initialValue: { type: "other", raw: "unknown" },
+                  setter: "unknown",
+                  type: { kind: "unknown" },
+                  usages: []
+                });
+              }
+            } else if (decl.id.type === "ArrayPattern") {
+              decl.id.elements.forEach((el) => {
+                if (el && el.type === "Identifier")
+                  declarations.push(el.name);
+              });
+              if (isSignal && decl.id.elements.length > 0) {
+                const first = decl.id.elements[0];
+                if (first && first.type === "Identifier") {
+                  signals.push({
+                    name: first.name,
+                    initialValue: { type: "other", raw: "unknown" },
+                    setter: "unknown",
+                    type: { kind: "unknown" },
+                    usages: []
+                  });
+                }
+              }
+            } else if (decl.id.type === "ObjectPattern") {
+              decl.id.properties.forEach((prop) => {
+                if (prop.value.type === "Identifier")
+                  declarations.push(prop.value.name);
+              });
+            }
+          });
+        }
+        if (node.type === "FunctionDeclaration") {
+          if (node.id) {
+            declarations.push(node.id.name);
+            functions.push({ name: node.id.name, params: node.params.map((p2) => p2.name), isAsync: node.async });
+          }
+        }
+        if (node.type === "ClassDeclaration") {
+          if (node.id)
+            declarations.push(node.id.name);
+        }
+        if (node.type === "ImportDeclaration") {
+          const specifiers = node.specifiers.map((s) => ({
+            imported: s.imported?.name || "default",
+            local: s.local.name
+          }));
+          imports.push({ source: node.source.value, specifiers, isTypeOnly: false });
+          specifiers.forEach((s) => declarations.push(s.local));
+        }
+      });
+      return {
+        type: "valid",
+        ast,
+        code,
+        imports,
+        exports,
+        signals,
+        effects: [],
+        computed: [],
+        functions,
+        declarations
+      };
+    } catch (error) {
+      throw new ParseError({
+        original: error,
+        source: { file: filePath }
+      });
+    }
+  }
+  parseTemplate(code, filePath) {
+    if (!code || !code.trim())
+      return { type: "empty" };
+    try {
+      const ast = P(code);
+      const components = [];
+      const bindings = [];
+      B(ast, (node) => {
+        if (node.type === 1) {
+          if (/^[A-Z]/.test(node.name)) {
+            components.push({
+              name: node.name,
+              props: {},
+              children: node.children
+            });
+          }
+          for (const key in node.attributes) {
+            const val = node.attributes[key];
+            if (val && val.includes("{")) {
+              bindings.push({
+                type: "attribute",
+                name: key,
+                target: [],
+                expression: { type: "other", raw: val },
+                dependencies: new Set,
+                isOneWay: true,
+                isTwoWay: false
+              });
+            }
+          }
+        }
+        if (node.type === 2) {
+          const text = node.value || "";
+          if (text.includes("{")) {
+            bindings.push({
+              type: "text",
+              target: [],
+              expression: { type: "other", raw: text },
+              dependencies: new Set,
+              isOneWay: true,
+              isTwoWay: false
+            });
+          }
+        }
+      });
+      return {
+        type: "valid",
+        ast,
+        code,
+        components,
+        bindings,
+        events: [],
+        slots: []
+      };
+    } catch (error) {
+      throw new ParseError({
+        original: error,
+        source: { file: filePath }
+      });
+    }
+  }
+  parseStyles(code, filePath) {
+    if (!code || !code.trim())
+      return { type: "empty" };
+    try {
+      transform({
+        filename: filePath,
+        code: Buffer.from(code),
+        minify: false,
+        sourceMap: false
+      });
+      return {
+        type: "valid",
+        code,
+        scoped: false,
+        classes: []
+      };
+    } catch (error) {
+      throw new ParseError({
+        original: error,
+        source: { file: filePath }
+      });
+    }
+  }
+}
+var init_unified_parser = __esm(() => {
+  init_acorn();
+  init_dist();
+  init_errors();
+});
+
+// src/bundler/compiler/validator.ts
+class ComponentValidator {
+  validate(ast) {
+    const file = ast.metadata.location.file;
+    if (ast.script.type === "error") {
+      return new Err(new CompilationError({
+        message: ast.script.error.message,
+        code: "SCRIPT_JUNK",
+        file,
+        originalError: ast.script.error,
+        location: ast.script.error.loc
+      }));
+    }
+    if (ast.template.type === "error") {
+      return new Err(new CompilationError({
+        message: ast.template.error.message,
+        code: "TEMPLATE_JUNK",
+        file,
+        originalError: ast.template.error
+      }));
+    }
+    if (ast.styles.type === "error") {
+      return new Err(new CompilationError({
+        message: ast.styles.error.message,
+        code: "STYLE_JUNK",
+        file,
+        originalError: ast.styles.error
+      }));
+    }
+    if (ast.template.type === "valid" && ast.script.type === "valid") {
+      const missingRefs = this.checkReferences(ast);
+      if (missingRefs.length > 0) {
+        return new Err(new CompilationError({
+          message: `Undefined variables referenced in template: ${missingRefs.join(", ")}`,
+          code: "UNDEFINED_REFERENCE",
+          file,
+          suggestion: `Define ${missingRefs.join(", ")} in the <script> block or import them.`
+        }));
+      }
+    }
+    return new Ok(true);
+  }
+  checkReferences(ast) {
+    const defined = new Set;
+    if (ast.script.type === "valid") {
+      ast.script.imports.forEach((i2) => {
+        i2.specifiers.forEach((s) => defined.add(s.local));
+      });
+      ast.script.signals.forEach((s) => defined.add(s.name));
+      ast.script.functions.forEach((f2) => defined.add(f2.name));
+      ast.script.declarations.forEach((d) => defined.add(d));
+      ["console", "window", "document", "Math", "Date", "Array", "Object", "Boolean", "String", "Number"].forEach((g) => defined.add(g));
+    }
+    const missing = [];
+    if (ast.template.type === "valid") {
+      console.log("[Validator] Bindings count:", ast.template.bindings.length);
+      ast.template.bindings.forEach((b2) => {
+        const ids = this.extractIdentifiers(b2.expression.raw);
+        ids.forEach((id) => {
+          if (!defined.has(id)) {
+            missing.push(id);
+          }
+        });
+      });
+    }
+    return missing;
+  }
+  extractIdentifiers(expression) {
+    const tokens = expression.match(/[a-zA-Z_$][a-zA-Z0-9_$]*/g) || [];
+    const keywords2 = new Set(["true", "false", "null", "undefined", "typeof", "instanceof", "in", "new", "this"]);
+    return tokens.filter((t) => !keywords2.has(t));
+  }
+}
+var init_validator = __esm(() => {
+  init_errors();
+});
+
+// src/bundler/compiler/safe-compiler.ts
+class CompilationContext {
+  filePath;
+  warnings = [];
+  constructor(filePath) {
+    this.filePath = filePath;
+  }
+  addWarning(message, location) {
+    this.warnings.push({
+      code: "WARNING",
+      message,
+      location
+    });
+  }
+}
+
+class SafeCompiler {
+  legacyCompiler;
+  strictMode = true;
+  parser;
+  validator;
+  constructor(legacyCompiler) {
+    this.legacyCompiler = legacyCompiler;
+    this.parser = new UnifiedParser;
+    this.validator = new ComponentValidator;
+  }
+  async compile(source, filePath) {
+    const context = new CompilationContext(filePath);
+    try {
+      this.validate(source, context);
+      const ast = this.parseWithRecovery(source, context);
+      const validationResult = this.validator.validate(ast);
+      if (validationResult.isErr()) {
+        return new Err(this.enrichError(validationResult.error, context, source));
+      }
+      const transformed = await this.transformSafe(ast, source, filePath, context);
+      return new Ok(this.emit(transformed, context));
+    } catch (error) {
+      return new Err(this.enrichError(error, context, source));
+    }
+  }
+  validate(source, ctx) {
+    if (!source || !source.trim()) {
+      throw new EmptyComponentError(ctx.filePath);
+    }
+  }
+  parseWithRecovery(source, ctx) {
+    try {
+      return this.parser.parse(source, ctx.filePath);
+    } catch (parseError) {
+      throw new ParseError({
+        original: parseError,
+        source: { file: ctx.filePath }
+      });
+    }
+  }
+  async transformSafe(ast, source, filePath, ctx) {
+    if (this.legacyCompiler) {
+      return this.legacyCompiler.compile(filePath, source);
+    }
+    return "// SafeCompiler: No backend configured yet";
+  }
+  emit(code, ctx) {
+    return {
+      code,
+      map: null,
+      warnings: ctx.warnings
+    };
+  }
+  enrichError(error, ctx, source) {
+    if (error instanceof CompilationError)
+      return error;
+    return new CompilationError({
+      message: error.message || "Unknown compilation error",
+      code: "UNKNOWN_ERROR",
+      file: ctx.filePath,
+      originalError: error,
+      source,
+      location: error.loc
+    });
+  }
+}
+var init_safe_compiler = __esm(() => {
+  init_unified_parser();
+  init_validator();
+  init_errors();
 });
 
 // src/bundler/compiler/html-parser.ts
@@ -6998,14 +7633,24 @@ class ReactivityTransformer {
       const computed = new Map;
       const effects = [];
       const transformedSegments = [];
-      const self2 = this;
+      const findDependencies = (node) => {
+        const deps = new Set;
+        walk(node, {
+          enter(child) {
+            if (child.type === "MemberExpression" && child.object.name === "state") {
+              deps.add(child.property.name);
+            }
+          }
+        });
+        return Array.from(deps);
+      };
       walk(ast, {
         enter(node) {
           if (node.type === "ExpressionStatement" && node.expression.type === "AssignmentExpression" && node.expression.left.type === "MemberExpression" && node.expression.left.object.name === "state") {
             const propName = node.expression.left.property.name;
             const initValue = code.slice(node.expression.right.start, node.expression.right.end);
             if (node.expression.right.type === "ArrowFunctionExpression" || node.expression.right.type === "FunctionExpression") {
-              const deps = self2.extractDependencies(initValue);
+              const deps = findDependencies(node.expression.right);
               computed.set(propName, deps);
             } else {
               signals.set(propName, initValue);
@@ -7017,13 +7662,7 @@ class ReactivityTransformer {
         enter(node, parent) {
           if (node.type === "MemberExpression" && node.object.name === "state" && parent?.type !== "AssignmentExpression") {
             const propName = node.property.name;
-            if (signals.has(propName)) {
-              transformedSegments.push({
-                start: node.start,
-                end: node.end,
-                replacement: `get_${propName}()`
-              });
-            } else if (computed.has(propName)) {
+            if (signals.has(propName) || computed.has(propName)) {
               transformedSegments.push({
                 start: node.start,
                 end: node.end,
@@ -7044,7 +7683,7 @@ class ReactivityTransformer {
           }
         }
       });
-      transformedSegments.sort((a, b) => b.start - a.start);
+      transformedSegments.sort((a, b2) => b2.start - a.start);
       let transformed = code;
       for (const segment of transformedSegments) {
         transformed = transformed.slice(0, segment.start) + segment.replacement + transformed.slice(segment.end);
@@ -7056,30 +7695,20 @@ class ReactivityTransformer {
         effects
       };
     } catch (error) {
-      console.warn("Reactivity transformation failed, returning original code:", error);
-      return {
-        code,
-        signals: new Map,
-        computed: new Map,
-        effects: []
-      };
+      throw new ComponentError({
+        code: "REACTIVITY_ERROR",
+        message: `Failed to transform reactivity: ${error.message}`,
+        file: "unknown",
+        suggestion: "Check for syntax errors in your state declarations",
+        originalError: error
+      });
     }
-  }
-  extractDependencies(code) {
-    const deps = [];
-    const stateRegex = /state\.(\w+)/g;
-    let match;
-    while ((match = stateRegex.exec(code)) !== null) {
-      if (match[1]) {
-        deps.push(match[1]);
-      }
-    }
-    return deps;
   }
 }
 var init_reactivity_transformer = __esm(() => {
   init_acorn();
   init_src();
+  init_errors();
 });
 
 // src/server/script-parser.ts
@@ -7488,7 +8117,7 @@ class ScriptParser {
   }
 }
 
-// src/server/runtime/hmr-client.ts
+// src/server/hmr-client.ts
 function generateHMRClientScript() {
   return [
     "// Pulse HMR Client v0.11.0",
@@ -7647,7 +8276,7 @@ function getHMRScript(config) {
   return `<script type="module" src="/__pulse_client.js"></script>`;
 }
 
-// src/server/utils/html-wrapper.ts
+// src/server/html-wrapper.ts
 function wrapHTML(content, title, hmrScript) {
   return `<!DOCTYPE html>
 <html lang="en">
@@ -7700,7 +8329,7 @@ function generateSuggestion(error) {
 }
 var init_html_wrapper = () => {};
 
-// src/server/compiler/template-transformer.ts
+// src/server/template-transformer.ts
 class TemplateTransformer {
   htmlParser;
   constructor() {
@@ -7748,7 +8377,7 @@ class TemplateTransformer {
           }
         }
       });
-      replacements.sort((a, b) => b.start - a.start);
+      replacements.sort((a, b2) => b2.start - a.start);
       for (const rep of replacements) {
         magicString = magicString.slice(0, rep.start) + rep.value + magicString.slice(rep.end);
       }
@@ -7758,7 +8387,6 @@ class TemplateTransformer {
     }
   }
   transform(template, stateVars, componentNames = [], declarations = []) {
-    console.log("[Transformer] Start transform");
     const root = this.htmlParser.parse(template);
     const bindings = [];
     const templates = new Map;
@@ -7877,7 +8505,7 @@ class TemplateTransformer {
         }
         let isDependent = false;
         const allNamesArray = Array.from(allVarNames);
-        allNamesArray.sort((a, b) => b.length - a.length);
+        allNamesArray.sort((a, b2) => b2.length - a.length);
         for (const varName of allNamesArray) {
           if (content.includes(varName)) {
             isDependent = true;
@@ -7914,6 +8542,21 @@ class TemplateTransformer {
           attrs += ` data-bindings="${bindingsJSON}" data-template-id="${templateId}"`;
           const ssrContent = "";
           return `<pulse-list${attrs} style="display:contents">${ssrContent}</pulse-list>`;
+        }
+        if (originalTagName === "Show") {
+          const whenAttr = node.attributes?.get("when");
+          let whenExpr = typeof whenAttr === "string" ? whenAttr : whenAttr?.code;
+          if (whenExpr)
+            whenExpr = this.transformExpression(whenExpr, stateNames);
+          const fallbackAttr = node.attributes?.get("fallback");
+          let fallbackExpr = typeof fallbackAttr === "string" ? fallbackAttr : fallbackAttr?.code;
+          if (fallbackExpr)
+            fallbackExpr = this.transformExpression(fallbackExpr, stateNames);
+          let attrs = ` when="{${whenExpr}}"`;
+          if (fallbackExpr)
+            attrs += ` fallback="{${fallbackExpr}}"`;
+          const childrenStr2 = children.map((c) => serialize(c, scope, isInScope, isRaw, path3)).join("");
+          return `<pulse-show${attrs} style="display:contents"><template data-pulse-template>${childrenStr2}</template></pulse-show>`;
         }
         if (scope._componentNames && scope._componentNames.includes(originalTagName)) {
           const { attrsStr: attrsStr2 } = serializeAttributes(node, scope, isInScope);
@@ -7980,7 +8623,7 @@ var init_template_transformer = __esm(() => {
   init_src();
 });
 
-// src/server/compiler/mount-script-generator.ts
+// src/server/mount-script-generator.ts
 function getMountScript(imports, hasListPrimitive, hasShowPrimitive) {
   return `
       // Hydrate
@@ -8004,7 +8647,7 @@ function getMountScript(imports, hasListPrimitive, hasShowPrimitive) {
     `;
 }
 
-// src/server/compiler/page-compiler.ts
+// src/server/page-compiler.ts
 import path3 from "path";
 
 class PageCompiler {
@@ -8051,7 +8694,7 @@ class PageCompiler {
           }
         }
       });
-      replacements.sort((a, b) => b.start - a.start);
+      replacements.sort((a, b2) => b2.start - a.start);
       for (const rep of replacements) {
         magicString = magicString.slice(0, rep.start) + rep.value + magicString.slice(rep.end);
       }
@@ -8138,7 +8781,7 @@ class PageCompiler {
     const { html, bindings, templates } = this.templateTransformer.transform(template, [...stateVarsWithSetters, ...computedVars], componentNames, declarations);
     const mountScript = getMountScript(imports, hasListPrimitive, hasShowPrimitive);
     const handlerEntries = [
-      ...functions.map((f) => `${f.name}: ${f.name}`),
+      ...functions.map((f2) => `${f2.name}: ${f2.name}`),
       ...stateVars.map((sv) => {
         const setterName = sv.setterName || "set" + sv.name.charAt(0).toUpperCase() + sv.name.slice(1);
         return `${setterName}: ${setterName}`;
@@ -8153,7 +8796,7 @@ class PageCompiler {
         return `${setterName}: ${setterName}`;
       }),
       ...computedVars.map((c) => `${c.name}: ${c.name}`),
-      ...functions.map((f) => `${f.name}: ${f.name}`),
+      ...functions.map((f2) => `${f2.name}: ${f2.name}`),
       ...declarations.map((d) => `${d.name}: ${d.name}`),
       "...components"
     ];
@@ -8507,7 +9150,7 @@ class CSSScoper {
 }
 var init_css_scoper = () => {};
 
-// src/server/compiler/component-compiler.ts
+// src/server/component-compiler.ts
 import path4 from "path";
 
 class ComponentCompiler {
@@ -8599,7 +9242,7 @@ ${imports.map((i2) => {
             }
           }
         });
-        replacements.sort((a, b) => b.start - a.start);
+        replacements.sort((a, b2) => b2.start - a.start);
         for (const rep of replacements) {
           magicString = magicString.slice(0, rep.start) + rep.value + magicString.slice(rep.end);
         }
@@ -8611,8 +9254,8 @@ ${imports.map((i2) => {
       }
     };
     const hasState = stateVars.length > 0 || computedVars.length > 0;
-    const simpleHash = componentName.split("").reduce((a, b) => {
-      a = (a << 5) - a + b.charCodeAt(0);
+    const simpleHash = componentName.split("").reduce((a, b2) => {
+      a = (a << 5) - a + b2.charCodeAt(0);
       return a & a;
     }, 0);
     const scopeId = `data-v-${Math.abs(simpleHash).toString(36)}`;
@@ -8669,8 +9312,8 @@ export default function ${componentName}(props) {
         moduleCode += `  ${transformedCode}
 `;
       });
-      functions.forEach((f) => {
-        const transformedCode = transformUserCode(f.code);
+      functions.forEach((f2) => {
+        const transformedCode = transformUserCode(f2.code);
         moduleCode += `  ${transformedCode}
 `;
       });
@@ -8768,7 +9411,7 @@ export default function ${componentName}(props) {
 `;
         }
       });
-      moduleCode += `  const handlers = { ${functions.map((f) => `${f.name}: ${f.name}`).join(", ")} };
+      moduleCode += `  const handlers = { ${functions.map((f2) => `${f2.name}: ${f2.name}`).join(", ")} };
 `;
       moduleCode += `  container.__pulseHandlers = handlers;
 
@@ -8809,8 +9452,8 @@ export default function ${componentName}(props) {
       moduleCode += `}
 `;
     } else {
-      const simpleHash2 = componentName.split("").reduce((a, b) => {
-        a = (a << 5) - a + b.charCodeAt(0);
+      const simpleHash2 = componentName.split("").reduce((a, b2) => {
+        a = (a << 5) - a + b2.charCodeAt(0);
         return a & a;
       }, 0);
       const scopeId2 = `data-v-${Math.abs(simpleHash2).toString(36)}`;
@@ -8954,6 +9597,7 @@ class DevServer {
   watcher;
   analyzer;
   compiler;
+  safeCompiler;
   pageCompiler;
   lastError;
   hotReload;
@@ -8976,6 +9620,7 @@ class DevServer {
     this.templateTransformer = new TemplateTransformer;
     this.pageCompiler = new PageCompiler(config, this.scriptParser, this.templateTransformer);
     this.compiler = new ComponentCompiler(config, this.scriptParser, this.templateTransformer);
+    this.safeCompiler = new SafeCompiler(this.compiler);
     this.reactivityTransformer = new ReactivityTransformer;
     this.compiledComponents = new Map;
   }
@@ -9110,8 +9755,13 @@ class DevServer {
   }
   async serveRuntime(pathname) {
     const runtimePath = pathname.replace("/runtime/", "");
+    let frameworkRuntimeDir = path5.resolve(import.meta.dir, "../runtime");
+    const coreCheck = Bun.file(path5.join(frameworkRuntimeDir, "core.ts"));
+    if (!await coreCheck.exists()) {
+      frameworkRuntimeDir = path5.resolve(import.meta.dir, "../../src/runtime");
+    }
     const serveTsFile = async (fileName) => {
-      const filePath = path5.join(this.config.root, "../pulse-v5/src/runtime", fileName);
+      const filePath = path5.join(frameworkRuntimeDir, fileName);
       const file = Bun.file(filePath);
       if (await file.exists()) {
         const content = await file.text();
@@ -9124,7 +9774,7 @@ class DevServer {
           }
         });
       }
-      return new Response(`console.error("Runtime file ${fileName} not found")`, { status: 404 });
+      return new Response(`console.error("Runtime file ${fileName} not found at ${filePath}")`, { status: 404 });
     };
     if (runtimePath === "core.js") {
       return await serveTsFile("core.ts");
@@ -9136,17 +9786,7 @@ class DevServer {
       return await serveTsFile("primitives/show.ts");
     }
     if (runtimePath === "dom.js") {
-      const domPath = path5.join(this.config.root, "../pulse-v5/src/bundler/runtime/dom.ts");
-      const file = Bun.file(domPath);
-      if (await file.exists()) {
-        const content = await file.text();
-        const transpiler = new Bun.Transpiler({ loader: "ts" });
-        const js = await transpiler.transform(content);
-        return new Response(js, {
-          headers: { "Content-Type": "application/javascript" }
-        });
-      }
-      return new Response('console.error("DOM Runtime not found")', { status: 404 });
+      return await serveTsFile("dom.ts");
     }
     return new Response('console.error("Runtime file not found")', { status: 404 });
   }
@@ -9170,9 +9810,15 @@ class DevServer {
       let compiled = this.compiledComponents.get(foundPath);
       if (!compiled || !this.cache.get(foundPath, hash)) {
         console.log(`\uD83D\uDD28 Compiling component: ${path5.basename(foundPath)}`);
-        compiled = await this.compiler.compile(foundPath, content);
-        this.compiledComponents.set(foundPath, compiled);
-        this.cache.set(foundPath, hash, compiled, []);
+        const result = await this.safeCompiler.compile(foundPath, content);
+        if (result.isOk()) {
+          compiled = result.value.code;
+          this.compiledComponents.set(foundPath, compiled);
+          this.cache.set(foundPath, hash, compiled, []);
+        } else {
+          const err = result.error;
+          throw err;
+        }
       }
       return new Response(compiled, {
         headers: {
@@ -9199,9 +9845,15 @@ class DevServer {
       let compiled = this.compiledComponents.get(filePath);
       if (!compiled || !this.cache.get(filePath, hash)) {
         console.log(`\uD83D\uDD28 Compiling component: ${path5.basename(filePath)}`);
-        compiled = await this.compiler.compile(filePath, content);
-        this.compiledComponents.set(filePath, compiled);
-        this.cache.set(filePath, hash, compiled, []);
+        const result = await this.safeCompiler.compile(filePath, content);
+        if (result.isOk()) {
+          compiled = result.value.code;
+          this.compiledComponents.set(filePath, compiled);
+          this.cache.set(filePath, hash, compiled, []);
+        } else {
+          const err = result.error;
+          throw err;
+        }
       }
       return new Response(compiled, {
         headers: {
@@ -9211,8 +9863,7 @@ class DevServer {
       });
     } catch (error) {
       console.error("Component serve error:", error);
-      return new Response(`console.error("Component serve error: ${error.message}")`, {
-        status: 500,
+      return new Response(this.generateErrorComponent(error, filePath), {
         headers: { "Content-Type": "application/javascript" }
       });
     }
@@ -9226,10 +9877,20 @@ class DevServer {
     }
     if (modulePath.endsWith(".pulse")) {
       const content = await file.text();
-      const compiled = await this.compiler.compile(srcPath, content);
-      return new Response(compiled, {
-        headers: { "Content-Type": "application/javascript" }
-      });
+      const result = await this.safeCompiler.compile(srcPath, content);
+      if (result.isOk()) {
+        const compiled = result.value.code;
+        return new Response(compiled, {
+          headers: { "Content-Type": "application/javascript" }
+        });
+      } else {
+        const err = result.error;
+        console.error("Module compilation error:", err);
+        return new Response(`console.error("Module compilation error: ${err.message}")`, {
+          status: 500,
+          headers: { "Content-Type": "application/javascript" }
+        });
+      }
     }
     return new Response(file);
   }
@@ -9240,6 +9901,23 @@ class DevServer {
       return new Response(file);
     }
     return new Response("Not Found", { status: 404 });
+  }
+  generateErrorComponent(error, path6) {
+    return `
+      export default function ErrorComponent() {
+        const el = document.createElement('div');
+        el.style.cssText = 'border: 2px solid red; padding: 20px; margin: 10px; background: #fff0f0; border-radius: 8px; font-family: monospace;';
+        el.innerHTML = \`
+          <h3 style="color: #d32f2f; margin-top: 0;">\u26A0\uFE0F Component Error</h3>
+          <p><strong>File:</strong> ${path6}</p>
+          <div style="background: #ffebee; padding: 10px; border-radius: 4px; overflow-x: auto;">
+            <p style="margin: 0; color: #b71c1c;"><strong>Error:</strong> ${error.message.replace(/`/g, "\\`")}</p>
+          </div>
+          <pre style="margin-top: 10px; font-size: 11px; color: #555;">${(error.stack || "").replace(/`/g, "\\`")}</pre>
+        \`;
+        return el;
+      }
+    `;
   }
   startFileWatcher() {
     this.watcher.watch(this.config.root, {
@@ -9277,6 +9955,7 @@ var init_dev_server = __esm(() => {
   init_file_watcher();
   init_dependency_analyzer();
   init_errors();
+  init_safe_compiler();
   init_reactivity_transformer();
   init_html_wrapper();
   init_template_transformer();
@@ -9284,15 +9963,12 @@ var init_dev_server = __esm(() => {
   init_component_compiler();
 });
 
-// src/cli/commands/dev.ts
+// src/cli/dev.ts
 var exports_dev = {};
 __export(exports_dev, {
   devCommand: () => devCommand
 });
 async function devCommand(config) {
-  console.log(import_picocolors.default.bold(import_picocolors.default.magenta(`
-\u26A1 Pulse v5.0 Development Server
-`)));
   const server = new DevServer(config);
   await server.start();
   const port = config.devServer.port;
@@ -9399,24 +10075,24 @@ class ComponentResolver {
     }
     return bestMatch;
   }
-  levenshteinDistance(a, b) {
+  levenshteinDistance(a, b2) {
     const matrix = [];
-    for (let i2 = 0;i2 <= b.length; i2++) {
+    for (let i2 = 0;i2 <= b2.length; i2++) {
       matrix[i2] = [i2];
     }
     for (let j = 0;j <= a.length; j++) {
       matrix[0][j] = j;
     }
-    for (let i2 = 1;i2 <= b.length; i2++) {
+    for (let i2 = 1;i2 <= b2.length; i2++) {
       for (let j = 1;j <= a.length; j++) {
-        if (b.charAt(i2 - 1) === a.charAt(j - 1)) {
+        if (b2.charAt(i2 - 1) === a.charAt(j - 1)) {
           matrix[i2][j] = matrix[i2 - 1][j - 1];
         } else {
           matrix[i2][j] = Math.min(matrix[i2 - 1][j - 1] + 1, matrix[i2][j - 1] + 1, matrix[i2 - 1][j] + 1);
         }
       }
     }
-    return matrix[b.length][a.length];
+    return matrix[b2.length][a.length];
   }
 }
 var init_component_resolver = () => {};
@@ -9730,6 +10406,7 @@ ${exports}
         imports.push(`import ${specifiers} from '${importDecl.source}';`);
       }
     }
+    imports.push(`import { errorBoundary } from '/runtime/error-boundary.js';`);
     return imports.join(`
 `);
   }
@@ -9779,13 +10456,20 @@ function render(props = {}) {
   generateExports(node) {
     return `
 export default function ${node.name}(props = {}) {
-  return render(props);
+  const wrapped = errorBoundary.wrap(function(props) {
+    return render(props);
+  }, '${node.name}');
+  return wrapped(props);
 }
 
 // SSR export
 export function ${node.name}_ssr(props = {}) {
-  ${node.props.size > 0 ? "props = { ...defaultProps, ...props };" : ""}
-  return \`${node.template?.staticHTML || ""}\`;
+  try {
+    ${node.props.size > 0 ? "props = { ...defaultProps, ...props };" : ""}
+    return \`${node.template?.staticHTML || ""}\`;
+  } catch (e) {
+    return \`<!-- \${node.name} SSR Error: \${e.message} -->\`;
+  }
 }
 `;
   }
@@ -9859,6 +10543,51 @@ class TemplateOptimizer {
   }
 }
 
+// src/bundler/compiler/prop-inferencer.ts
+class PropInferencer {
+  infer(node) {
+    const props = new Map;
+    if (node.template) {
+      this.analyzeTemplate(node.template, props);
+    }
+    return Array.from(props.values());
+  }
+  analyzeTemplate(templateNode, props) {
+    const traverse = (n) => {
+      if (n.type === "expression" && n.expression) {
+        this.extractPropsFromExpression(n.expression.raw, props);
+      }
+      if (n.type === "element") {
+        if (n.attributes) {
+          for (const attr of n.attributes.values()) {
+            if (!attr.isStatic && attr.value && attr.value.expression) {
+              this.extractPropsFromExpression(attr.value.expression.raw, props);
+            }
+          }
+        }
+        if (n.children) {
+          n.children.forEach(traverse);
+        }
+      }
+    };
+    traverse(templateNode);
+  }
+  extractPropsFromExpression(expr, props) {
+    const propRegex = /props\.(\w+)/g;
+    let match;
+    while ((match = propRegex.exec(expr)) !== null) {
+      const name = match[1];
+      if (!props.has(name)) {
+        props.set(name, {
+          name,
+          type: "any",
+          required: true
+        });
+      }
+    }
+  }
+}
+
 // src/bundler/compiler/component-compiler.ts
 class ComponentCompiler2 {
   ctx;
@@ -9867,6 +10596,7 @@ class ComponentCompiler2 {
   cssScoper;
   htmlParser;
   reactivityTransformer;
+  propInferencer;
   constructor(ctx) {
     this.ctx = ctx;
     this.codeGenerator = new CodeGenerator;
@@ -9875,6 +10605,7 @@ class ComponentCompiler2 {
     this.cssScoper = new CSSScoper;
     this.htmlParser = new HTMLParser;
     this.reactivityTransformer = new ReactivityTransformer;
+    this.propInferencer = new PropInferencer;
   }
   async compile(node) {
     const cached = this.ctx.cache.components.get(node.path);
@@ -9914,28 +10645,66 @@ export function ${node.name}_ssr(props = {}) {
     };
   }
   async compileInteractive(node, content) {
-    const templateStart = content.search(/^\s*<[a-zA-Z>/]/m);
-    const logic = templateStart !== -1 ? content.substring(0, templateStart).trim() : "";
-    const template = templateStart !== -1 ? content.substring(templateStart).trim() : "";
-    const templateAST = this.parseTemplate(template);
-    node.template = templateAST;
-    const optimized = this.templateOptimizer.optimize(template);
-    let processedCSS = "";
-    if (node.styles) {
-      processedCSS = this.cssScoper.scope(node.styles, node.hash, template);
+    try {
+      const templateStart = content.search(/^\s*<[a-zA-Z>/]/m);
+      const logic = templateStart !== -1 ? content.substring(0, templateStart).trim() : "";
+      const template = templateStart !== -1 ? content.substring(templateStart).trim() : "";
+      let templateAST;
+      try {
+        templateAST = this.parseTemplate(template);
+      } catch (e) {
+        throw new ComponentError({
+          code: "PARSE_ERROR",
+          message: `Failed to parse component template: ${e.message}`,
+          file: node.path,
+          suggestion: "Check for unclosed tags or invalid HTML syntax",
+          originalError: e
+        });
+      }
+      node.template = templateAST;
+      const optimized = this.templateOptimizer.optimize(template);
+      let processedCSS = "";
+      if (node.styles) {
+        processedCSS = this.cssScoper.scope(node.styles, node.hash, template);
+      }
+      let transformedLogic;
+      try {
+        transformedLogic = this.transformLogic(logic, node);
+      } catch (e) {
+        throw new ComponentError({
+          code: "TRANSFORM_ERROR",
+          message: `Failed to transform component logic: ${e.message}`,
+          file: node.path,
+          suggestion: "Check for syntax errors in your script block",
+          originalError: e
+        });
+      }
+      const code = this.codeGenerator.generate(node, optimized, transformedLogic, processedCSS);
+      const inferredProps = this.propInferencer.infer(node);
+      node.props = new Map(inferredProps.map((p2) => [p2.name, p2]));
+      this.ctx.cache.components.set(node.path, {
+        hash: node.hash,
+        compiled: code,
+        timestamp: Date.now()
+      });
+      return {
+        code,
+        dependencies: Array.from(node.dependencies),
+        sideEffects: true,
+        inferredProps
+      };
+    } catch (error) {
+      if (error instanceof ComponentError) {
+        throw error;
+      }
+      throw new ComponentError({
+        code: "COMPILE_ERROR",
+        message: `Unexpected error compiling component: ${error.message}`,
+        file: node.path,
+        suggestion: "This might be a bug in the Pulse compiler. Please report it.",
+        originalError: error
+      });
     }
-    const transformedLogic = this.transformLogic(logic, node);
-    const code = this.codeGenerator.generate(node, optimized, transformedLogic, processedCSS);
-    this.ctx.cache.components.set(node.path, {
-      hash: node.hash,
-      compiled: code,
-      timestamp: Date.now()
-    });
-    return {
-      code,
-      dependencies: Array.from(node.dependencies),
-      sideEffects: true
-    };
   }
   parseTemplate(template) {
     const parsed = this.htmlParser.parse(template);
@@ -10031,6 +10800,7 @@ var init_component_compiler2 = __esm(() => {
   init_code_generator();
   init_css_scoper();
   init_reactivity_transformer();
+  init_errors();
 });
 
 // node_modules/terser/lib/utils/index.js
@@ -10103,8 +10873,8 @@ function push_uniq(array, el) {
     array.push(el);
 }
 function string_template(text, props) {
-  return text.replace(/{(.+?)}/g, function(str, p) {
-    return props && props[p];
+  return text.replace(/{(.+?)}/g, function(str, p2) {
+    return props && props[p2];
   });
 }
 function remove(array, el) {
@@ -10116,15 +10886,15 @@ function remove(array, el) {
 function mergeSort(array, cmp) {
   if (array.length < 2)
     return array.slice();
-  function merge(a, b) {
+  function merge(a, b2) {
     var r = [], ai = 0, bi = 0, i2 = 0;
-    while (ai < a.length && bi < b.length) {
-      cmp(a[ai], b[bi]) <= 0 ? r[i2++] = a[ai++] : r[i2++] = b[bi++];
+    while (ai < a.length && bi < b2.length) {
+      cmp(a[ai], b2[bi]) <= 0 ? r[i2++] = a[ai++] : r[i2++] = b2[bi++];
     }
     if (ai < a.length)
       r.push.apply(r, a.slice(ai));
-    if (bi < b.length)
-      r.push.apply(r, b.slice(bi));
+    if (bi < b2.length)
+      r.push.apply(r, b2.slice(bi));
     return r;
   }
   function _ms(a) {
@@ -10345,7 +11115,7 @@ function is_token(token, type, val) {
   return token.type == type && (val == null || token.value == val);
 }
 function tokenizer2($TEXT, filename, html5_comments, shebang) {
-  var S = {
+  var S2 = {
     text: $TEXT,
     filename,
     pos: 0,
@@ -10363,35 +11133,35 @@ function tokenizer2($TEXT, filename, html5_comments, shebang) {
     directive_stack: []
   };
   function peek() {
-    return get_full_char(S.text, S.pos);
+    return get_full_char(S2.text, S2.pos);
   }
   function is_option_chain_op() {
-    const must_be_dot = S.text.charCodeAt(S.pos + 1) === 46;
+    const must_be_dot = S2.text.charCodeAt(S2.pos + 1) === 46;
     if (!must_be_dot)
       return false;
-    const cannot_be_digit = S.text.charCodeAt(S.pos + 2);
+    const cannot_be_digit = S2.text.charCodeAt(S2.pos + 2);
     return cannot_be_digit < 48 || cannot_be_digit > 57;
   }
   function next(signal_eof, in_string) {
-    var ch = get_full_char(S.text, S.pos++);
+    var ch = get_full_char(S2.text, S2.pos++);
     if (signal_eof && !ch)
       throw EX_EOF;
     if (NEWLINE_CHARS.has(ch)) {
-      S.newline_before = S.newline_before || !in_string;
-      ++S.line;
-      S.col = 0;
+      S2.newline_before = S2.newline_before || !in_string;
+      ++S2.line;
+      S2.col = 0;
       if (ch == "\r" && peek() == `
 `) {
-        ++S.pos;
+        ++S2.pos;
         ch = `
 `;
       }
     } else {
       if (ch.length > 1) {
-        ++S.pos;
-        ++S.col;
+        ++S2.pos;
+        ++S2.col;
       }
-      ++S.col;
+      ++S2.col;
     }
     return ch;
   }
@@ -10400,11 +11170,11 @@ function tokenizer2($TEXT, filename, html5_comments, shebang) {
       next();
   }
   function looking_at(str) {
-    return S.text.substr(S.pos, str.length) == str;
+    return S2.text.substr(S2.pos, str.length) == str;
   }
   function find_eol() {
-    var text = S.text;
-    for (var i2 = S.pos, n = S.text.length;i2 < n; ++i2) {
+    var text = S2.text;
+    for (var i2 = S2.pos, n = S2.text.length;i2 < n; ++i2) {
       var ch = text[i2];
       if (NEWLINE_CHARS.has(ch))
         return i2;
@@ -10412,37 +11182,37 @@ function tokenizer2($TEXT, filename, html5_comments, shebang) {
     return -1;
   }
   function find(what, signal_eof) {
-    var pos = S.text.indexOf(what, S.pos);
+    var pos = S2.text.indexOf(what, S2.pos);
     if (signal_eof && pos == -1)
       throw EX_EOF;
     return pos;
   }
   function start_token() {
-    S.tokline = S.line;
-    S.tokcol = S.col;
-    S.tokpos = S.pos;
+    S2.tokline = S2.line;
+    S2.tokcol = S2.col;
+    S2.tokpos = S2.pos;
   }
   var prev_was_dot = false;
   var previous_token = null;
   function token(type, value, is_comment) {
-    S.regex_allowed = type == "operator" && !UNARY_POSTFIX.has(value) || type == "keyword" && KEYWORDS_BEFORE_EXPRESSION.has(value) || type == "punc" && PUNC_BEFORE_EXPRESSION.has(value) || type == "arrow";
+    S2.regex_allowed = type == "operator" && !UNARY_POSTFIX.has(value) || type == "keyword" && KEYWORDS_BEFORE_EXPRESSION.has(value) || type == "punc" && PUNC_BEFORE_EXPRESSION.has(value) || type == "arrow";
     if (type == "punc" && (value == "." || value == "?.")) {
       prev_was_dot = true;
     } else if (!is_comment) {
       prev_was_dot = false;
     }
-    const line = S.tokline;
-    const col = S.tokcol;
-    const pos = S.tokpos;
-    const nlb = S.newline_before;
+    const line = S2.tokline;
+    const col = S2.tokcol;
+    const pos = S2.tokpos;
+    const nlb = S2.newline_before;
     const file = filename;
     let comments_before = [];
     let comments_after = [];
     if (!is_comment) {
-      comments_before = S.comments_before;
-      comments_after = S.comments_before = [];
+      comments_before = S2.comments_before;
+      comments_after = S2.comments_before = [];
     }
-    S.newline_before = false;
+    S2.newline_before = false;
     const tok = new AST_Token(type, value, line, col, pos, nlb, comments_before, comments_after, file);
     if (!is_comment)
       previous_token = tok;
@@ -10453,13 +11223,13 @@ function tokenizer2($TEXT, filename, html5_comments, shebang) {
       next();
   }
   function peek_next_token_start_or_newline() {
-    var pos = S.pos;
-    for (var in_multiline_comment = false;pos < S.text.length; ) {
-      var ch = get_full_char(S.text, pos);
+    var pos = S2.pos;
+    for (var in_multiline_comment = false;pos < S2.text.length; ) {
+      var ch = get_full_char(S2.text, pos);
       if (NEWLINE_CHARS.has(ch)) {
         return { char: ch, pos };
       } else if (in_multiline_comment) {
-        if (ch == "*" && get_full_char(S.text, pos + 1) == "/") {
+        if (ch == "*" && get_full_char(S2.text, pos + 1) == "/") {
           pos += 2;
           in_multiline_comment = false;
         } else {
@@ -10467,10 +11237,10 @@ function tokenizer2($TEXT, filename, html5_comments, shebang) {
         }
       } else if (!WHITESPACE_CHARS.has(ch)) {
         if (ch == "/") {
-          var next_ch = get_full_char(S.text, pos + 1);
+          var next_ch = get_full_char(S2.text, pos + 1);
           if (next_ch == "/") {
             pos = find_eol();
-            return { char: get_full_char(S.text, pos), pos };
+            return { char: get_full_char(S2.text, pos), pos };
           } else if (next_ch == "*") {
             in_multiline_comment = true;
             pos += 2;
@@ -10489,8 +11259,8 @@ function tokenizer2($TEXT, filename, html5_comments, shebang) {
       return true;
     } else if (is_identifier_start(ch)) {
       RE_KEYWORD_RELATIONAL_OPERATORS.lastIndex = pos;
-      if (RE_KEYWORD_RELATIONAL_OPERATORS.test(S.text)) {
-        var after = get_full_char(S.text, RE_KEYWORD_RELATIONAL_OPERATORS.lastIndex);
+      if (RE_KEYWORD_RELATIONAL_OPERATORS.test(S2.text)) {
+        var after = get_full_char(S2.text, RE_KEYWORD_RELATIONAL_OPERATORS.lastIndex);
         if (!is_identifier_char(after) && after != "\\") {
           return false;
         }
@@ -10506,7 +11276,7 @@ function tokenizer2($TEXT, filename, html5_comments, shebang) {
     return ret;
   }
   function parse_error(err) {
-    js_error(err, filename, S.tokline, S.tokcol, S.tokpos);
+    js_error(err, filename, S2.tokline, S2.tokcol, S2.tokpos);
   }
   function read_num(prefix) {
     var has_e = false, after_e = false, has_x = false, has_dot = prefix == ".", is_big_int = false, numeric_separator = false;
@@ -10597,7 +11367,7 @@ function tokenizer2($TEXT, filename, html5_comments, shebang) {
             parse_error("Expecting hex-character between {}");
           while (peek() == "0")
             next(true);
-          var result, length = find("}", true) - S.pos;
+          var result, length = find("}", true) - S2.pos;
           if (length > 6 || (result = hex_bytes(length, strict_hex)) > 1114111) {
             parse_error("Unicode reference out of bounds");
           }
@@ -10626,10 +11396,10 @@ function tokenizer2($TEXT, filename, html5_comments, shebang) {
     return ch;
   }
   function read_octal_escape_sequence(ch, strict_octal) {
-    var p = peek();
-    if (p >= "0" && p <= "7") {
+    var p2 = peek();
+    if (p2 >= "0" && p2 <= "7") {
       ch += next(true);
-      if (ch[0] <= "3" && (p = peek()) >= "0" && p <= "7")
+      if (ch[0] <= "3" && (p2 = peek()) >= "0" && p2 <= "7")
         ch += next(true);
     }
     if (ch === "0")
@@ -10652,7 +11422,7 @@ function tokenizer2($TEXT, filename, html5_comments, shebang) {
     return parseInt(num, 16);
   }
   var read_string = with_eof_error("Unterminated string constant", function() {
-    const start_pos = S.pos;
+    const start_pos = S2.pos;
     var quote = next(), ret = [];
     for (;; ) {
       var ch = next(true, true);
@@ -10666,13 +11436,13 @@ function tokenizer2($TEXT, filename, html5_comments, shebang) {
       ret.push(ch);
     }
     var tok = token("string", ret.join(""));
-    LATEST_RAW = S.text.slice(start_pos, S.pos);
+    LATEST_RAW = S2.text.slice(start_pos, S2.pos);
     tok.quote = quote;
     return tok;
   });
   var read_template_characters = with_eof_error("Unterminated template", function(begin) {
     if (begin) {
-      S.template_braces.push(S.brace_counter);
+      S2.template_braces.push(S2.brace_counter);
     }
     var content = "", raw = "", ch, tok;
     next(true, true);
@@ -10680,12 +11450,12 @@ function tokenizer2($TEXT, filename, html5_comments, shebang) {
       if (ch == "\r") {
         if (peek() == `
 `)
-          ++S.pos;
+          ++S2.pos;
         ch = `
 `;
       } else if (ch == "$" && peek() == "{") {
         next(true, true);
-        S.brace_counter++;
+        S2.brace_counter++;
         tok = token(begin ? "template_head" : "template_cont", content);
         TEMPLATE_RAWS.set(tok, raw);
         tok.template_end = false;
@@ -10693,54 +11463,54 @@ function tokenizer2($TEXT, filename, html5_comments, shebang) {
       }
       raw += ch;
       if (ch == "\\") {
-        var tmp = S.pos;
+        var tmp = S2.pos;
         var prev_is_tag = previous_token && (previous_token.type === "name" || previous_token.type === "punc" && (previous_token.value === ")" || previous_token.value === "]"));
         ch = read_escaped_char(true, !prev_is_tag, true);
-        raw += S.text.substr(tmp, S.pos - tmp);
+        raw += S2.text.substr(tmp, S2.pos - tmp);
       }
       content += ch;
     }
-    S.template_braces.pop();
+    S2.template_braces.pop();
     tok = token(begin ? "template_head" : "template_cont", content);
     TEMPLATE_RAWS.set(tok, raw);
     tok.template_end = true;
     return tok;
   });
   function skip_line_comment(type) {
-    var regex_allowed = S.regex_allowed;
+    var regex_allowed = S2.regex_allowed;
     var i2 = find_eol(), ret;
     if (i2 == -1) {
-      ret = S.text.substr(S.pos);
-      S.pos = S.text.length;
+      ret = S2.text.substr(S2.pos);
+      S2.pos = S2.text.length;
     } else {
-      ret = S.text.substring(S.pos, i2);
-      S.pos = i2;
+      ret = S2.text.substring(S2.pos, i2);
+      S2.pos = i2;
     }
-    S.col = S.tokcol + (S.pos - S.tokpos);
-    S.comments_before.push(token(type, ret, true));
-    S.regex_allowed = regex_allowed;
+    S2.col = S2.tokcol + (S2.pos - S2.tokpos);
+    S2.comments_before.push(token(type, ret, true));
+    S2.regex_allowed = regex_allowed;
     return next_token;
   }
   var skip_multiline_comment = with_eof_error("Unterminated multiline comment", function() {
-    var regex_allowed = S.regex_allowed;
+    var regex_allowed = S2.regex_allowed;
     var i2 = find("*/", true);
-    var text = S.text.substring(S.pos, i2).replace(/\r\n|\r|\u2028|\u2029/g, `
+    var text = S2.text.substring(S2.pos, i2).replace(/\r\n|\r|\u2028|\u2029/g, `
 `);
     forward(get_full_char_length(text) + 2);
-    S.comments_before.push(token("comment2", text, true));
-    S.newline_before = S.newline_before || text.includes(`
+    S2.comments_before.push(token("comment2", text, true));
+    S2.newline_before = S2.newline_before || text.includes(`
 `);
-    S.regex_allowed = regex_allowed;
+    S2.regex_allowed = regex_allowed;
     return next_token;
   });
   var read_name = function() {
-    let start = S.pos, end = start - 1, ch = "c";
-    while ((ch = S.text.charAt(++end)) && (ch >= "a" && ch <= "z" || ch >= "A" && ch <= "Z"))
+    let start = S2.pos, end = start - 1, ch = "c";
+    while ((ch = S2.text.charAt(++end)) && (ch >= "a" && ch <= "z" || ch >= "A" && ch <= "Z"))
       ;
     if (end > start + 1 && ch && ch !== "\\" && !is_identifier_char(ch) && ch <= "~") {
-      S.pos += end - start;
-      S.col += end - start;
-      return S.text.slice(start, S.pos);
+      S2.pos += end - start;
+      S2.col += end - start;
+      return S2.text.slice(start, S2.pos);
     }
     return read_name_hard();
   };
@@ -10837,7 +11607,7 @@ function tokenizer2($TEXT, filename, html5_comments, shebang) {
         next();
         return skip_multiline_comment();
     }
-    return S.regex_allowed ? read_regexp("") : read_operator("/");
+    return S2.regex_allowed ? read_regexp("") : read_operator("/");
   }
   function handle_eq_sign() {
     next();
@@ -10871,9 +11641,9 @@ function tokenizer2($TEXT, filename, html5_comments, shebang) {
     return token("privatename", read_name());
   }
   function with_eof_error(eof_error, cont) {
-    return function(x) {
+    return function(x2) {
       try {
-        return cont(x);
+        return cont(x2);
       } catch (ex) {
         if (ex === EX_EOF)
           parse_error(eof_error);
@@ -10885,7 +11655,7 @@ function tokenizer2($TEXT, filename, html5_comments, shebang) {
   function next_token(force_regexp) {
     if (force_regexp != null)
       return read_regexp(force_regexp);
-    if (shebang && S.pos == 0 && looking_at("#!")) {
+    if (shebang && S2.pos == 0 && looking_at("#!")) {
       start_token();
       forward(2);
       skip_line_comment("comment5");
@@ -10899,7 +11669,7 @@ function tokenizer2($TEXT, filename, html5_comments, shebang) {
           skip_line_comment("comment3");
           continue;
         }
-        if (looking_at("-->") && S.newline_before) {
+        if (looking_at("-->") && S2.newline_before) {
           forward(3);
           skip_line_comment("comment4");
           continue;
@@ -10933,11 +11703,11 @@ function tokenizer2($TEXT, filename, html5_comments, shebang) {
         case 96:
           return read_template_characters(true);
         case 123:
-          S.brace_counter++;
+          S2.brace_counter++;
           break;
         case 125:
-          S.brace_counter--;
-          if (S.template_braces.length > 0 && S.template_braces[S.template_braces.length - 1] === S.brace_counter)
+          S2.brace_counter--;
+          if (S2.template_braces.length > 0 && S2.template_braces[S2.template_braces.length - 1] === S2.brace_counter)
             return read_template_characters(false);
           break;
       }
@@ -10959,29 +11729,29 @@ function tokenizer2($TEXT, filename, html5_comments, shebang) {
   next_token.peek = peek;
   next_token.context = function(nc) {
     if (nc)
-      S = nc;
-    return S;
+      S2 = nc;
+    return S2;
   };
   next_token.add_directive = function(directive) {
-    S.directive_stack[S.directive_stack.length - 1].push(directive);
-    if (S.directives[directive] === undefined) {
-      S.directives[directive] = 1;
+    S2.directive_stack[S2.directive_stack.length - 1].push(directive);
+    if (S2.directives[directive] === undefined) {
+      S2.directives[directive] = 1;
     } else {
-      S.directives[directive]++;
+      S2.directives[directive]++;
     }
   };
   next_token.push_directives_stack = function() {
-    S.directive_stack.push([]);
+    S2.directive_stack.push([]);
   };
   next_token.pop_directives_stack = function() {
-    var directives = S.directive_stack[S.directive_stack.length - 1];
+    var directives = S2.directive_stack[S2.directive_stack.length - 1];
     for (var i2 = 0;i2 < directives.length; i2++) {
-      S.directives[directives[i2]]--;
+      S2.directives[directives[i2]]--;
     }
-    S.directive_stack.pop();
+    S2.directive_stack.pop();
   };
   next_token.has_directive = function(directive) {
-    return S.directives[directive] > 0;
+    return S2.directives[directive] > 0;
   };
   next_token.peek_next_token_start_or_newline = peek_next_token_start_or_newline;
   next_token.ch_starts_binding_identifier = ch_starts_binding_identifier;
@@ -11000,7 +11770,7 @@ function parse4($TEXT, options) {
     strict: false,
     toplevel: null
   }, true);
-  var S = {
+  var S2 = {
     input: typeof $TEXT == "string" ? tokenizer2($TEXT, options.filename, options.html5_comments, options.shebang) : $TEXT,
     token: null,
     prev: null,
@@ -11012,27 +11782,27 @@ function parse4($TEXT, options) {
     in_loop: 0,
     labels: []
   };
-  S.token = next();
+  S2.token = next();
   function is(type, value) {
-    return is_token(S.token, type, value);
+    return is_token(S2.token, type, value);
   }
   function peek() {
-    return S.peeked || (S.peeked = S.input());
+    return S2.peeked || (S2.peeked = S2.input());
   }
   function next() {
-    S.prev = S.token;
-    if (!S.peeked)
+    S2.prev = S2.token;
+    if (!S2.peeked)
       peek();
-    S.token = S.peeked;
-    S.peeked = null;
-    S.in_directives = S.in_directives && (S.token.type == "string" || is("punc", ";"));
-    return S.token;
+    S2.token = S2.peeked;
+    S2.peeked = null;
+    S2.in_directives = S2.in_directives && (S2.token.type == "string" || is("punc", ";"));
+    return S2.token;
   }
   function prev() {
-    return S.prev;
+    return S2.prev;
   }
   function croak(msg, line, col, pos) {
-    var ctx = S.input.context();
+    var ctx = S2.input.context();
     js_error(msg, ctx.filename, line != null ? line : ctx.tokline, col != null ? col : ctx.tokcol, pos != null ? pos : ctx.tokpos);
   }
   function token_error(token, msg) {
@@ -11040,14 +11810,14 @@ function parse4($TEXT, options) {
   }
   function unexpected(token) {
     if (token == null)
-      token = S.token;
+      token = S2.token;
     token_error(token, "Unexpected token: " + token.type + " (" + token.value + ")");
   }
   function expect_token(type, val) {
     if (is(type, val)) {
       return next();
     }
-    token_error(S.token, "Unexpected token " + S.token.type + " \xAB" + S.token.value + "\xBB" + ", expected " + type + " \xAB" + val + "\xBB");
+    token_error(S2.token, "Unexpected token " + S2.token.type + " \xAB" + S2.token.value + "\xBB" + ", expected " + type + " \xAB" + val + "\xBB");
   }
   function expect(punc) {
     return expect_token("punc", punc);
@@ -11056,16 +11826,16 @@ function parse4($TEXT, options) {
     return token.nlb || !token.comments_before.every((comment) => !comment.nlb);
   }
   function can_insert_semicolon() {
-    return !options.strict && (is("eof") || is("punc", "}") || has_newline_before(S.token));
+    return !options.strict && (is("eof") || is("punc", "}") || has_newline_before(S2.token));
   }
   function is_in_generator() {
-    return S.in_generator === S.in_function;
+    return S2.in_generator === S2.in_function;
   }
   function is_in_async() {
-    return S.in_async === S.in_function;
+    return S2.in_async === S2.in_function;
   }
   function can_await() {
-    return S.in_async === S.in_function || S.in_function === 0 && S.input.has_directive("use strict");
+    return S2.in_async === S2.in_function || S2.in_function === 0 && S2.input.has_directive("use strict");
   }
   function semicolon(optional) {
     if (is("punc", ";"))
@@ -11081,7 +11851,7 @@ function parse4($TEXT, options) {
   }
   function embed_tokens(parser) {
     return function _embed_tokens_wrapper(...args) {
-      const start = S.token;
+      const start = S2.token;
       const expr = parser(...args);
       expr.start = start;
       expr.end = prev();
@@ -11090,23 +11860,23 @@ function parse4($TEXT, options) {
   }
   function handle_regexp() {
     if (is("operator", "/") || is("operator", "/=")) {
-      S.peeked = null;
-      S.token = S.input(S.token.value.substr(1));
+      S2.peeked = null;
+      S2.token = S2.input(S2.token.value.substr(1));
     }
   }
-  var statement = embed_tokens(function statement(is_export_default, is_for_body, is_if_body) {
+  var statement = embed_tokens(function statement2(is_export_default, is_for_body, is_if_body) {
     handle_regexp();
-    switch (S.token.type) {
+    switch (S2.token.type) {
       case "string":
-        if (S.in_directives) {
+        if (S2.in_directives) {
           var token = peek();
           if (!LATEST_RAW.includes("\\") && (is_token(token, "punc", ";") || is_token(token, "punc", "}") || has_newline_before(token) || is_token(token, "eof"))) {
-            S.input.add_directive(S.token.value);
+            S2.input.add_directive(S2.token.value);
           } else {
-            S.in_directives = false;
+            S2.in_directives = false;
           }
         }
-        var dir = S.in_directives, stat = simple_statement();
+        var dir = S2.in_directives, stat = simple_statement();
         return dir && stat.body instanceof AST_String ? new AST_Directive(stat.body) : stat;
       case "template_head":
       case "num":
@@ -11116,7 +11886,7 @@ function parse4($TEXT, options) {
       case "atom":
         return simple_statement();
       case "name":
-        if (S.token.value == "async" && is_token(peek(), "keyword", "function")) {
+        if (S2.token.value == "async" && is_token(peek(), "keyword", "function")) {
           next();
           next();
           if (is_for_body) {
@@ -11124,21 +11894,21 @@ function parse4($TEXT, options) {
           }
           return function_(AST_Defun, false, true, is_export_default);
         }
-        if (S.token.value == "import" && !is_token(peek(), "punc", "(") && !is_token(peek(), "punc", ".")) {
+        if (S2.token.value == "import" && !is_token(peek(), "punc", "(") && !is_token(peek(), "punc", ".")) {
           next();
           var node = import_statement();
           semicolon();
           return node;
         }
-        if (S.token.value == "using" && is_token(peek(), "name") && !has_newline_before(peek())) {
+        if (S2.token.value == "using" && is_token(peek(), "name") && !has_newline_before(peek())) {
           next();
           var node = using_();
           semicolon();
           return node;
         }
-        if (S.token.value == "await" && can_await() && is_token(peek(), "name", "using") && !has_newline_before(peek())) {
-          var next_next = S.input.peek_next_token_start_or_newline();
-          if (S.input.ch_starts_binding_identifier(next_next.char, next_next.pos)) {
+        if (S2.token.value == "await" && can_await() && is_token(peek(), "name", "using") && !has_newline_before(peek())) {
+          var next_next = S2.input.peek_next_token_start_or_newline();
+          if (S2.input.ch_starts_binding_identifier(next_next.char, next_next.pos)) {
             next();
             var node = await_using_();
             semicolon();
@@ -11147,14 +11917,14 @@ function parse4($TEXT, options) {
         }
         return is_token(peek(), "punc", ":") ? labeled_statement() : simple_statement();
       case "privatename":
-        if (!S.in_class)
+        if (!S2.in_class)
           croak("Private field must be used in an enclosing class");
         return simple_statement();
       case "punc":
-        switch (S.token.value) {
+        switch (S2.token.value) {
           case "{":
             return new AST_BlockStatement({
-              start: S.token,
+              start: S2.token,
               body: block_(),
               end: prev()
             });
@@ -11162,14 +11932,14 @@ function parse4($TEXT, options) {
           case "(":
             return simple_statement();
           case ";":
-            S.in_directives = false;
+            S2.in_directives = false;
             next();
             return new AST_EmptyStatement;
           default:
             unexpected();
         }
       case "keyword":
-        switch (S.token.value) {
+        switch (S2.token.value) {
           case "break":
             next();
             return break_cont(AST_Break);
@@ -11182,7 +11952,7 @@ function parse4($TEXT, options) {
             return new AST_Debugger;
           case "do":
             next();
-            var body = in_loop(statement);
+            var body = in_loop(statement2);
             expect_token("keyword", "while");
             var condition = parenthesised();
             semicolon(true);
@@ -11195,7 +11965,7 @@ function parse4($TEXT, options) {
             return new AST_While({
               condition: parenthesised(),
               body: in_loop(function() {
-                return statement(false, true);
+                return statement2(false, true);
               })
             });
           case "for":
@@ -11220,7 +11990,7 @@ function parse4($TEXT, options) {
             next();
             return if_();
           case "return":
-            if (S.in_function == 0 && !options.bare_returns)
+            if (S2.in_function == 0 && !options.bare_returns)
               croak("'return' outside of function");
             next();
             var value = null;
@@ -11241,7 +12011,7 @@ function parse4($TEXT, options) {
             });
           case "throw":
             next();
-            if (has_newline_before(S.token))
+            if (has_newline_before(S2.token))
               croak("Illegal newline after 'throw'");
             var value = expression(true);
             semicolon();
@@ -11267,13 +12037,13 @@ function parse4($TEXT, options) {
             semicolon();
             return node;
           case "with":
-            if (S.input.has_directive("use strict")) {
+            if (S2.input.has_directive("use strict")) {
               croak("Strict mode may not include a with statement");
             }
             next();
             return new AST_With({
               expression: parenthesised(),
-              body: statement()
+              body: statement2()
             });
           case "export":
             if (!is_token(peek(), "punc", "(")) {
@@ -11290,15 +12060,15 @@ function parse4($TEXT, options) {
   function labeled_statement() {
     var label = as_symbol(AST_Label);
     if (label.name === "await" && is_in_async()) {
-      token_error(S.prev, "await cannot be used as label inside async function");
+      token_error(S2.prev, "await cannot be used as label inside async function");
     }
-    if (S.labels.some((l) => l.name === label.name)) {
+    if (S2.labels.some((l) => l.name === label.name)) {
       croak("Label " + label.name + " defined twice");
     }
     expect(":");
-    S.labels.push(label);
+    S2.labels.push(label);
     var stat = statement();
-    S.labels.pop();
+    S2.labels.pop();
     if (!(stat instanceof AST_IterationStatement)) {
       label.references.forEach(function(ref2) {
         if (ref2 instanceof AST_Continue) {
@@ -11318,11 +12088,11 @@ function parse4($TEXT, options) {
       label = as_symbol(AST_LabelRef, true);
     }
     if (label != null) {
-      ldef = S.labels.find((l) => l.name === label.name);
+      ldef = S2.labels.find((l) => l.name === label.name);
       if (!ldef)
         croak("Undefined label " + label.name);
       label.thedef = ldef;
-    } else if (S.in_loop == 0)
+    } else if (S2.in_loop == 0)
       croak(type.TYPE + " not inside a loop or switch");
     semicolon();
     var stat = new type({ label });
@@ -11332,7 +12102,7 @@ function parse4($TEXT, options) {
   }
   function for_() {
     var for_await_error = "`for await` invalid in this context";
-    var await_tok = S.token;
+    var await_tok = S2.token;
     if (await_tok.type == "name" && await_tok.value == "await") {
       if (!can_await()) {
         token_error(await_tok, for_await_error);
@@ -11344,7 +12114,7 @@ function parse4($TEXT, options) {
     expect("(");
     var init = null;
     if (!is("punc", ";")) {
-      init = is("keyword", "var") ? (next(), var_(true)) : is("keyword", "let") ? (next(), let_(true)) : is("keyword", "const") ? (next(), const_(true)) : is("name", "using") && is_token(peek(), "name") && (peek().value != "of" || S.input.peek_next_token_start_or_newline().char == "=") ? (next(), using_(true)) : is("name", "await") && can_await() && is_token(peek(), "name", "using") ? (next(), await_using_(true)) : expression(true, true);
+      init = is("keyword", "var") ? (next(), var_(true)) : is("keyword", "let") ? (next(), let_(true)) : is("keyword", "const") ? (next(), const_(true)) : is("name", "using") && is_token(peek(), "name") && (peek().value != "of" || S2.input.peek_next_token_start_or_newline().char == "=") ? (next(), using_(true)) : is("name", "await") && can_await() && is_token(peek(), "name", "using") ? (next(), await_using_(true)) : expression(true, true);
       var is_in = is("operator", "in");
       var is_of = is("name", "of");
       if (await_tok && !is_of) {
@@ -11413,7 +12183,7 @@ function parse4($TEXT, options) {
     });
   }
   var arrow_function = function(start, argnames, is_async) {
-    if (has_newline_before(S.token)) {
+    if (has_newline_before(S2.token)) {
       croak("Unexpected newline before arrow (=>)");
     }
     expect_token("arrow", "=>");
@@ -11513,7 +12283,7 @@ function parse4($TEXT, options) {
     }
   }
   function parameters(params) {
-    var used_parameters = new UsedParametersTracker(true, S.input.has_directive("use strict"));
+    var used_parameters = new UsedParametersTracker(true, S2.input.has_directive("use strict"));
     expect("(");
     while (!is("punc", ")")) {
       var param = parameter(used_parameters);
@@ -11531,23 +12301,23 @@ function parse4($TEXT, options) {
     var param;
     var expand = false;
     if (used_parameters === undefined) {
-      used_parameters = new UsedParametersTracker(true, S.input.has_directive("use strict"));
+      used_parameters = new UsedParametersTracker(true, S2.input.has_directive("use strict"));
     }
     if (is("expand", "...")) {
-      expand = S.token;
-      used_parameters.mark_spread(S.token);
+      expand = S2.token;
+      used_parameters.mark_spread(S2.token);
       next();
     }
     param = binding_element(used_parameters, symbol_type);
     if (is("operator", "=") && expand === false) {
-      used_parameters.mark_default_assignment(S.token);
+      used_parameters.mark_default_assignment(S2.token);
       next();
       param = new AST_DefaultAssign({
         start: param.start,
         left: param,
         operator: "=",
         right: expression(false),
-        end: S.token
+        end: S2.token
       });
     }
     if (expand !== false) {
@@ -11568,9 +12338,9 @@ function parse4($TEXT, options) {
     var first = true;
     var is_expand = false;
     var expand_token;
-    var first_token = S.token;
+    var first_token = S2.token;
     if (used_parameters === undefined) {
-      const strict = S.input.has_directive("use strict");
+      const strict = S2.input.has_directive("use strict");
       const duplicates_ok = symbol_type === AST_SymbolVar;
       used_parameters = new UsedParametersTracker(false, strict, duplicates_ok);
     }
@@ -11585,16 +12355,16 @@ function parse4($TEXT, options) {
         }
         if (is("expand", "...")) {
           is_expand = true;
-          expand_token = S.token;
-          used_parameters.mark_spread(S.token);
+          expand_token = S2.token;
+          used_parameters.mark_spread(S2.token);
           next();
         }
         if (is("punc")) {
-          switch (S.token.value) {
+          switch (S2.token.value) {
             case ",":
               elements.push(new AST_Hole({
-                start: S.token,
-                end: S.token
+                start: S2.token,
+                end: S2.token
               }));
               continue;
             case "]":
@@ -11607,20 +12377,20 @@ function parse4($TEXT, options) {
               unexpected();
           }
         } else if (is("name")) {
-          used_parameters.add_parameter(S.token);
+          used_parameters.add_parameter(S2.token);
           elements.push(as_symbol(symbol_type));
         } else {
           croak("Invalid function parameter");
         }
         if (is("operator", "=") && is_expand === false) {
-          used_parameters.mark_default_assignment(S.token);
+          used_parameters.mark_default_assignment(S2.token);
           next();
           elements[elements.length - 1] = new AST_DefaultAssign({
             start: elements[elements.length - 1].start,
             left: elements[elements.length - 1],
             operator: "=",
             right: expression(false),
-            end: S.token
+            end: S2.token
           });
         }
         if (is_expand) {
@@ -11652,12 +12422,12 @@ function parse4($TEXT, options) {
         }
         if (is("expand", "...")) {
           is_expand = true;
-          expand_token = S.token;
-          used_parameters.mark_spread(S.token);
+          expand_token = S2.token;
+          used_parameters.mark_spread(S2.token);
           next();
         }
         if (is("name") && (is_token(peek(), "punc") || is_token(peek(), "operator")) && [",", "}", "="].includes(peek().value)) {
-          used_parameters.add_parameter(S.token);
+          used_parameters.add_parameter(S2.token);
           var start = prev();
           var value = as_symbol(symbol_type);
           if (is_expand) {
@@ -11677,7 +12447,7 @@ function parse4($TEXT, options) {
         } else if (is("punc", "}")) {
           continue;
         } else {
-          var property_token = S.token;
+          var property_token = S2.token;
           var property = as_property_name();
           if (property === null) {
             unexpected(prev());
@@ -11708,14 +12478,14 @@ function parse4($TEXT, options) {
             croak("Rest element must be last element");
           }
         } else if (is("operator", "=")) {
-          used_parameters.mark_default_assignment(S.token);
+          used_parameters.mark_default_assignment(S2.token);
           next();
           elements[elements.length - 1].value = new AST_DefaultAssign({
             start: elements[elements.length - 1].value.start,
             left: elements[elements.length - 1].value,
             operator: "=",
             right: expression(false),
-            end: S.token
+            end: S2.token
           });
         }
       }
@@ -11728,7 +12498,7 @@ function parse4($TEXT, options) {
         end: prev()
       });
     } else if (is("name")) {
-      used_parameters.add_parameter(S.token);
+      used_parameters.add_parameter(S2.token);
       return as_symbol(symbol_type);
     } else {
       croak("Invalid function parameter");
@@ -11744,14 +12514,14 @@ function parse4($TEXT, options) {
       if (spread_token)
         unexpected(spread_token);
       if (is("expand", "...")) {
-        spread_token = S.token;
+        spread_token = S2.token;
         if (maybe_sequence)
-          invalid_sequence = S.token;
+          invalid_sequence = S2.token;
         next();
         a.push(new AST_Expansion({
           start: prev(),
           expression: expression(),
-          end: S.token
+          end: S2.token
         }));
       } else {
         a.push(expression());
@@ -11775,58 +12545,58 @@ function parse4($TEXT, options) {
     return a;
   }
   function _function_body(block, generator, is_async, name, args) {
-    var loop = S.in_loop;
-    var labels = S.labels;
-    var current_generator = S.in_generator;
-    var current_async = S.in_async;
-    ++S.in_function;
+    var loop = S2.in_loop;
+    var labels = S2.labels;
+    var current_generator = S2.in_generator;
+    var current_async = S2.in_async;
+    ++S2.in_function;
     if (generator)
-      S.in_generator = S.in_function;
+      S2.in_generator = S2.in_function;
     if (is_async)
-      S.in_async = S.in_function;
+      S2.in_async = S2.in_function;
     if (args)
       parameters(args);
     if (block)
-      S.in_directives = true;
-    S.in_loop = 0;
-    S.labels = [];
+      S2.in_directives = true;
+    S2.in_loop = 0;
+    S2.labels = [];
     if (block) {
-      S.input.push_directives_stack();
+      S2.input.push_directives_stack();
       var a = block_();
       if (name)
         _verify_symbol(name);
       if (args)
         args.forEach(_verify_symbol);
-      S.input.pop_directives_stack();
+      S2.input.pop_directives_stack();
     } else {
       var a = [new AST_Return({
-        start: S.token,
+        start: S2.token,
         value: expression(false),
-        end: S.token
+        end: S2.token
       })];
     }
-    --S.in_function;
-    S.in_loop = loop;
-    S.labels = labels;
-    S.in_generator = current_generator;
-    S.in_async = current_async;
+    --S2.in_function;
+    S2.in_loop = loop;
+    S2.labels = labels;
+    S2.in_generator = current_generator;
+    S2.in_async = current_async;
     return a;
   }
   function _await_expression() {
     if (!can_await()) {
-      croak("Unexpected await expression outside async function", S.prev.line, S.prev.col, S.prev.pos);
+      croak("Unexpected await expression outside async function", S2.prev.line, S2.prev.col, S2.prev.pos);
     }
     return new AST_Await({
       start: prev(),
-      end: S.token,
+      end: S2.token,
       expression: maybe_unary(true)
     });
   }
   function _yield_expression() {
-    var start = S.token;
+    var start = S2.token;
     var star = false;
     var has_expression = true;
-    if (can_insert_semicolon() || is("punc") && PUNC_AFTER_EXPRESSION.has(S.token.value) || is("template_cont")) {
+    if (can_insert_semicolon() || is("punc") && PUNC_AFTER_EXPRESSION.has(S2.token.value) || is("template_cont")) {
       has_expression = false;
     } else if (is("operator", "*")) {
       star = true;
@@ -11873,7 +12643,7 @@ function parse4($TEXT, options) {
           branch.end = prev();
         cur = [];
         branch = new AST_Case({
-          start: (tmp = S.token, next(), tmp),
+          start: (tmp = S2.token, next(), tmp),
           expression: expression(true),
           body: cur
         });
@@ -11884,7 +12654,7 @@ function parse4($TEXT, options) {
           branch.end = prev();
         cur = [];
         branch = new AST_Default({
-          start: (tmp = S.token, next(), expect(":"), tmp),
+          start: (tmp = S2.token, next(), expect(":"), tmp),
           body: cur
         });
         a.push(branch);
@@ -11902,12 +12672,12 @@ function parse4($TEXT, options) {
   function try_() {
     var body, bcatch = null, bfinally = null;
     body = new AST_TryBlock({
-      start: S.token,
+      start: S2.token,
       body: block_(),
       end: prev()
     });
     if (is("keyword", "catch")) {
-      var start = S.token;
+      var start = S2.token;
       next();
       if (is("punc", "{")) {
         var name = null;
@@ -11924,7 +12694,7 @@ function parse4($TEXT, options) {
       });
     }
     if (is("keyword", "finally")) {
-      var start = S.token;
+      var start = S2.token;
       next();
       bfinally = new AST_Finally({
         start,
@@ -11948,14 +12718,14 @@ function parse4($TEXT, options) {
       var def_type = kind === "using" || kind === "await using" ? AST_UsingDef : AST_VarDef;
       if (is("punc", "{") || is("punc", "[")) {
         def = new def_type({
-          start: S.token,
+          start: S2.token,
           name: binding_element(undefined, sym_type),
           value: is("operator", "=") ? (expect_token("operator", "="), expression(false, no_in)) : null,
           end: prev()
         });
       } else {
         def = new def_type({
-          start: S.token,
+          start: S2.token,
           name: as_symbol(sym_type),
           value: is("operator", "=") ? (next(), expression(false, no_in)) : !no_in && (kind === "const" || kind === "using" || kind === "await using") ? croak("Missing initializer in " + kind + " declaration") : null,
           end: prev()
@@ -12008,7 +12778,7 @@ function parse4($TEXT, options) {
     });
   };
   var new_ = function(allow_calls) {
-    var start = S.token;
+    var start = S2.token;
     expect_token("operator", "new");
     if (is("punc", ".")) {
       next();
@@ -12035,7 +12805,7 @@ function parse4($TEXT, options) {
     return subscripts(call, allow_calls);
   };
   function as_atom_node() {
-    var tok = S.token, ret;
+    var tok = S2.token, ret;
     switch (tok.type) {
       case "name":
         ret = _make_symbol(AST_SymbolRef);
@@ -12146,11 +12916,11 @@ function parse4($TEXT, options) {
     if (is("name", "import") && is_token(peek(), "punc", ".")) {
       return import_meta(allow_calls);
     }
-    var start = S.token;
+    var start = S2.token;
     var peeked;
     var async = is("name", "async") && (peeked = peek()).value != "[" && peeked.type != "arrow" && as_atom_node();
     if (is("punc")) {
-      switch (S.token.value) {
+      switch (S2.token.value) {
         case "(":
           if (async && !allow_calls)
             break;
@@ -12197,7 +12967,7 @@ function parse4($TEXT, options) {
     }
     if (allow_arrows && is("name") && is_token(peek(), "arrow")) {
       var param = new AST_SymbolFunarg({
-        name: S.token.value,
+        name: S2.token.value,
         start,
         end: start
       });
@@ -12223,35 +12993,35 @@ function parse4($TEXT, options) {
     if (is("template_head")) {
       return subscripts(template_string(), allow_calls);
     }
-    if (ATOMIC_START_TOKEN.has(S.token.type)) {
+    if (ATOMIC_START_TOKEN.has(S2.token.type)) {
       return subscripts(as_atom_node(), allow_calls);
     }
     unexpected();
   };
   function template_string() {
-    var segments = [], start = S.token;
+    var segments = [], start = S2.token;
     segments.push(new AST_TemplateSegment({
-      start: S.token,
-      raw: TEMPLATE_RAWS.get(S.token),
-      value: S.token.value,
-      end: S.token
+      start: S2.token,
+      raw: TEMPLATE_RAWS.get(S2.token),
+      value: S2.token.value,
+      end: S2.token
     }));
-    while (!S.token.template_end) {
+    while (!S2.token.template_end) {
       next();
       handle_regexp();
       segments.push(expression(true));
       segments.push(new AST_TemplateSegment({
-        start: S.token,
-        raw: TEMPLATE_RAWS.get(S.token),
-        value: S.token.value,
-        end: S.token
+        start: S2.token,
+        raw: TEMPLATE_RAWS.get(S2.token),
+        value: S2.token.value,
+        end: S2.token
       }));
     }
     next();
     return new AST_TemplateString({
       start,
       segments,
-      end: S.token
+      end: S2.token
     });
   }
   function expr_list(closing, allow_trailing_comma, allow_empty) {
@@ -12264,10 +13034,10 @@ function parse4($TEXT, options) {
       if (allow_trailing_comma && is("punc", closing))
         break;
       if (is("punc", ",") && allow_empty) {
-        a.push(new AST_Hole({ start: S.token, end: S.token }));
+        a.push(new AST_Hole({ start: S2.token, end: S2.token }));
       } else if (is("expand", "...")) {
         next();
-        a.push(new AST_Expansion({ start: prev(), expression: expression(), end: S.token }));
+        a.push(new AST_Expansion({ start: prev(), expression: expression(), end: S2.token }));
       } else {
         a.push(expression(false));
       }
@@ -12284,8 +13054,8 @@ function parse4($TEXT, options) {
   var create_accessor = embed_tokens((is_generator, is_async) => {
     return function_(AST_Accessor, is_generator, is_async);
   });
-  var object_or_destructuring_ = embed_tokens(function object_or_destructuring_() {
-    var start = S.token, first = true, a = [];
+  var object_or_destructuring_ = embed_tokens(function object_or_destructuring_2() {
+    var start = S2.token, first = true, a = [];
     expect("{");
     while (!is("punc", "}")) {
       if (first)
@@ -12294,7 +13064,7 @@ function parse4($TEXT, options) {
         expect(",");
       if (!options.strict && is("punc", "}"))
         break;
-      start = S.token;
+      start = S2.token;
       if (start.type == "expand") {
         next();
         a.push(new AST_Expansion({
@@ -12351,9 +13121,9 @@ function parse4($TEXT, options) {
   });
   function class_(KindOfClass, is_export_default) {
     var start, method, class_name, extends_, properties = [];
-    S.input.push_directives_stack();
-    S.input.add_directive("use strict");
-    if (S.token.type == "name" && S.token.value != "extends") {
+    S2.input.push_directives_stack();
+    S2.input.add_directive("use strict");
+    if (S2.token.type == "name" && S2.token.value != "extends") {
       class_name = as_symbol(KindOfClass === AST_DefClass ? AST_SymbolDefClass : AST_SymbolClass);
     }
     if (KindOfClass === AST_DefClass && !class_name) {
@@ -12363,18 +13133,18 @@ function parse4($TEXT, options) {
         unexpected();
       }
     }
-    if (S.token.value == "extends") {
+    if (S2.token.value == "extends") {
       next();
       extends_ = expression(true);
     }
     expect("{");
-    const save_in_class = S.in_class;
-    S.in_class = true;
+    const save_in_class = S2.in_class;
+    S2.in_class = true;
     while (is("punc", ";")) {
       next();
     }
     while (!is("punc", "}")) {
-      start = S.token;
+      start = S2.token;
       method = object_or_class_property(as_property_name(), start, true);
       if (!method) {
         unexpected();
@@ -12384,8 +13154,8 @@ function parse4($TEXT, options) {
         next();
       }
     }
-    S.in_class = save_in_class;
-    S.input.pop_directives_stack();
+    S2.in_class = save_in_class;
+    S2.input.pop_directives_stack();
     next();
     return new KindOfClass({
       start,
@@ -12500,7 +13270,7 @@ function parse4($TEXT, options) {
     if (!is("punc", "{")) {
       return null;
     }
-    const start = S.token;
+    const start = S2.token;
     const body = [];
     next();
     while (!is("punc", "}")) {
@@ -12510,7 +13280,7 @@ function parse4($TEXT, options) {
     return new AST_ClassStaticBlock({ start, body, end: prev() });
   }
   function maybe_import_attributes() {
-    if ((is("keyword", "with") || is("name", "assert")) && !has_newline_before(S.token)) {
+    if ((is("keyword", "with") || is("name", "assert")) && !has_newline_before(S2.token)) {
       next();
       return object_or_destructuring_();
     }
@@ -12530,7 +13300,7 @@ function parse4($TEXT, options) {
     if (imported_names || imported_name) {
       expect_token("name", "from");
     }
-    var mod_str = S.token;
+    var mod_str = S2.token;
     if (mod_str.type !== "string") {
       unexpected();
     }
@@ -12547,11 +13317,11 @@ function parse4($TEXT, options) {
         end: mod_str
       }),
       attributes,
-      end: S.token
+      end: S2.token
     });
   }
   function import_meta(allow_calls) {
-    var start = S.token;
+    var start = S2.token;
     expect_token("name", "import");
     expect_token("punc", ".");
     expect_token("name", "meta");
@@ -12571,7 +13341,7 @@ function parse4($TEXT, options) {
     }
     var foreign_type = is_import ? AST_SymbolImportForeign : AST_SymbolExportForeign;
     var type = is_import ? AST_SymbolImport : AST_SymbolExport;
-    var start = S.token;
+    var start = S2.token;
     var foreign_name;
     var name;
     if (is_import) {
@@ -12584,7 +13354,7 @@ function parse4($TEXT, options) {
       if (is_import) {
         name = make_symbol(type);
       } else {
-        foreign_name = make_symbol(foreign_type, S.token.quote);
+        foreign_name = make_symbol(foreign_type, S2.token.quote);
       }
     } else {
       if (is_import) {
@@ -12603,7 +13373,7 @@ function parse4($TEXT, options) {
   function map_nameAsterisk(is_import, import_or_export_foreign_name) {
     var foreign_type = is_import ? AST_SymbolImportForeign : AST_SymbolExportForeign;
     var type = is_import ? AST_SymbolImport : AST_SymbolExport;
-    var start = S.token;
+    var start = S2.token;
     var name, foreign_name;
     var end = prev();
     if (is_import) {
@@ -12652,7 +13422,7 @@ function parse4($TEXT, options) {
     return names;
   }
   function export_statement() {
-    var start = S.token;
+    var start = S2.token;
     var is_default;
     var exported_names;
     if (is("keyword", "default")) {
@@ -12661,7 +13431,7 @@ function parse4($TEXT, options) {
     } else if (exported_names = map_names(false)) {
       if (is("name", "from")) {
         next();
-        var mod_str = S.token;
+        var mod_str = S2.token;
         if (mod_str.type !== "string") {
           unexpected();
         }
@@ -12716,7 +13486,7 @@ function parse4($TEXT, options) {
     });
   }
   function as_property_name() {
-    var tmp = S.token;
+    var tmp = S2.token;
     switch (tmp.type) {
       case "punc":
         if (tmp.value === "[") {
@@ -12750,18 +13520,18 @@ function parse4($TEXT, options) {
     }
   }
   function as_name() {
-    var tmp = S.token;
+    var tmp = S2.token;
     if (tmp.type != "name" && tmp.type != "privatename")
       unexpected();
     next();
     return tmp.value;
   }
   function _make_symbol(type) {
-    var name = S.token.value;
+    var name = S2.token.value;
     return new (name == "this" ? AST_This : name == "super" ? AST_Super : type)({
       name: String(name),
-      start: S.token,
-      end: S.token
+      start: S2.token,
+      end: S2.token
     });
   }
   function _verify_symbol(sym) {
@@ -12769,7 +13539,7 @@ function parse4($TEXT, options) {
     if (is_in_generator() && name == "yield") {
       token_error(sym.start, "Yield cannot be used as identifier inside generators");
     }
-    if (S.input.has_directive("use strict")) {
+    if (S2.input.has_directive("use strict")) {
       if (name == "yield") {
         token_error(sym.start, "Unexpected yield identifier inside strict mode");
       }
@@ -12794,7 +13564,7 @@ function parse4($TEXT, options) {
       if (!is("string")) {
         croak("Name or string expected");
       }
-      var tok = S.token;
+      var tok = S2.token;
       var ret = new type({
         start: tok,
         end: tok,
@@ -12844,7 +13614,7 @@ function parse4($TEXT, options) {
     var start = expr.start;
     if (is("punc", ".")) {
       next();
-      if (is("privatename") && !S.in_class)
+      if (is("privatename") && !S2.in_class)
         croak("Private field must be used in an enclosing class");
       const AST_DotVariant = is("privatename") ? AST_DotHash : AST_Dot;
       return annotate(subscripts(new AST_DotVariant({
@@ -12894,7 +13664,7 @@ function parse4($TEXT, options) {
         annotate(call2);
         chain_contents = subscripts(call2, true, true);
       } else if (is("name") || is("privatename")) {
-        if (is("privatename") && !S.in_class)
+        if (is("privatename") && !S2.in_class)
           croak("Private field must be used in an enclosing class");
         const AST_DotVariant = is("privatename") ? AST_DotHash : AST_Dot;
         chain_contents = annotate(subscripts(new AST_DotVariant({
@@ -12960,7 +13730,7 @@ function parse4($TEXT, options) {
     return args;
   }
   var maybe_unary = function(allow_calls, allow_arrows) {
-    var start = S.token;
+    var start = S2.token;
     if (start.type == "name" && start.value == "await" && can_await()) {
       next();
       return _await_expression();
@@ -12974,12 +13744,12 @@ function parse4($TEXT, options) {
       return ex;
     }
     var val = expr_atom(allow_calls, allow_arrows);
-    while (is("operator") && UNARY_POSTFIX.has(S.token.value) && !has_newline_before(S.token)) {
+    while (is("operator") && UNARY_POSTFIX.has(S2.token.value) && !has_newline_before(S2.token)) {
       if (val instanceof AST_Arrow)
         unexpected();
-      val = make_unary(AST_UnaryPostfix, S.token, val);
+      val = make_unary(AST_UnaryPostfix, S2.token, val);
       val.start = start;
-      val.end = S.token;
+      val.end = S2.token;
       next();
     }
     return val;
@@ -12993,14 +13763,14 @@ function parse4($TEXT, options) {
           croak("Invalid use of " + op + " operator", token.line, token.col, token.pos);
         break;
       case "delete":
-        if (expr instanceof AST_SymbolRef && S.input.has_directive("use strict"))
+        if (expr instanceof AST_SymbolRef && S2.input.has_directive("use strict"))
           croak("Calling delete on expression not allowed in strict mode", expr.start.line, expr.start.col, expr.start.pos);
         break;
     }
     return new ctor({ operator: op, expression: expr });
   }
   var expr_op = function(left, min_prec, no_in) {
-    var op = is("operator") ? S.token.value : null;
+    var op = is("operator") ? S2.token.value : null;
     if (op == "in" && no_in)
       op = null;
     if (op == "**" && left instanceof AST_UnaryPrefix && !is_token(left.start, "punc", "(") && left.operator !== "--" && left.operator !== "++")
@@ -13021,10 +13791,10 @@ function parse4($TEXT, options) {
   };
   function expr_ops(no_in, min_prec, allow_calls, allow_arrows) {
     if (!no_in && min_prec < PRECEDENCE["in"] && is("privatename")) {
-      if (!S.in_class) {
+      if (!S2.in_class) {
         croak("Private field must be used in an enclosing class");
       }
-      const start = S.token;
+      const start = S2.token;
       const key = new AST_SymbolPrivateProperty({
         start,
         name: start.value,
@@ -13044,7 +13814,7 @@ function parse4($TEXT, options) {
     }
   }
   var maybe_conditional = function(no_in) {
-    var start = S.token;
+    var start = S2.token;
     var expr = expr_ops(no_in, 0, true, true);
     if (is("operator", "?")) {
       next();
@@ -13103,17 +13873,17 @@ function parse4($TEXT, options) {
   }
   var maybe_assign = function(no_in) {
     handle_regexp();
-    var start = S.token;
+    var start = S2.token;
     if (start.type == "name" && start.value == "yield") {
       if (is_in_generator()) {
         next();
         return _yield_expression();
-      } else if (S.input.has_directive("use strict")) {
-        token_error(S.token, "Unexpected yield identifier inside strict mode");
+      } else if (S2.input.has_directive("use strict")) {
+        token_error(S2.token, "Unexpected yield identifier inside strict mode");
       }
     }
     var left = maybe_conditional(no_in);
-    var val = S.token.value;
+    var val = S2.token.value;
     if (is("operator") && ASSIGNMENT.has(val)) {
       if (is_assignable(left) || (left = to_destructuring(left)) instanceof AST_Destructuring) {
         next();
@@ -13140,7 +13910,7 @@ function parse4($TEXT, options) {
     }
   };
   var expression = function(commas, no_in) {
-    var start = S.token;
+    var start = S2.token;
     var exprs = [];
     while (true) {
       exprs.push(maybe_assign(no_in));
@@ -13152,24 +13922,24 @@ function parse4($TEXT, options) {
     return to_expr_or_sequence(start, exprs);
   };
   function in_loop(cont) {
-    ++S.in_loop;
+    ++S2.in_loop;
     var ret = cont();
-    --S.in_loop;
+    --S2.in_loop;
     return ret;
   }
   if (options.expression) {
     return expression(true);
   }
   return function parse_toplevel() {
-    var start = S.token;
+    var start = S2.token;
     var body = [];
-    S.input.push_directives_stack();
+    S2.input.push_directives_stack();
     if (options.module)
-      S.input.add_directive("use strict");
+      S2.input.add_directive("use strict");
     while (!is("eof")) {
       body.push(statement());
     }
-    S.input.pop_directives_stack();
+    S2.input.pop_directives_stack();
     var end = prev();
     var toplevel = options.toplevel;
     if (toplevel) {
@@ -13467,9 +14237,9 @@ class TreeWalker {
   find_parent(type) {
     var stack = this.stack;
     for (var i2 = stack.length;--i2 >= 0; ) {
-      var x = stack[i2];
-      if (x instanceof type)
-        return x;
+      var x2 = stack[i2];
+      if (x2 instanceof type)
+        return x2;
     }
   }
   is_within_loop() {
@@ -13489,13 +14259,13 @@ class TreeWalker {
   find_scope() {
     var stack = this.stack;
     for (var i2 = stack.length;--i2 >= 0; ) {
-      const p = stack[i2];
-      if (p instanceof AST_Toplevel)
-        return p;
-      if (p instanceof AST_Lambda)
-        return p;
-      if (p.block_scope)
-        return p.block_scope;
+      const p2 = stack[i2];
+      if (p2 instanceof AST_Toplevel)
+        return p2;
+      if (p2 instanceof AST_Lambda)
+        return p2;
+      if (p2.block_scope)
+        return p2.block_scope;
     }
   }
   has_directive(type) {
@@ -13517,15 +14287,15 @@ class TreeWalker {
     var stack = this.stack;
     if (node.label)
       for (var i2 = stack.length;--i2 >= 0; ) {
-        var x = stack[i2];
-        if (x instanceof AST_LabeledStatement && x.label.name == node.label.name)
-          return x.body;
+        var x2 = stack[i2];
+        if (x2 instanceof AST_LabeledStatement && x2.label.name == node.label.name)
+          return x2.body;
       }
     else
       for (var i2 = stack.length;--i2 >= 0; ) {
-        var x = stack[i2];
-        if (x instanceof AST_IterationStatement || node instanceof AST_Break && x instanceof AST_Switch)
-          return x;
+        var x2 = stack[i2];
+        if (x2 instanceof AST_IterationStatement || node instanceof AST_Break && x2 instanceof AST_Switch)
+          return x2;
       }
   }
 }
@@ -16459,18 +17229,18 @@ var init_mozilla_ast = __esm(() => {
       return null;
     }
     var MOZ_TO_ME = {
-      Program: function(M) {
+      Program: function(M2) {
         return new AST_Toplevel({
-          start: my_start_token(M),
-          end: my_end_token(M),
-          body: normalize_directives(M.body.map(from_moz))
+          start: my_start_token(M2),
+          end: my_end_token(M2),
+          body: normalize_directives(M2.body.map(from_moz))
         });
       },
-      ArrayPattern: function(M) {
+      ArrayPattern: function(M2) {
         return new AST_Destructuring({
-          start: my_start_token(M),
-          end: my_end_token(M),
-          names: M.elements.map(function(elm) {
+          start: my_start_token(M2),
+          end: my_end_token(M2),
+          names: M2.elements.map(function(elm) {
             if (elm === null) {
               return new AST_Hole;
             }
@@ -16479,229 +17249,229 @@ var init_mozilla_ast = __esm(() => {
           is_array: true
         });
       },
-      ObjectPattern: function(M) {
+      ObjectPattern: function(M2) {
         return new AST_Destructuring({
-          start: my_start_token(M),
-          end: my_end_token(M),
-          names: M.properties.map(from_moz),
+          start: my_start_token(M2),
+          end: my_end_token(M2),
+          names: M2.properties.map(from_moz),
           is_array: false
         });
       },
-      AssignmentPattern: function(M) {
+      AssignmentPattern: function(M2) {
         return new AST_DefaultAssign({
-          start: my_start_token(M),
-          end: my_end_token(M),
-          left: from_moz(M.left),
+          start: my_start_token(M2),
+          end: my_end_token(M2),
+          left: from_moz(M2.left),
           operator: "=",
-          right: from_moz(M.right)
+          right: from_moz(M2.right)
         });
       },
-      SpreadElement: function(M) {
+      SpreadElement: function(M2) {
         return new AST_Expansion({
-          start: my_start_token(M),
-          end: my_end_token(M),
-          expression: from_moz(M.argument)
+          start: my_start_token(M2),
+          end: my_end_token(M2),
+          expression: from_moz(M2.argument)
         });
       },
-      RestElement: function(M) {
+      RestElement: function(M2) {
         return new AST_Expansion({
-          start: my_start_token(M),
-          end: my_end_token(M),
-          expression: from_moz(M.argument)
+          start: my_start_token(M2),
+          end: my_end_token(M2),
+          expression: from_moz(M2.argument)
         });
       },
-      TemplateElement: function(M) {
+      TemplateElement: function(M2) {
         return new AST_TemplateSegment({
-          start: my_start_token(M),
-          end: my_end_token(M),
-          value: M.value.cooked,
-          raw: M.value.raw
+          start: my_start_token(M2),
+          end: my_end_token(M2),
+          value: M2.value.cooked,
+          raw: M2.value.raw
         });
       },
-      TemplateLiteral: function(M) {
+      TemplateLiteral: function(M2) {
         var segments = [];
-        for (var i2 = 0;i2 < M.quasis.length; i2++) {
-          segments.push(from_moz(M.quasis[i2]));
-          if (M.expressions[i2]) {
-            segments.push(from_moz(M.expressions[i2]));
+        for (var i2 = 0;i2 < M2.quasis.length; i2++) {
+          segments.push(from_moz(M2.quasis[i2]));
+          if (M2.expressions[i2]) {
+            segments.push(from_moz(M2.expressions[i2]));
           }
         }
         return new AST_TemplateString({
-          start: my_start_token(M),
-          end: my_end_token(M),
+          start: my_start_token(M2),
+          end: my_end_token(M2),
           segments
         });
       },
-      TaggedTemplateExpression: function(M) {
+      TaggedTemplateExpression: function(M2) {
         return new AST_PrefixedTemplateString({
-          start: my_start_token(M),
-          end: my_end_token(M),
-          template_string: from_moz(M.quasi),
-          prefix: from_moz(M.tag)
+          start: my_start_token(M2),
+          end: my_end_token(M2),
+          template_string: from_moz(M2.quasi),
+          prefix: from_moz(M2.tag)
         });
       },
-      FunctionDeclaration: function(M) {
+      FunctionDeclaration: function(M2) {
         return new AST_Defun({
-          start: my_start_token(M),
-          end: my_end_token(M),
-          name: M.id && from_moz_symbol(AST_SymbolDefun, M.id),
-          argnames: M.params.map((M2) => from_moz_pattern(M2, AST_SymbolFunarg)),
-          is_generator: M.generator,
-          async: M.async,
-          body: normalize_directives(from_moz(M.body).body)
+          start: my_start_token(M2),
+          end: my_end_token(M2),
+          name: M2.id && from_moz_symbol(AST_SymbolDefun, M2.id),
+          argnames: M2.params.map((M3) => from_moz_pattern(M3, AST_SymbolFunarg)),
+          is_generator: M2.generator,
+          async: M2.async,
+          body: normalize_directives(from_moz(M2.body).body)
         });
       },
-      FunctionExpression: function(M) {
-        return from_moz_lambda(M, false);
+      FunctionExpression: function(M2) {
+        return from_moz_lambda(M2, false);
       },
-      ArrowFunctionExpression: function(M) {
-        const body = M.body.type === "BlockStatement" ? from_moz(M.body).body : [make_node(AST_Return, {}, { value: from_moz(M.body) })];
+      ArrowFunctionExpression: function(M2) {
+        const body = M2.body.type === "BlockStatement" ? from_moz(M2.body).body : [make_node(AST_Return, {}, { value: from_moz(M2.body) })];
         return new AST_Arrow({
-          start: my_start_token(M),
-          end: my_end_token(M),
-          argnames: M.params.map((p) => from_moz_pattern(p, AST_SymbolFunarg)),
+          start: my_start_token(M2),
+          end: my_end_token(M2),
+          argnames: M2.params.map((p2) => from_moz_pattern(p2, AST_SymbolFunarg)),
           body,
-          async: M.async
+          async: M2.async
         });
       },
-      ExpressionStatement: function(M) {
+      ExpressionStatement: function(M2) {
         return new AST_SimpleStatement({
-          start: my_start_token(M),
-          end: my_end_token(M),
-          body: from_moz(M.expression)
+          start: my_start_token(M2),
+          end: my_end_token(M2),
+          body: from_moz(M2.expression)
         });
       },
-      TryStatement: function(M) {
-        var handlers = M.handlers || [M.handler];
-        if (handlers.length > 1 || M.guardedHandlers && M.guardedHandlers.length) {
+      TryStatement: function(M2) {
+        var handlers = M2.handlers || [M2.handler];
+        if (handlers.length > 1 || M2.guardedHandlers && M2.guardedHandlers.length) {
           throw new Error("Multiple catch clauses are not supported.");
         }
         return new AST_Try({
-          start: my_start_token(M),
-          end: my_end_token(M),
-          body: new AST_TryBlock(from_moz(M.block)),
+          start: my_start_token(M2),
+          end: my_end_token(M2),
+          body: new AST_TryBlock(from_moz(M2.block)),
           bcatch: from_moz(handlers[0]),
-          bfinally: M.finalizer ? new AST_Finally(from_moz(M.finalizer)) : null
+          bfinally: M2.finalizer ? new AST_Finally(from_moz(M2.finalizer)) : null
         });
       },
-      Property: function(M) {
-        if (M.kind == "init" && !M.method) {
+      Property: function(M2) {
+        if (M2.kind == "init" && !M2.method) {
           var args = {
-            start: my_start_token(M.key || M.value),
-            end: my_end_token(M.value),
-            key: M.computed ? from_moz(M.key) : M.key.name || String(M.key.value),
-            quote: from_moz_quote(M.key, M.computed),
+            start: my_start_token(M2.key || M2.value),
+            end: my_end_token(M2.value),
+            key: M2.computed ? from_moz(M2.key) : M2.key.name || String(M2.key.value),
+            quote: from_moz_quote(M2.key, M2.computed),
             static: false,
-            value: from_moz(M.value)
+            value: from_moz(M2.value)
           };
           return new AST_ObjectKeyVal(args);
         } else {
-          var value = from_moz_lambda(M.value, true);
+          var value = from_moz_lambda(M2.value, true);
           var args = {
-            start: my_start_token(M.key || M.value),
-            end: my_end_token(M.value),
-            key: M.computed ? from_moz(M.key) : from_moz_symbol(AST_SymbolMethod, M.key),
-            quote: from_moz_quote(M.key, M.computed),
+            start: my_start_token(M2.key || M2.value),
+            end: my_end_token(M2.value),
+            key: M2.computed ? from_moz(M2.key) : from_moz_symbol(AST_SymbolMethod, M2.key),
+            quote: from_moz_quote(M2.key, M2.computed),
             static: false,
             value
           };
-          if (M.kind == "get")
+          if (M2.kind == "get")
             return new AST_ObjectGetter(args);
-          if (M.kind == "set")
+          if (M2.kind == "set")
             return new AST_ObjectSetter(args);
-          if (M.method)
+          if (M2.method)
             return new AST_ConciseMethod(args);
         }
       },
-      MethodDefinition: function(M) {
-        const is_private = M.key.type === "PrivateIdentifier";
-        const key = M.computed ? from_moz(M.key) : new AST_SymbolMethod({ name: M.key.name || String(M.key.value) });
+      MethodDefinition: function(M2) {
+        const is_private = M2.key.type === "PrivateIdentifier";
+        const key = M2.computed ? from_moz(M2.key) : new AST_SymbolMethod({ name: M2.key.name || String(M2.key.value) });
         var args = {
-          start: my_start_token(M),
-          end: my_end_token(M),
+          start: my_start_token(M2),
+          end: my_end_token(M2),
           key,
-          quote: from_moz_quote(M.key, M.computed),
-          value: from_moz_lambda(M.value, true),
-          static: M.static
+          quote: from_moz_quote(M2.key, M2.computed),
+          value: from_moz_lambda(M2.value, true),
+          static: M2.static
         };
-        if (M.kind == "get") {
+        if (M2.kind == "get") {
           return new (is_private ? AST_PrivateGetter : AST_ObjectGetter)(args);
         }
-        if (M.kind == "set") {
+        if (M2.kind == "set") {
           return new (is_private ? AST_PrivateSetter : AST_ObjectSetter)(args);
         }
         return new (is_private ? AST_PrivateMethod : AST_ConciseMethod)(args);
       },
-      FieldDefinition: function(M) {
+      FieldDefinition: function(M2) {
         let key;
-        if (M.computed) {
-          key = from_moz(M.key);
+        if (M2.computed) {
+          key = from_moz(M2.key);
         } else {
-          if (M.key.type !== "Identifier")
+          if (M2.key.type !== "Identifier")
             throw new Error("Non-Identifier key in FieldDefinition");
-          key = from_moz(M.key);
+          key = from_moz(M2.key);
         }
         return new AST_ClassProperty({
-          start: my_start_token(M),
-          end: my_end_token(M),
-          quote: from_moz_quote(M.key, M.computed),
+          start: my_start_token(M2),
+          end: my_end_token(M2),
+          quote: from_moz_quote(M2.key, M2.computed),
           key,
-          value: from_moz(M.value),
-          static: M.static
+          value: from_moz(M2.value),
+          static: M2.static
         });
       },
-      PropertyDefinition: function(M) {
+      PropertyDefinition: function(M2) {
         let key;
-        if (M.computed) {
-          key = from_moz(M.key);
-        } else if (M.key.type === "PrivateIdentifier") {
+        if (M2.computed) {
+          key = from_moz(M2.key);
+        } else if (M2.key.type === "PrivateIdentifier") {
           return new AST_ClassPrivateProperty({
-            start: my_start_token(M),
-            end: my_end_token(M),
-            key: from_moz(M.key),
-            value: from_moz(M.value),
-            static: M.static
+            start: my_start_token(M2),
+            end: my_end_token(M2),
+            key: from_moz(M2.key),
+            value: from_moz(M2.value),
+            static: M2.static
           });
         } else {
-          key = from_moz_symbol(AST_SymbolClassProperty, M.key);
+          key = from_moz_symbol(AST_SymbolClassProperty, M2.key);
         }
         return new AST_ClassProperty({
-          start: my_start_token(M),
-          end: my_end_token(M),
-          quote: from_moz_quote(M.key, M.computed),
+          start: my_start_token(M2),
+          end: my_end_token(M2),
+          quote: from_moz_quote(M2.key, M2.computed),
           key,
-          value: from_moz(M.value),
-          static: M.static
+          value: from_moz(M2.value),
+          static: M2.static
         });
       },
-      PrivateIdentifier: function(M) {
+      PrivateIdentifier: function(M2) {
         return new AST_SymbolPrivateProperty({
-          start: my_start_token(M),
-          end: my_end_token(M),
-          name: M.name
+          start: my_start_token(M2),
+          end: my_end_token(M2),
+          name: M2.name
         });
       },
-      StaticBlock: function(M) {
+      StaticBlock: function(M2) {
         return new AST_ClassStaticBlock({
-          start: my_start_token(M),
-          end: my_end_token(M),
-          body: M.body.map(from_moz)
+          start: my_start_token(M2),
+          end: my_end_token(M2),
+          body: M2.body.map(from_moz)
         });
       },
-      ArrayExpression: function(M) {
+      ArrayExpression: function(M2) {
         return new AST_Array({
-          start: my_start_token(M),
-          end: my_end_token(M),
-          elements: M.elements.map(function(elem) {
+          start: my_start_token(M2),
+          end: my_end_token(M2),
+          elements: M2.elements.map(function(elem) {
             return elem === null ? new AST_Hole : from_moz(elem);
           })
         });
       },
-      ObjectExpression: function(M) {
+      ObjectExpression: function(M2) {
         return new AST_Object({
-          start: my_start_token(M),
-          end: my_end_token(M),
-          properties: M.properties.map(function(prop) {
+          start: my_start_token(M2),
+          end: my_end_token(M2),
+          properties: M2.properties.map(function(prop) {
             if (prop.type === "SpreadElement") {
               return from_moz(prop);
             }
@@ -16710,62 +17480,62 @@ var init_mozilla_ast = __esm(() => {
           })
         });
       },
-      SequenceExpression: function(M) {
+      SequenceExpression: function(M2) {
         return new AST_Sequence({
-          start: my_start_token(M),
-          end: my_end_token(M),
-          expressions: M.expressions.map(from_moz)
+          start: my_start_token(M2),
+          end: my_end_token(M2),
+          expressions: M2.expressions.map(from_moz)
         });
       },
-      MemberExpression: function(M) {
-        if (M.property.type === "PrivateIdentifier") {
+      MemberExpression: function(M2) {
+        if (M2.property.type === "PrivateIdentifier") {
           return new AST_DotHash({
-            start: my_start_token(M),
-            end: my_end_token(M),
-            property: M.property.name,
-            expression: from_moz(M.object),
-            optional: M.optional || false
+            start: my_start_token(M2),
+            end: my_end_token(M2),
+            property: M2.property.name,
+            expression: from_moz(M2.object),
+            optional: M2.optional || false
           });
         }
-        return new (M.computed ? AST_Sub : AST_Dot)({
-          start: my_start_token(M),
-          end: my_end_token(M),
-          property: M.computed ? from_moz(M.property) : M.property.name,
-          expression: from_moz(M.object),
-          optional: M.optional || false
+        return new (M2.computed ? AST_Sub : AST_Dot)({
+          start: my_start_token(M2),
+          end: my_end_token(M2),
+          property: M2.computed ? from_moz(M2.property) : M2.property.name,
+          expression: from_moz(M2.object),
+          optional: M2.optional || false
         });
       },
-      ChainExpression: function(M) {
+      ChainExpression: function(M2) {
         return new AST_Chain({
-          start: my_start_token(M),
-          end: my_end_token(M),
-          expression: from_moz(M.expression)
+          start: my_start_token(M2),
+          end: my_end_token(M2),
+          expression: from_moz(M2.expression)
         });
       },
-      SwitchCase: function(M) {
-        return new (M.test ? AST_Case : AST_Default)({
-          start: my_start_token(M),
-          end: my_end_token(M),
-          expression: from_moz(M.test),
-          body: M.consequent.map(from_moz)
+      SwitchCase: function(M2) {
+        return new (M2.test ? AST_Case : AST_Default)({
+          start: my_start_token(M2),
+          end: my_end_token(M2),
+          expression: from_moz(M2.test),
+          body: M2.consequent.map(from_moz)
         });
       },
-      VariableDeclaration: function(M) {
+      VariableDeclaration: function(M2) {
         let decl_type;
         let defs_type = AST_VarDef;
         let sym_type;
         let await_using = false;
-        if (M.kind === "const") {
+        if (M2.kind === "const") {
           decl_type = AST_Const;
           sym_type = AST_SymbolConst;
-        } else if (M.kind === "let") {
+        } else if (M2.kind === "let") {
           decl_type = AST_Let;
           sym_type = AST_SymbolLet;
-        } else if (M.kind === "using") {
+        } else if (M2.kind === "using") {
           decl_type = AST_Using;
           defs_type = AST_UsingDef;
           sym_type = AST_SymbolUsing;
-        } else if (M.kind === "await using") {
+        } else if (M2.kind === "await using") {
           decl_type = AST_Using;
           defs_type = AST_UsingDef;
           sym_type = AST_SymbolUsing;
@@ -16774,25 +17544,25 @@ var init_mozilla_ast = __esm(() => {
           decl_type = AST_Var;
           sym_type = AST_SymbolVar;
         }
-        const definitions = M.declarations.map((M2) => {
+        const definitions = M2.declarations.map((M3) => {
           return new defs_type({
-            start: my_start_token(M2),
-            end: my_end_token(M2),
-            name: from_moz_pattern(M2.id, sym_type),
-            value: from_moz(M2.init)
+            start: my_start_token(M3),
+            end: my_end_token(M3),
+            name: from_moz_pattern(M3.id, sym_type),
+            value: from_moz(M3.init)
           });
         });
         return new decl_type({
-          start: my_start_token(M),
-          end: my_end_token(M),
+          start: my_start_token(M2),
+          end: my_end_token(M2),
           definitions,
           await: await_using
         });
       },
-      ImportDeclaration: function(M) {
+      ImportDeclaration: function(M2) {
         var imported_name = null;
         var imported_names = null;
-        M.specifiers.forEach(function(specifier) {
+        M2.specifiers.forEach(function(specifier) {
           if (specifier.type === "ImportSpecifier" || specifier.type === "ImportNamespaceSpecifier") {
             if (!imported_names) {
               imported_names = [];
@@ -16803,41 +17573,41 @@ var init_mozilla_ast = __esm(() => {
           }
         });
         return new AST_Import({
-          start: my_start_token(M),
-          end: my_end_token(M),
+          start: my_start_token(M2),
+          end: my_end_token(M2),
           imported_name,
           imported_names,
-          module_name: from_moz(M.source),
-          attributes: import_attributes_from_moz(M.attributes || M.assertions)
+          module_name: from_moz(M2.source),
+          attributes: import_attributes_from_moz(M2.attributes || M2.assertions)
         });
       },
-      ImportSpecifier: function(M) {
+      ImportSpecifier: function(M2) {
         return new AST_NameMapping({
-          start: my_start_token(M),
-          end: my_end_token(M),
-          foreign_name: from_moz_symbol(AST_SymbolImportForeign, M.imported, M.imported.type === "Literal"),
-          name: from_moz_symbol(AST_SymbolImport, M.local)
+          start: my_start_token(M2),
+          end: my_end_token(M2),
+          foreign_name: from_moz_symbol(AST_SymbolImportForeign, M2.imported, M2.imported.type === "Literal"),
+          name: from_moz_symbol(AST_SymbolImport, M2.local)
         });
       },
-      ImportDefaultSpecifier: function(M) {
-        return from_moz_symbol(AST_SymbolImport, M.local);
+      ImportDefaultSpecifier: function(M2) {
+        return from_moz_symbol(AST_SymbolImport, M2.local);
       },
-      ImportNamespaceSpecifier: function(M) {
+      ImportNamespaceSpecifier: function(M2) {
         return new AST_NameMapping({
-          start: my_start_token(M),
-          end: my_end_token(M),
+          start: my_start_token(M2),
+          end: my_end_token(M2),
           foreign_name: new AST_SymbolImportForeign({ name: "*" }),
-          name: from_moz_symbol(AST_SymbolImport, M.local)
+          name: from_moz_symbol(AST_SymbolImport, M2.local)
         });
       },
-      ImportExpression: function(M) {
-        const args = [from_moz(M.source)];
-        if (M.options) {
-          args.push(from_moz(M.options));
+      ImportExpression: function(M2) {
+        const args = [from_moz(M2.source)];
+        if (M2.options) {
+          args.push(from_moz(M2.options));
         }
         return new AST_Call({
-          start: my_start_token(M),
-          end: my_end_token(M),
+          start: my_start_token(M2),
+          end: my_end_token(M2),
           expression: from_moz({
             type: "Identifier",
             name: "import"
@@ -16846,66 +17616,66 @@ var init_mozilla_ast = __esm(() => {
           args
         });
       },
-      ExportAllDeclaration: function(M) {
-        var foreign_name = M.exported == null ? new AST_SymbolExportForeign({ name: "*" }) : from_moz_symbol(AST_SymbolExportForeign, M.exported, M.exported.type === "Literal");
+      ExportAllDeclaration: function(M2) {
+        var foreign_name = M2.exported == null ? new AST_SymbolExportForeign({ name: "*" }) : from_moz_symbol(AST_SymbolExportForeign, M2.exported, M2.exported.type === "Literal");
         return new AST_Export({
-          start: my_start_token(M),
-          end: my_end_token(M),
+          start: my_start_token(M2),
+          end: my_end_token(M2),
           exported_names: [
             new AST_NameMapping({
-              start: my_start_token(M),
-              end: my_end_token(M),
+              start: my_start_token(M2),
+              end: my_end_token(M2),
               name: new AST_SymbolExport({ name: "*" }),
               foreign_name
             })
           ],
-          module_name: from_moz(M.source),
-          attributes: import_attributes_from_moz(M.attributes || M.assertions)
+          module_name: from_moz(M2.source),
+          attributes: import_attributes_from_moz(M2.attributes || M2.assertions)
         });
       },
-      ExportNamedDeclaration: function(M) {
-        if (M.declaration) {
+      ExportNamedDeclaration: function(M2) {
+        if (M2.declaration) {
           return new AST_Export({
-            start: my_start_token(M),
-            end: my_end_token(M),
-            exported_definition: from_moz(M.declaration),
+            start: my_start_token(M2),
+            end: my_end_token(M2),
+            exported_definition: from_moz(M2.declaration),
             exported_names: null,
             module_name: null,
             attributes: null
           });
         } else {
           return new AST_Export({
-            start: my_start_token(M),
-            end: my_end_token(M),
+            start: my_start_token(M2),
+            end: my_end_token(M2),
             exported_definition: null,
-            exported_names: M.specifiers && M.specifiers.length ? M.specifiers.map(from_moz) : [],
-            module_name: from_moz(M.source),
-            attributes: import_attributes_from_moz(M.attributes || M.assertions)
+            exported_names: M2.specifiers && M2.specifiers.length ? M2.specifiers.map(from_moz) : [],
+            module_name: from_moz(M2.source),
+            attributes: import_attributes_from_moz(M2.attributes || M2.assertions)
           });
         }
       },
-      ExportDefaultDeclaration: function(M) {
+      ExportDefaultDeclaration: function(M2) {
         return new AST_Export({
-          start: my_start_token(M),
-          end: my_end_token(M),
-          exported_value: from_moz(M.declaration),
+          start: my_start_token(M2),
+          end: my_end_token(M2),
+          exported_value: from_moz(M2.declaration),
           is_default: true
         });
       },
-      ExportSpecifier: function(M) {
+      ExportSpecifier: function(M2) {
         return new AST_NameMapping({
-          start: my_start_token(M),
-          end: my_end_token(M),
-          foreign_name: from_moz_symbol(AST_SymbolExportForeign, M.exported, M.exported.type === "Literal"),
-          name: from_moz_symbol(AST_SymbolExport, M.local, M.local.type === "Literal")
+          start: my_start_token(M2),
+          end: my_end_token(M2),
+          foreign_name: from_moz_symbol(AST_SymbolExportForeign, M2.exported, M2.exported.type === "Literal"),
+          name: from_moz_symbol(AST_SymbolExport, M2.local, M2.local.type === "Literal")
         });
       },
-      Literal: function(M) {
-        var val = M.value, args = {
-          start: my_start_token(M),
-          end: my_end_token(M)
+      Literal: function(M2) {
+        var val = M2.value, args = {
+          start: my_start_token(M2),
+          end: my_end_token(M2)
         };
-        var rx = M.regex;
+        var rx = M2.regex;
         if (rx && rx.pattern) {
           args.value = {
             source: rx.pattern,
@@ -16913,7 +17683,7 @@ var init_mozilla_ast = __esm(() => {
           };
           return new AST_RegExp(args);
         } else if (rx) {
-          const rx_source = M.raw || val;
+          const rx_source = M2.raw || val;
           const match = rx_source.match(/^\/(.*)\/(\w*)$/);
           if (!match)
             throw new Error("Invalid regex source " + rx_source);
@@ -16921,10 +17691,10 @@ var init_mozilla_ast = __esm(() => {
           args.value = { source, flags };
           return new AST_RegExp(args);
         }
-        const bi = typeof M.value === "bigint" ? M.value.toString() : M.bigint;
+        const bi = typeof M2.value === "bigint" ? M2.value.toString() : M2.bigint;
         if (typeof bi === "string") {
           args.value = bi;
-          args.raw = M.raw;
+          args.raw = M2.raw;
           return new AST_BigInt(args);
         }
         if (val === null)
@@ -16936,284 +17706,284 @@ var init_mozilla_ast = __esm(() => {
             return new AST_String(args);
           case "number":
             args.value = val;
-            args.raw = M.raw || val.toString();
+            args.raw = M2.raw || val.toString();
             return new AST_Number(args);
           case "boolean":
             return new (val ? AST_True : AST_False)(args);
         }
       },
-      MetaProperty: function(M) {
-        if (M.meta.name === "new" && M.property.name === "target") {
+      MetaProperty: function(M2) {
+        if (M2.meta.name === "new" && M2.property.name === "target") {
           return new AST_NewTarget({
-            start: my_start_token(M),
-            end: my_end_token(M)
+            start: my_start_token(M2),
+            end: my_end_token(M2)
           });
-        } else if (M.meta.name === "import" && M.property.name === "meta") {
+        } else if (M2.meta.name === "import" && M2.property.name === "meta") {
           return new AST_ImportMeta({
-            start: my_start_token(M),
-            end: my_end_token(M)
+            start: my_start_token(M2),
+            end: my_end_token(M2)
           });
         }
       },
-      Identifier: function(M) {
+      Identifier: function(M2) {
         return new AST_SymbolRef({
-          start: my_start_token(M),
-          end: my_end_token(M),
-          name: M.name
+          start: my_start_token(M2),
+          end: my_end_token(M2),
+          name: M2.name
         });
       },
-      EmptyStatement: function(M) {
+      EmptyStatement: function(M2) {
         return new AST_EmptyStatement({
-          start: my_start_token(M),
-          end: my_end_token(M)
+          start: my_start_token(M2),
+          end: my_end_token(M2)
         });
       },
-      BlockStatement: function(M) {
+      BlockStatement: function(M2) {
         return new AST_BlockStatement({
-          start: my_start_token(M),
-          end: my_end_token(M),
-          body: M.body.map(from_moz)
+          start: my_start_token(M2),
+          end: my_end_token(M2),
+          body: M2.body.map(from_moz)
         });
       },
-      IfStatement: function(M) {
+      IfStatement: function(M2) {
         return new AST_If({
-          start: my_start_token(M),
-          end: my_end_token(M),
-          condition: from_moz(M.test),
-          body: from_moz(M.consequent),
-          alternative: from_moz(M.alternate)
+          start: my_start_token(M2),
+          end: my_end_token(M2),
+          condition: from_moz(M2.test),
+          body: from_moz(M2.consequent),
+          alternative: from_moz(M2.alternate)
         });
       },
-      LabeledStatement: function(M) {
+      LabeledStatement: function(M2) {
         try {
-          const label = from_moz_symbol(AST_Label, M.label);
+          const label = from_moz_symbol(AST_Label, M2.label);
           FROM_MOZ_LABELS.push(label);
           const stat = new AST_LabeledStatement({
-            start: my_start_token(M),
-            end: my_end_token(M),
+            start: my_start_token(M2),
+            end: my_end_token(M2),
             label,
-            body: from_moz(M.body)
+            body: from_moz(M2.body)
           });
           return stat;
         } finally {
           FROM_MOZ_LABELS.pop();
         }
       },
-      BreakStatement: function(M) {
+      BreakStatement: function(M2) {
         return new AST_Break({
-          start: my_start_token(M),
-          end: my_end_token(M),
-          label: from_moz_label_ref(M.label)
+          start: my_start_token(M2),
+          end: my_end_token(M2),
+          label: from_moz_label_ref(M2.label)
         });
       },
-      ContinueStatement: function(M) {
+      ContinueStatement: function(M2) {
         return new AST_Continue({
-          start: my_start_token(M),
-          end: my_end_token(M),
-          label: from_moz_label_ref(M.label)
+          start: my_start_token(M2),
+          end: my_end_token(M2),
+          label: from_moz_label_ref(M2.label)
         });
       },
-      WithStatement: function(M) {
+      WithStatement: function(M2) {
         return new AST_With({
-          start: my_start_token(M),
-          end: my_end_token(M),
-          expression: from_moz(M.object),
-          body: from_moz(M.body)
+          start: my_start_token(M2),
+          end: my_end_token(M2),
+          expression: from_moz(M2.object),
+          body: from_moz(M2.body)
         });
       },
-      SwitchStatement: function(M) {
+      SwitchStatement: function(M2) {
         return new AST_Switch({
-          start: my_start_token(M),
-          end: my_end_token(M),
-          expression: from_moz(M.discriminant),
-          body: M.cases.map(from_moz)
+          start: my_start_token(M2),
+          end: my_end_token(M2),
+          expression: from_moz(M2.discriminant),
+          body: M2.cases.map(from_moz)
         });
       },
-      ReturnStatement: function(M) {
+      ReturnStatement: function(M2) {
         return new AST_Return({
-          start: my_start_token(M),
-          end: my_end_token(M),
-          value: from_moz(M.argument)
+          start: my_start_token(M2),
+          end: my_end_token(M2),
+          value: from_moz(M2.argument)
         });
       },
-      ThrowStatement: function(M) {
+      ThrowStatement: function(M2) {
         return new AST_Throw({
-          start: my_start_token(M),
-          end: my_end_token(M),
-          value: from_moz(M.argument)
+          start: my_start_token(M2),
+          end: my_end_token(M2),
+          value: from_moz(M2.argument)
         });
       },
-      WhileStatement: function(M) {
+      WhileStatement: function(M2) {
         return new AST_While({
-          start: my_start_token(M),
-          end: my_end_token(M),
-          condition: from_moz(M.test),
-          body: from_moz(M.body)
+          start: my_start_token(M2),
+          end: my_end_token(M2),
+          condition: from_moz(M2.test),
+          body: from_moz(M2.body)
         });
       },
-      DoWhileStatement: function(M) {
+      DoWhileStatement: function(M2) {
         return new AST_Do({
-          start: my_start_token(M),
-          end: my_end_token(M),
-          condition: from_moz(M.test),
-          body: from_moz(M.body)
+          start: my_start_token(M2),
+          end: my_end_token(M2),
+          condition: from_moz(M2.test),
+          body: from_moz(M2.body)
         });
       },
-      ForStatement: function(M) {
+      ForStatement: function(M2) {
         return new AST_For({
-          start: my_start_token(M),
-          end: my_end_token(M),
-          init: from_moz(M.init),
-          condition: from_moz(M.test),
-          step: from_moz(M.update),
-          body: from_moz(M.body)
+          start: my_start_token(M2),
+          end: my_end_token(M2),
+          init: from_moz(M2.init),
+          condition: from_moz(M2.test),
+          step: from_moz(M2.update),
+          body: from_moz(M2.body)
         });
       },
-      ForInStatement: function(M) {
+      ForInStatement: function(M2) {
         return new AST_ForIn({
-          start: my_start_token(M),
-          end: my_end_token(M),
-          init: from_moz(M.left),
-          object: from_moz(M.right),
-          body: from_moz(M.body)
+          start: my_start_token(M2),
+          end: my_end_token(M2),
+          init: from_moz(M2.left),
+          object: from_moz(M2.right),
+          body: from_moz(M2.body)
         });
       },
-      ForOfStatement: function(M) {
+      ForOfStatement: function(M2) {
         return new AST_ForOf({
-          start: my_start_token(M),
-          end: my_end_token(M),
-          init: from_moz(M.left),
-          object: from_moz(M.right),
-          body: from_moz(M.body),
-          await: M.await
+          start: my_start_token(M2),
+          end: my_end_token(M2),
+          init: from_moz(M2.left),
+          object: from_moz(M2.right),
+          body: from_moz(M2.body),
+          await: M2.await
         });
       },
-      AwaitExpression: function(M) {
+      AwaitExpression: function(M2) {
         return new AST_Await({
-          start: my_start_token(M),
-          end: my_end_token(M),
-          expression: from_moz(M.argument)
+          start: my_start_token(M2),
+          end: my_end_token(M2),
+          expression: from_moz(M2.argument)
         });
       },
-      YieldExpression: function(M) {
+      YieldExpression: function(M2) {
         return new AST_Yield({
-          start: my_start_token(M),
-          end: my_end_token(M),
-          expression: from_moz(M.argument),
-          is_star: M.delegate
+          start: my_start_token(M2),
+          end: my_end_token(M2),
+          expression: from_moz(M2.argument),
+          is_star: M2.delegate
         });
       },
-      DebuggerStatement: function(M) {
+      DebuggerStatement: function(M2) {
         return new AST_Debugger({
-          start: my_start_token(M),
-          end: my_end_token(M)
+          start: my_start_token(M2),
+          end: my_end_token(M2)
         });
       },
-      CatchClause: function(M) {
+      CatchClause: function(M2) {
         return new AST_Catch({
-          start: my_start_token(M),
-          end: my_end_token(M),
-          argname: M.param ? from_moz_pattern(M.param, AST_SymbolCatch) : null,
-          body: from_moz(M.body).body
+          start: my_start_token(M2),
+          end: my_end_token(M2),
+          argname: M2.param ? from_moz_pattern(M2.param, AST_SymbolCatch) : null,
+          body: from_moz(M2.body).body
         });
       },
-      ThisExpression: function(M) {
+      ThisExpression: function(M2) {
         return new AST_This({
-          start: my_start_token(M),
+          start: my_start_token(M2),
           name: "this",
-          end: my_end_token(M)
+          end: my_end_token(M2)
         });
       },
-      Super: function(M) {
+      Super: function(M2) {
         return new AST_Super({
-          start: my_start_token(M),
-          end: my_end_token(M),
+          start: my_start_token(M2),
+          end: my_end_token(M2),
           name: "super"
         });
       },
-      BinaryExpression: function(M) {
-        if (M.left.type === "PrivateIdentifier") {
+      BinaryExpression: function(M2) {
+        if (M2.left.type === "PrivateIdentifier") {
           return new AST_PrivateIn({
-            start: my_start_token(M),
-            end: my_end_token(M),
+            start: my_start_token(M2),
+            end: my_end_token(M2),
             key: new AST_SymbolPrivateProperty({
-              start: my_start_token(M.left),
-              end: my_end_token(M.left),
-              name: M.left.name
+              start: my_start_token(M2.left),
+              end: my_end_token(M2.left),
+              name: M2.left.name
             }),
-            value: from_moz(M.right)
+            value: from_moz(M2.right)
           });
         }
         return new AST_Binary({
-          start: my_start_token(M),
-          end: my_end_token(M),
-          operator: M.operator,
-          left: from_moz(M.left),
-          right: from_moz(M.right)
+          start: my_start_token(M2),
+          end: my_end_token(M2),
+          operator: M2.operator,
+          left: from_moz(M2.left),
+          right: from_moz(M2.right)
         });
       },
-      LogicalExpression: function(M) {
+      LogicalExpression: function(M2) {
         return new AST_Binary({
-          start: my_start_token(M),
-          end: my_end_token(M),
-          operator: M.operator,
-          left: from_moz(M.left),
-          right: from_moz(M.right)
+          start: my_start_token(M2),
+          end: my_end_token(M2),
+          operator: M2.operator,
+          left: from_moz(M2.left),
+          right: from_moz(M2.right)
         });
       },
-      AssignmentExpression: function(M) {
+      AssignmentExpression: function(M2) {
         return new AST_Assign({
-          start: my_start_token(M),
-          end: my_end_token(M),
-          operator: M.operator,
-          logical: M.operator === "??=" || M.operator === "&&=" || M.operator === "||=",
-          left: from_moz(M.left),
-          right: from_moz(M.right)
+          start: my_start_token(M2),
+          end: my_end_token(M2),
+          operator: M2.operator,
+          logical: M2.operator === "??=" || M2.operator === "&&=" || M2.operator === "||=",
+          left: from_moz(M2.left),
+          right: from_moz(M2.right)
         });
       },
-      ConditionalExpression: function(M) {
+      ConditionalExpression: function(M2) {
         return new AST_Conditional({
-          start: my_start_token(M),
-          end: my_end_token(M),
-          condition: from_moz(M.test),
-          consequent: from_moz(M.consequent),
-          alternative: from_moz(M.alternate)
+          start: my_start_token(M2),
+          end: my_end_token(M2),
+          condition: from_moz(M2.test),
+          consequent: from_moz(M2.consequent),
+          alternative: from_moz(M2.alternate)
         });
       },
-      NewExpression: function(M) {
+      NewExpression: function(M2) {
         return new AST_New({
-          start: my_start_token(M),
-          end: my_end_token(M),
-          expression: from_moz(M.callee),
-          args: M.arguments.map(from_moz)
+          start: my_start_token(M2),
+          end: my_end_token(M2),
+          expression: from_moz(M2.callee),
+          args: M2.arguments.map(from_moz)
         });
       },
-      CallExpression: function(M) {
+      CallExpression: function(M2) {
         return new AST_Call({
-          start: my_start_token(M),
-          end: my_end_token(M),
-          expression: from_moz(M.callee),
-          optional: M.optional,
-          args: M.arguments.map(from_moz)
+          start: my_start_token(M2),
+          end: my_end_token(M2),
+          expression: from_moz(M2.callee),
+          optional: M2.optional,
+          args: M2.arguments.map(from_moz)
         });
       }
     };
-    MOZ_TO_ME.UpdateExpression = MOZ_TO_ME.UnaryExpression = function To_Moz_Unary(M) {
-      var prefix = "prefix" in M ? M.prefix : M.type == "UnaryExpression" ? true : false;
+    MOZ_TO_ME.UpdateExpression = MOZ_TO_ME.UnaryExpression = function To_Moz_Unary(M2) {
+      var prefix = "prefix" in M2 ? M2.prefix : M2.type == "UnaryExpression" ? true : false;
       return new (prefix ? AST_UnaryPrefix : AST_UnaryPostfix)({
-        start: my_start_token(M),
-        end: my_end_token(M),
-        operator: M.operator,
-        expression: from_moz(M.argument)
+        start: my_start_token(M2),
+        end: my_end_token(M2),
+        operator: M2.operator,
+        expression: from_moz(M2.argument)
       });
     };
-    MOZ_TO_ME.ClassDeclaration = MOZ_TO_ME.ClassExpression = function From_Moz_Class(M) {
-      return new (M.type === "ClassDeclaration" ? AST_DefClass : AST_ClassExpression)({
-        start: my_start_token(M),
-        end: my_end_token(M),
-        name: M.id && from_moz_symbol(M.type === "ClassDeclaration" ? AST_SymbolDefClass : AST_SymbolClass, M.id),
-        extends: from_moz(M.superClass),
-        properties: M.body.body.map(from_moz)
+    MOZ_TO_ME.ClassDeclaration = MOZ_TO_ME.ClassExpression = function From_Moz_Class(M2) {
+      return new (M2.type === "ClassDeclaration" ? AST_DefClass : AST_ClassExpression)({
+        start: my_start_token(M2),
+        end: my_end_token(M2),
+        name: M2.id && from_moz_symbol(M2.type === "ClassDeclaration" ? AST_SymbolDefClass : AST_SymbolClass, M2.id),
+        extends: from_moz(M2.superClass),
+        properties: M2.body.body.map(from_moz)
       });
     };
     def_to_moz(AST_EmptyStatement, function To_Moz_EmptyStatement() {
@@ -17221,116 +17991,116 @@ var init_mozilla_ast = __esm(() => {
         type: "EmptyStatement"
       };
     });
-    def_to_moz(AST_BlockStatement, function To_Moz_BlockStatement(M) {
+    def_to_moz(AST_BlockStatement, function To_Moz_BlockStatement(M2) {
       return {
         type: "BlockStatement",
-        body: M.body.map(to_moz)
+        body: M2.body.map(to_moz)
       };
     });
-    def_to_moz(AST_If, function To_Moz_IfStatement(M) {
+    def_to_moz(AST_If, function To_Moz_IfStatement(M2) {
       return {
         type: "IfStatement",
-        test: to_moz(M.condition),
-        consequent: to_moz(M.body),
-        alternate: to_moz(M.alternative)
+        test: to_moz(M2.condition),
+        consequent: to_moz(M2.body),
+        alternate: to_moz(M2.alternative)
       };
     });
-    def_to_moz(AST_LabeledStatement, function To_Moz_LabeledStatement(M) {
+    def_to_moz(AST_LabeledStatement, function To_Moz_LabeledStatement(M2) {
       return {
         type: "LabeledStatement",
-        label: to_moz(M.label),
-        body: to_moz(M.body)
+        label: to_moz(M2.label),
+        body: to_moz(M2.body)
       };
     });
-    def_to_moz(AST_Break, function To_Moz_BreakStatement(M) {
+    def_to_moz(AST_Break, function To_Moz_BreakStatement(M2) {
       return {
         type: "BreakStatement",
-        label: to_moz(M.label)
+        label: to_moz(M2.label)
       };
     });
-    def_to_moz(AST_Continue, function To_Moz_ContinueStatement(M) {
+    def_to_moz(AST_Continue, function To_Moz_ContinueStatement(M2) {
       return {
         type: "ContinueStatement",
-        label: to_moz(M.label)
+        label: to_moz(M2.label)
       };
     });
-    def_to_moz(AST_With, function To_Moz_WithStatement(M) {
+    def_to_moz(AST_With, function To_Moz_WithStatement(M2) {
       return {
         type: "WithStatement",
-        object: to_moz(M.expression),
-        body: to_moz(M.body)
+        object: to_moz(M2.expression),
+        body: to_moz(M2.body)
       };
     });
-    def_to_moz(AST_Switch, function To_Moz_SwitchStatement(M) {
+    def_to_moz(AST_Switch, function To_Moz_SwitchStatement(M2) {
       return {
         type: "SwitchStatement",
-        discriminant: to_moz(M.expression),
-        cases: M.body.map(to_moz)
+        discriminant: to_moz(M2.expression),
+        cases: M2.body.map(to_moz)
       };
     });
-    def_to_moz(AST_Return, function To_Moz_ReturnStatement(M) {
+    def_to_moz(AST_Return, function To_Moz_ReturnStatement(M2) {
       return {
         type: "ReturnStatement",
-        argument: to_moz(M.value)
+        argument: to_moz(M2.value)
       };
     });
-    def_to_moz(AST_Throw, function To_Moz_ThrowStatement(M) {
+    def_to_moz(AST_Throw, function To_Moz_ThrowStatement(M2) {
       return {
         type: "ThrowStatement",
-        argument: to_moz(M.value)
+        argument: to_moz(M2.value)
       };
     });
-    def_to_moz(AST_While, function To_Moz_WhileStatement(M) {
+    def_to_moz(AST_While, function To_Moz_WhileStatement(M2) {
       return {
         type: "WhileStatement",
-        test: to_moz(M.condition),
-        body: to_moz(M.body)
+        test: to_moz(M2.condition),
+        body: to_moz(M2.body)
       };
     });
-    def_to_moz(AST_Do, function To_Moz_DoWhileStatement(M) {
+    def_to_moz(AST_Do, function To_Moz_DoWhileStatement(M2) {
       return {
         type: "DoWhileStatement",
-        test: to_moz(M.condition),
-        body: to_moz(M.body)
+        test: to_moz(M2.condition),
+        body: to_moz(M2.body)
       };
     });
-    def_to_moz(AST_For, function To_Moz_ForStatement(M) {
+    def_to_moz(AST_For, function To_Moz_ForStatement(M2) {
       return {
         type: "ForStatement",
-        init: to_moz(M.init),
-        test: to_moz(M.condition),
-        update: to_moz(M.step),
-        body: to_moz(M.body)
+        init: to_moz(M2.init),
+        test: to_moz(M2.condition),
+        update: to_moz(M2.step),
+        body: to_moz(M2.body)
       };
     });
-    def_to_moz(AST_ForIn, function To_Moz_ForInStatement(M) {
+    def_to_moz(AST_ForIn, function To_Moz_ForInStatement(M2) {
       return {
         type: "ForInStatement",
-        left: to_moz(M.init),
-        right: to_moz(M.object),
-        body: to_moz(M.body)
+        left: to_moz(M2.init),
+        right: to_moz(M2.object),
+        body: to_moz(M2.body)
       };
     });
-    def_to_moz(AST_ForOf, function To_Moz_ForOfStatement(M) {
+    def_to_moz(AST_ForOf, function To_Moz_ForOfStatement(M2) {
       return {
         type: "ForOfStatement",
-        left: to_moz(M.init),
-        right: to_moz(M.object),
-        body: to_moz(M.body),
-        await: M.await
+        left: to_moz(M2.init),
+        right: to_moz(M2.object),
+        body: to_moz(M2.body),
+        await: M2.await
       };
     });
-    def_to_moz(AST_Await, function To_Moz_AwaitExpression(M) {
+    def_to_moz(AST_Await, function To_Moz_AwaitExpression(M2) {
       return {
         type: "AwaitExpression",
-        argument: to_moz(M.expression)
+        argument: to_moz(M2.expression)
       };
     });
-    def_to_moz(AST_Yield, function To_Moz_YieldExpression(M) {
+    def_to_moz(AST_Yield, function To_Moz_YieldExpression(M2) {
       return {
         type: "YieldExpression",
-        argument: to_moz(M.expression),
-        delegate: M.is_star
+        argument: to_moz(M2.expression),
+        delegate: M2.is_star
       };
     });
     def_to_moz(AST_Debugger, function To_Moz_DebuggerStatement() {
@@ -17338,11 +18108,11 @@ var init_mozilla_ast = __esm(() => {
         type: "DebuggerStatement"
       };
     });
-    def_to_moz(AST_VarDefLike, function To_Moz_VariableDeclarator(M) {
+    def_to_moz(AST_VarDefLike, function To_Moz_VariableDeclarator(M2) {
       return {
         type: "VariableDeclarator",
-        id: to_moz(M.name),
-        init: to_moz(M.value)
+        id: to_moz(M2.name),
+        init: to_moz(M2.value)
       };
     });
     def_to_moz(AST_This, function To_Moz_ThisExpression() {
@@ -17355,24 +18125,24 @@ var init_mozilla_ast = __esm(() => {
         type: "Super"
       };
     });
-    def_to_moz(AST_Conditional, function To_Moz_ConditionalExpression(M) {
+    def_to_moz(AST_Conditional, function To_Moz_ConditionalExpression(M2) {
       return {
         type: "ConditionalExpression",
-        test: to_moz(M.condition),
-        consequent: to_moz(M.consequent),
-        alternate: to_moz(M.alternative)
+        test: to_moz(M2.condition),
+        consequent: to_moz(M2.consequent),
+        alternate: to_moz(M2.alternative)
       };
     });
-    def_to_moz(AST_New, function To_Moz_NewExpression(M) {
+    def_to_moz(AST_New, function To_Moz_NewExpression(M2) {
       return {
         type: "NewExpression",
-        callee: to_moz(M.expression),
-        arguments: M.args.map(to_moz)
+        callee: to_moz(M2.expression),
+        arguments: M2.args.map(to_moz)
       };
     });
-    def_to_moz(AST_Call, function To_Moz_CallExpression(M) {
-      if (M.expression instanceof AST_SymbolRef && M.expression.name === "import") {
-        const [source, options] = M.args.map(to_moz);
+    def_to_moz(AST_Call, function To_Moz_CallExpression(M2) {
+      if (M2.expression instanceof AST_SymbolRef && M2.expression.name === "import") {
+        const [source, options] = M2.args.map(to_moz);
         return {
           type: "ImportExpression",
           source,
@@ -17381,41 +18151,41 @@ var init_mozilla_ast = __esm(() => {
       }
       return {
         type: "CallExpression",
-        callee: to_moz(M.expression),
-        optional: M.optional,
-        arguments: M.args.map(to_moz)
+        callee: to_moz(M2.expression),
+        optional: M2.optional,
+        arguments: M2.args.map(to_moz)
       };
     });
-    def_to_moz(AST_Toplevel, function To_Moz_Program(M) {
-      return to_moz_scope("Program", M);
+    def_to_moz(AST_Toplevel, function To_Moz_Program(M2) {
+      return to_moz_scope("Program", M2);
     });
-    def_to_moz(AST_Expansion, function To_Moz_Spread(M) {
+    def_to_moz(AST_Expansion, function To_Moz_Spread(M2) {
       return {
         type: to_moz_in_destructuring() ? "RestElement" : "SpreadElement",
-        argument: to_moz(M.expression)
+        argument: to_moz(M2.expression)
       };
     });
-    def_to_moz(AST_PrefixedTemplateString, function To_Moz_TaggedTemplateExpression(M) {
+    def_to_moz(AST_PrefixedTemplateString, function To_Moz_TaggedTemplateExpression(M2) {
       return {
         type: "TaggedTemplateExpression",
-        tag: to_moz(M.prefix),
-        quasi: to_moz(M.template_string)
+        tag: to_moz(M2.prefix),
+        quasi: to_moz(M2.template_string)
       };
     });
-    def_to_moz(AST_TemplateString, function To_Moz_TemplateLiteral(M) {
+    def_to_moz(AST_TemplateString, function To_Moz_TemplateLiteral(M2) {
       var quasis = [];
       var expressions = [];
-      for (var i2 = 0;i2 < M.segments.length; i2++) {
+      for (var i2 = 0;i2 < M2.segments.length; i2++) {
         if (i2 % 2 !== 0) {
-          expressions.push(to_moz(M.segments[i2]));
+          expressions.push(to_moz(M2.segments[i2]));
         } else {
           quasis.push({
             type: "TemplateElement",
             value: {
-              raw: M.segments[i2].raw,
-              cooked: M.segments[i2].value
+              raw: M2.segments[i2].raw,
+              cooked: M2.segments[i2].value
             },
-            tail: i2 === M.segments.length - 1
+            tail: i2 === M2.segments.length - 1
           });
         }
       }
@@ -17425,51 +18195,51 @@ var init_mozilla_ast = __esm(() => {
         expressions
       };
     });
-    def_to_moz(AST_Defun, function To_Moz_FunctionDeclaration(M) {
+    def_to_moz(AST_Defun, function To_Moz_FunctionDeclaration(M2) {
       return {
         type: "FunctionDeclaration",
-        id: to_moz(M.name),
-        params: M.argnames.map(to_moz_pattern),
-        generator: M.is_generator,
-        async: M.async,
-        body: to_moz_scope("BlockStatement", M)
+        id: to_moz(M2.name),
+        params: M2.argnames.map(to_moz_pattern),
+        generator: M2.is_generator,
+        async: M2.async,
+        body: to_moz_scope("BlockStatement", M2)
       };
     });
-    def_to_moz(AST_Function, function To_Moz_FunctionExpression(M) {
+    def_to_moz(AST_Function, function To_Moz_FunctionExpression(M2) {
       return {
         type: "FunctionExpression",
-        id: to_moz(M.name),
-        params: M.argnames.map(to_moz_pattern),
-        generator: M.is_generator || false,
-        async: M.async || false,
-        body: to_moz_scope("BlockStatement", M)
+        id: to_moz(M2.name),
+        params: M2.argnames.map(to_moz_pattern),
+        generator: M2.is_generator || false,
+        async: M2.async || false,
+        body: to_moz_scope("BlockStatement", M2)
       };
     });
-    def_to_moz(AST_Arrow, function To_Moz_ArrowFunctionExpression(M) {
-      var body = M.body.length === 1 && M.body[0] instanceof AST_Return && M.body[0].value ? to_moz(M.body[0].value) : {
+    def_to_moz(AST_Arrow, function To_Moz_ArrowFunctionExpression(M2) {
+      var body = M2.body.length === 1 && M2.body[0] instanceof AST_Return && M2.body[0].value ? to_moz(M2.body[0].value) : {
         type: "BlockStatement",
-        body: M.body.map(to_moz)
+        body: M2.body.map(to_moz)
       };
       return {
         type: "ArrowFunctionExpression",
-        params: M.argnames.map(to_moz_pattern),
-        async: M.async,
+        params: M2.argnames.map(to_moz_pattern),
+        async: M2.async,
         body
       };
     });
-    def_to_moz(AST_Destructuring, function To_Moz_ObjectPattern(M) {
-      if (M.is_array) {
+    def_to_moz(AST_Destructuring, function To_Moz_ObjectPattern(M2) {
+      if (M2.is_array) {
         return {
           type: "ArrayPattern",
-          elements: M.names.map((M2) => M2 instanceof AST_Hole ? null : to_moz_pattern(M2))
+          elements: M2.names.map((M3) => M3 instanceof AST_Hole ? null : to_moz_pattern(M3))
         };
       }
       return {
         type: "ObjectPattern",
-        properties: M.names.map((M2) => {
-          if (M2 instanceof AST_ObjectKeyVal) {
-            var computed = M2.computed_key();
-            const [shorthand, key] = to_moz_property_key(M2.key, computed, M2.quote, M2.value);
+        properties: M2.names.map((M3) => {
+          if (M3 instanceof AST_ObjectKeyVal) {
+            var computed = M3.computed_key();
+            const [shorthand, key] = to_moz_property_key(M3.key, computed, M3.quote, M3.value);
             return {
               type: "Property",
               computed,
@@ -17477,66 +18247,66 @@ var init_mozilla_ast = __esm(() => {
               key,
               method: false,
               shorthand,
-              value: to_moz_pattern(M2.value)
+              value: to_moz_pattern(M3.value)
             };
           } else {
-            return to_moz_pattern(M2);
+            return to_moz_pattern(M3);
           }
         })
       };
     });
-    def_to_moz(AST_DefaultAssign, function To_Moz_AssignmentExpression(M) {
+    def_to_moz(AST_DefaultAssign, function To_Moz_AssignmentExpression(M2) {
       return {
         type: "AssignmentPattern",
-        left: to_moz_pattern(M.left),
-        right: to_moz(M.right)
+        left: to_moz_pattern(M2.left),
+        right: to_moz(M2.right)
       };
     });
-    def_to_moz(AST_Directive, function To_Moz_Directive(M) {
+    def_to_moz(AST_Directive, function To_Moz_Directive(M2) {
       return {
         type: "ExpressionStatement",
         expression: {
           type: "Literal",
-          value: M.value,
-          raw: M.print_to_string()
+          value: M2.value,
+          raw: M2.print_to_string()
         },
-        directive: M.value
+        directive: M2.value
       };
     });
-    def_to_moz(AST_SimpleStatement, function To_Moz_ExpressionStatement(M) {
+    def_to_moz(AST_SimpleStatement, function To_Moz_ExpressionStatement(M2) {
       return {
         type: "ExpressionStatement",
-        expression: to_moz(M.body)
+        expression: to_moz(M2.body)
       };
     });
-    def_to_moz(AST_SwitchBranch, function To_Moz_SwitchCase(M) {
+    def_to_moz(AST_SwitchBranch, function To_Moz_SwitchCase(M2) {
       return {
         type: "SwitchCase",
-        test: to_moz(M.expression),
-        consequent: M.body.map(to_moz)
+        test: to_moz(M2.expression),
+        consequent: M2.body.map(to_moz)
       };
     });
-    def_to_moz(AST_Try, function To_Moz_TryStatement(M) {
+    def_to_moz(AST_Try, function To_Moz_TryStatement(M2) {
       return {
         type: "TryStatement",
-        block: to_moz_block(M.body),
-        handler: to_moz(M.bcatch),
+        block: to_moz_block(M2.body),
+        handler: to_moz(M2.bcatch),
         guardedHandlers: [],
-        finalizer: to_moz(M.bfinally)
+        finalizer: to_moz(M2.bfinally)
       };
     });
-    def_to_moz(AST_Catch, function To_Moz_CatchClause(M) {
+    def_to_moz(AST_Catch, function To_Moz_CatchClause(M2) {
       return {
         type: "CatchClause",
-        param: M.argname != null ? to_moz_pattern(M.argname) : null,
-        body: to_moz_block(M)
+        param: M2.argname != null ? to_moz_pattern(M2.argname) : null,
+        body: to_moz_block(M2)
       };
     });
-    def_to_moz(AST_DefinitionsLike, function To_Moz_VariableDeclaration(M) {
+    def_to_moz(AST_DefinitionsLike, function To_Moz_VariableDeclaration(M2) {
       return {
         type: "VariableDeclaration",
-        kind: M instanceof AST_Const ? "const" : M instanceof AST_Let ? "let" : M instanceof AST_Using ? M.await ? "await using" : "using" : "var",
-        declarations: M.definitions.map(to_moz)
+        kind: M2 instanceof AST_Const ? "const" : M2 instanceof AST_Let ? "let" : M2 instanceof AST_Using ? M2.await ? "await using" : "using" : "var",
+        declarations: M2.definitions.map(to_moz)
       };
     });
     function import_attributes_to_moz(attribute) {
@@ -17553,64 +18323,64 @@ var init_mozilla_ast = __esm(() => {
       }
       return import_attributes;
     }
-    def_to_moz(AST_Export, function To_Moz_ExportDeclaration(M) {
-      if (M.exported_names) {
-        var first_exported = M.exported_names[0];
+    def_to_moz(AST_Export, function To_Moz_ExportDeclaration(M2) {
+      if (M2.exported_names) {
+        var first_exported = M2.exported_names[0];
         if (first_exported && first_exported.name.name === "*" && !first_exported.name.quote) {
           var foreign_name = first_exported.foreign_name;
           var exported = foreign_name.name === "*" && !foreign_name.quote ? null : to_moz(foreign_name);
           return {
             type: "ExportAllDeclaration",
-            source: to_moz(M.module_name),
+            source: to_moz(M2.module_name),
             exported,
-            attributes: import_attributes_to_moz(M.attributes)
+            attributes: import_attributes_to_moz(M2.attributes)
           };
         }
         return {
           type: "ExportNamedDeclaration",
-          specifiers: M.exported_names.map(function(name_mapping) {
+          specifiers: M2.exported_names.map(function(name_mapping) {
             return {
               type: "ExportSpecifier",
               exported: to_moz(name_mapping.foreign_name),
               local: to_moz(name_mapping.name)
             };
           }),
-          declaration: to_moz(M.exported_definition),
-          source: to_moz(M.module_name),
-          attributes: import_attributes_to_moz(M.attributes)
+          declaration: to_moz(M2.exported_definition),
+          source: to_moz(M2.module_name),
+          attributes: import_attributes_to_moz(M2.attributes)
         };
       }
-      if (M.is_default) {
+      if (M2.is_default) {
         return {
           type: "ExportDefaultDeclaration",
-          declaration: to_moz(M.exported_value || M.exported_definition)
+          declaration: to_moz(M2.exported_value || M2.exported_definition)
         };
       } else {
         return {
           type: "ExportNamedDeclaration",
-          declaration: to_moz(M.exported_value || M.exported_definition),
+          declaration: to_moz(M2.exported_value || M2.exported_definition),
           specifiers: [],
           source: null
         };
       }
     });
-    def_to_moz(AST_Import, function To_Moz_ImportDeclaration(M) {
+    def_to_moz(AST_Import, function To_Moz_ImportDeclaration(M2) {
       var specifiers = [];
-      if (M.imported_name) {
+      if (M2.imported_name) {
         specifiers.push({
           type: "ImportDefaultSpecifier",
-          local: to_moz(M.imported_name)
+          local: to_moz(M2.imported_name)
         });
       }
-      if (M.imported_names) {
-        var first_imported_foreign_name = M.imported_names[0].foreign_name;
+      if (M2.imported_names) {
+        var first_imported_foreign_name = M2.imported_names[0].foreign_name;
         if (first_imported_foreign_name.name === "*" && !first_imported_foreign_name.quote) {
           specifiers.push({
             type: "ImportNamespaceSpecifier",
-            local: to_moz(M.imported_names[0].name)
+            local: to_moz(M2.imported_names[0].name)
           });
         } else {
-          M.imported_names.forEach(function(name_mapping) {
+          M2.imported_names.forEach(function(name_mapping) {
             specifiers.push({
               type: "ImportSpecifier",
               local: to_moz(name_mapping.name),
@@ -17622,8 +18392,8 @@ var init_mozilla_ast = __esm(() => {
       return {
         type: "ImportDeclaration",
         specifiers,
-        source: to_moz(M.module_name),
-        attributes: import_attributes_to_moz(M.attributes)
+        source: to_moz(M2.module_name),
+        attributes: import_attributes_to_moz(M2.attributes)
       };
     });
     def_to_moz(AST_ImportMeta, function To_Moz_MetaProperty() {
@@ -17639,134 +18409,134 @@ var init_mozilla_ast = __esm(() => {
         }
       };
     });
-    def_to_moz(AST_Sequence, function To_Moz_SequenceExpression(M) {
+    def_to_moz(AST_Sequence, function To_Moz_SequenceExpression(M2) {
       return {
         type: "SequenceExpression",
-        expressions: M.expressions.map(to_moz)
+        expressions: M2.expressions.map(to_moz)
       };
     });
-    def_to_moz(AST_DotHash, function To_Moz_PrivateMemberExpression(M) {
+    def_to_moz(AST_DotHash, function To_Moz_PrivateMemberExpression(M2) {
       return {
         type: "MemberExpression",
-        object: to_moz(M.expression),
+        object: to_moz(M2.expression),
         computed: false,
         property: {
           type: "PrivateIdentifier",
-          name: M.property
+          name: M2.property
         },
-        optional: M.optional
+        optional: M2.optional
       };
     });
-    def_to_moz(AST_PropAccess, function To_Moz_MemberExpression(M) {
-      var isComputed = M instanceof AST_Sub;
+    def_to_moz(AST_PropAccess, function To_Moz_MemberExpression(M2) {
+      var isComputed = M2 instanceof AST_Sub;
       return {
         type: "MemberExpression",
-        object: to_moz(M.expression),
+        object: to_moz(M2.expression),
         computed: isComputed,
-        property: isComputed ? to_moz(M.property) : { type: "Identifier", name: M.property },
-        optional: M.optional
+        property: isComputed ? to_moz(M2.property) : { type: "Identifier", name: M2.property },
+        optional: M2.optional
       };
     });
-    def_to_moz(AST_Chain, function To_Moz_ChainExpression(M) {
+    def_to_moz(AST_Chain, function To_Moz_ChainExpression(M2) {
       return {
         type: "ChainExpression",
-        expression: to_moz(M.expression)
+        expression: to_moz(M2.expression)
       };
     });
-    def_to_moz(AST_Unary, function To_Moz_Unary(M) {
+    def_to_moz(AST_Unary, function To_Moz_Unary(M2) {
       return {
-        type: M.operator == "++" || M.operator == "--" ? "UpdateExpression" : "UnaryExpression",
-        operator: M.operator,
-        prefix: M instanceof AST_UnaryPrefix,
-        argument: to_moz(M.expression)
+        type: M2.operator == "++" || M2.operator == "--" ? "UpdateExpression" : "UnaryExpression",
+        operator: M2.operator,
+        prefix: M2 instanceof AST_UnaryPrefix,
+        argument: to_moz(M2.expression)
       };
     });
-    def_to_moz(AST_Binary, function To_Moz_BinaryExpression(M) {
-      if (M.operator == "=" && to_moz_in_destructuring()) {
+    def_to_moz(AST_Binary, function To_Moz_BinaryExpression(M2) {
+      if (M2.operator == "=" && to_moz_in_destructuring()) {
         return {
           type: "AssignmentPattern",
-          left: to_moz(M.left),
-          right: to_moz(M.right)
+          left: to_moz(M2.left),
+          right: to_moz(M2.right)
         };
       }
-      const type = M.operator == "&&" || M.operator == "||" || M.operator === "??" ? "LogicalExpression" : "BinaryExpression";
+      const type = M2.operator == "&&" || M2.operator == "||" || M2.operator === "??" ? "LogicalExpression" : "BinaryExpression";
       return {
         type,
-        left: to_moz(M.left),
-        operator: M.operator,
-        right: to_moz(M.right)
+        left: to_moz(M2.left),
+        operator: M2.operator,
+        right: to_moz(M2.right)
       };
     });
-    def_to_moz(AST_Assign, function To_Moz_AssignmentExpression(M) {
+    def_to_moz(AST_Assign, function To_Moz_AssignmentExpression(M2) {
       return {
         type: "AssignmentExpression",
-        operator: M.operator,
-        left: to_moz(M.left),
-        right: to_moz(M.right)
+        operator: M2.operator,
+        left: to_moz(M2.left),
+        right: to_moz(M2.right)
       };
     });
-    def_to_moz(AST_PrivateIn, function To_Moz_BinaryExpression_PrivateIn(M) {
+    def_to_moz(AST_PrivateIn, function To_Moz_BinaryExpression_PrivateIn(M2) {
       return {
         type: "BinaryExpression",
-        left: { type: "PrivateIdentifier", name: M.key.name },
+        left: { type: "PrivateIdentifier", name: M2.key.name },
         operator: "in",
-        right: to_moz(M.value)
+        right: to_moz(M2.value)
       };
     });
-    def_to_moz(AST_Array, function To_Moz_ArrayExpression(M) {
+    def_to_moz(AST_Array, function To_Moz_ArrayExpression(M2) {
       return {
         type: "ArrayExpression",
-        elements: M.elements.map(to_moz)
+        elements: M2.elements.map(to_moz)
       };
     });
-    def_to_moz(AST_Object, function To_Moz_ObjectExpression(M) {
+    def_to_moz(AST_Object, function To_Moz_ObjectExpression(M2) {
       return {
         type: "ObjectExpression",
-        properties: M.properties.map(to_moz)
+        properties: M2.properties.map(to_moz)
       };
     });
-    def_to_moz(AST_ObjectProperty, function To_Moz_Property(M, parent) {
-      var computed = M.computed_key();
-      const [shorthand, key] = to_moz_property_key(M.key, computed, M.quote, M.value);
+    def_to_moz(AST_ObjectProperty, function To_Moz_Property(M2, parent) {
+      var computed = M2.computed_key();
+      const [shorthand, key] = to_moz_property_key(M2.key, computed, M2.quote, M2.value);
       var kind;
-      if (M instanceof AST_ObjectGetter) {
+      if (M2 instanceof AST_ObjectGetter) {
         kind = "get";
-      } else if (M instanceof AST_ObjectSetter) {
+      } else if (M2 instanceof AST_ObjectSetter) {
         kind = "set";
       }
-      if (M instanceof AST_PrivateGetter || M instanceof AST_PrivateSetter) {
-        const kind2 = M instanceof AST_PrivateGetter ? "get" : "set";
+      if (M2 instanceof AST_PrivateGetter || M2 instanceof AST_PrivateSetter) {
+        const kind2 = M2 instanceof AST_PrivateGetter ? "get" : "set";
         return {
           type: "MethodDefinition",
           computed: false,
           kind: kind2,
-          static: M.static,
+          static: M2.static,
           key: {
             type: "PrivateIdentifier",
-            name: M.key.name
+            name: M2.key.name
           },
-          value: to_moz(M.value)
+          value: to_moz(M2.value)
         };
       }
-      if (M instanceof AST_ClassPrivateProperty) {
+      if (M2 instanceof AST_ClassPrivateProperty) {
         return {
           type: "PropertyDefinition",
           key: {
             type: "PrivateIdentifier",
-            name: M.key.name
+            name: M2.key.name
           },
-          value: to_moz(M.value),
+          value: to_moz(M2.value),
           computed: false,
-          static: M.static
+          static: M2.static
         };
       }
-      if (M instanceof AST_ClassProperty) {
+      if (M2 instanceof AST_ClassProperty) {
         return {
           type: "PropertyDefinition",
           key,
-          value: to_moz(M.value),
+          value: to_moz(M2.value),
           computed,
-          static: M.static
+          static: M2.static
         };
       }
       if (parent instanceof AST_Class) {
@@ -17774,9 +18544,9 @@ var init_mozilla_ast = __esm(() => {
           type: "MethodDefinition",
           computed,
           kind,
-          static: M.static,
-          key: to_moz(M.key),
-          value: to_moz(M.value)
+          static: M2.static,
+          key: to_moz(M2.key),
+          value: to_moz(M2.value)
         };
       }
       return {
@@ -17786,12 +18556,12 @@ var init_mozilla_ast = __esm(() => {
         shorthand,
         kind,
         key,
-        value: to_moz(M.value)
+        value: to_moz(M2.value)
       };
     });
-    def_to_moz(AST_ObjectKeyVal, function To_Moz_Property(M) {
-      var computed = M.computed_key();
-      const [shorthand, key] = to_moz_property_key(M.key, computed, M.quote, M.value);
+    def_to_moz(AST_ObjectKeyVal, function To_Moz_Property(M2) {
+      var computed = M2.computed_key();
+      const [shorthand, key] = to_moz_property_key(M2.key, computed, M2.quote, M2.value);
       return {
         type: "Property",
         computed,
@@ -17799,12 +18569,12 @@ var init_mozilla_ast = __esm(() => {
         method: false,
         kind: "init",
         key,
-        value: to_moz(M.value)
+        value: to_moz(M2.value)
       };
     });
-    def_to_moz(AST_ConciseMethod, function To_Moz_MethodDefinition(M, parent) {
-      const computed = M.computed_key();
-      const [_always_false, key] = to_moz_property_key(M.key, computed, M.quote, M.value);
+    def_to_moz(AST_ConciseMethod, function To_Moz_MethodDefinition(M2, parent) {
+      const computed = M2.computed_key();
+      const [_always_false, key] = to_moz_property_key(M2.key, computed, M2.quote, M2.value);
       if (parent instanceof AST_Object) {
         return {
           type: "Property",
@@ -17813,44 +18583,44 @@ var init_mozilla_ast = __esm(() => {
           method: true,
           shorthand: false,
           key,
-          value: to_moz(M.value)
+          value: to_moz(M2.value)
         };
       }
       return {
         type: "MethodDefinition",
-        kind: !computed && M.key.name === "constructor" ? "constructor" : "method",
+        kind: !computed && M2.key.name === "constructor" ? "constructor" : "method",
         computed,
         key,
-        value: to_moz(M.value),
-        static: M.static
+        value: to_moz(M2.value),
+        static: M2.static
       };
     });
-    def_to_moz(AST_PrivateMethod, function To_Moz_MethodDefinition(M) {
+    def_to_moz(AST_PrivateMethod, function To_Moz_MethodDefinition(M2) {
       return {
         type: "MethodDefinition",
         kind: "method",
-        key: { type: "PrivateIdentifier", name: M.key.name },
-        value: to_moz(M.value),
+        key: { type: "PrivateIdentifier", name: M2.key.name },
+        value: to_moz(M2.value),
         computed: false,
-        static: M.static
+        static: M2.static
       };
     });
-    def_to_moz(AST_Class, function To_Moz_Class(M) {
-      var type = M instanceof AST_ClassExpression ? "ClassExpression" : "ClassDeclaration";
+    def_to_moz(AST_Class, function To_Moz_Class(M2) {
+      var type = M2 instanceof AST_ClassExpression ? "ClassExpression" : "ClassDeclaration";
       return {
         type,
-        superClass: to_moz(M.extends),
-        id: M.name ? to_moz(M.name) : null,
+        superClass: to_moz(M2.extends),
+        id: M2.name ? to_moz(M2.name) : null,
         body: {
           type: "ClassBody",
-          body: M.properties.map(to_moz)
+          body: M2.properties.map(to_moz)
         }
       };
     });
-    def_to_moz(AST_ClassStaticBlock, function To_Moz_StaticBlock(M) {
+    def_to_moz(AST_ClassStaticBlock, function To_Moz_StaticBlock(M2) {
       return {
         type: "StaticBlock",
-        body: M.body.map(to_moz)
+        body: M2.body.map(to_moz)
       };
     });
     def_to_moz(AST_NewTarget, function To_Moz_MetaProperty() {
@@ -17866,48 +18636,48 @@ var init_mozilla_ast = __esm(() => {
         }
       };
     });
-    def_to_moz(AST_Symbol, function To_Moz_Identifier(M, parent) {
-      if (M instanceof AST_SymbolMethod && parent.quote || (M instanceof AST_SymbolImportForeign || M instanceof AST_SymbolExportForeign || M instanceof AST_SymbolExport) && M.quote) {
+    def_to_moz(AST_Symbol, function To_Moz_Identifier(M2, parent) {
+      if (M2 instanceof AST_SymbolMethod && parent.quote || (M2 instanceof AST_SymbolImportForeign || M2 instanceof AST_SymbolExportForeign || M2 instanceof AST_SymbolExport) && M2.quote) {
         return {
           type: "Literal",
-          value: M.name
+          value: M2.name
         };
       }
-      var def = M.definition();
+      var def = M2.definition();
       return {
         type: "Identifier",
-        name: def ? def.mangled_name || def.name : M.name
+        name: def ? def.mangled_name || def.name : M2.name
       };
     });
-    def_to_moz(AST_RegExp, function To_Moz_RegExpLiteral(M) {
-      const pattern = M.value.source;
-      const flags = M.value.flags;
+    def_to_moz(AST_RegExp, function To_Moz_RegExpLiteral(M2) {
+      const pattern = M2.value.source;
+      const flags = M2.value.flags;
       return {
         type: "Literal",
         value: null,
-        raw: M.print_to_string(),
+        raw: M2.print_to_string(),
         regex: { pattern, flags }
       };
     });
-    def_to_moz(AST_Constant, function To_Moz_Literal(M) {
-      var value = M.value;
+    def_to_moz(AST_Constant, function To_Moz_Literal(M2) {
+      var value = M2.value;
       return {
         type: "Literal",
         value,
-        raw: M.raw || M.print_to_string()
+        raw: M2.raw || M2.print_to_string()
       };
     });
-    def_to_moz(AST_Atom, function To_Moz_Atom(M) {
+    def_to_moz(AST_Atom, function To_Moz_Atom(M2) {
       return {
         type: "Identifier",
-        name: String(M.value)
+        name: String(M2.value)
       };
     });
-    def_to_moz(AST_BigInt, (M) => ({
+    def_to_moz(AST_BigInt, (M2) => ({
       type: "Literal",
       value: null,
-      bigint: typeof BigInt === "function" ? BigInt(M.value).toString() : M.value,
-      raw: M.raw
+      bigint: typeof BigInt === "function" ? BigInt(M2.value).toString() : M2.value,
+      raw: M2.raw
     }));
     AST_Boolean.DEFMETHOD("to_mozilla_ast", AST_Constant.prototype.to_mozilla_ast);
     AST_Null.DEFMETHOD("to_mozilla_ast", AST_Constant.prototype.to_mozilla_ast);
@@ -17939,52 +18709,52 @@ var init_mozilla_ast = __esm(() => {
         return "";
       }
     }
-    function from_moz_symbol(symbol_type, M, has_quote) {
+    function from_moz_symbol(symbol_type, M2, has_quote) {
       return new symbol_type({
-        start: my_start_token(M),
+        start: my_start_token(M2),
         quote: has_quote ? '"' : undefined,
-        name: M.type === "Identifier" ? M.name : String(M.value),
-        end: my_end_token(M)
+        name: M2.type === "Identifier" ? M2.name : String(M2.value),
+        end: my_end_token(M2)
       });
     }
-    function from_moz_lambda(M, is_method) {
+    function from_moz_lambda(M2, is_method) {
       return new (is_method ? AST_Accessor : AST_Function)({
-        start: my_start_token(M),
-        end: my_end_token(M),
-        name: M.id && from_moz_symbol(is_method ? AST_SymbolMethod : AST_SymbolLambda, M.id),
-        argnames: M.params.map((M2) => from_moz_pattern(M2, AST_SymbolFunarg)),
-        is_generator: M.generator,
-        async: M.async,
-        body: normalize_directives(from_moz(M.body).body)
+        start: my_start_token(M2),
+        end: my_end_token(M2),
+        name: M2.id && from_moz_symbol(is_method ? AST_SymbolMethod : AST_SymbolLambda, M2.id),
+        argnames: M2.params.map((M3) => from_moz_pattern(M3, AST_SymbolFunarg)),
+        is_generator: M2.generator,
+        async: M2.async,
+        body: normalize_directives(from_moz(M2.body).body)
       });
     }
-    function from_moz_pattern(M, sym_type) {
-      switch (M.type) {
+    function from_moz_pattern(M2, sym_type) {
+      switch (M2.type) {
         case "ObjectPattern":
           return new AST_Destructuring({
-            start: my_start_token(M),
-            end: my_end_token(M),
-            names: M.properties.map((p) => from_moz_pattern(p, sym_type)),
+            start: my_start_token(M2),
+            end: my_end_token(M2),
+            names: M2.properties.map((p2) => from_moz_pattern(p2, sym_type)),
             is_array: false
           });
         case "Property":
-          var key = M.key;
+          var key = M2.key;
           var args = {
-            start: my_start_token(key || M.value),
-            end: my_end_token(M.value),
+            start: my_start_token(key || M2.value),
+            end: my_end_token(M2.value),
             key: key.type == "Identifier" ? key.name : String(key.value),
-            quote: !M.computed && key.type === "Literal" && typeof key.value === "string" ? '"' : "",
-            value: from_moz_pattern(M.value, sym_type)
+            quote: !M2.computed && key.type === "Literal" && typeof key.value === "string" ? '"' : "",
+            value: from_moz_pattern(M2.value, sym_type)
           };
-          if (M.computed) {
-            args.key = from_moz(M.key);
+          if (M2.computed) {
+            args.key = from_moz(M2.key);
           }
           return new AST_ObjectKeyVal(args);
         case "ArrayPattern":
           return new AST_Destructuring({
-            start: my_start_token(M),
-            end: my_end_token(M),
-            names: M.elements.map(function(elm) {
+            start: my_start_token(M2),
+            end: my_end_token(M2),
+            names: M2.elements.map(function(elm) {
               if (elm === null) {
                 return new AST_Hole;
               }
@@ -17995,26 +18765,26 @@ var init_mozilla_ast = __esm(() => {
         case "SpreadElement":
         case "RestElement":
           return new AST_Expansion({
-            start: my_start_token(M),
-            end: my_end_token(M),
-            expression: from_moz_pattern(M.argument, sym_type)
+            start: my_start_token(M2),
+            end: my_end_token(M2),
+            expression: from_moz_pattern(M2.argument, sym_type)
           });
         case "AssignmentPattern":
           return new AST_DefaultAssign({
-            start: my_start_token(M),
-            end: my_end_token(M),
-            left: from_moz_pattern(M.left, sym_type),
+            start: my_start_token(M2),
+            end: my_end_token(M2),
+            left: from_moz_pattern(M2.left, sym_type),
             operator: "=",
-            right: from_moz(M.right)
+            right: from_moz(M2.right)
           });
         case "Identifier":
           return new sym_type({
-            start: my_start_token(M),
-            end: my_end_token(M),
-            name: M.name
+            start: my_start_token(M2),
+            end: my_end_token(M2),
+            name: M2.name
           });
         default:
-          throw new Error("Invalid node type for destructuring: " + M.type);
+          throw new Error("Invalid node type for destructuring: " + M2.type);
       }
     }
     function from_moz_label_ref(m_label) {
@@ -18135,11 +18905,11 @@ var init_mozilla_ast = __esm(() => {
 // node_modules/terser/lib/utils/first_in_statement.js
 function first_in_statement(stack) {
   let node = stack.parent(-1);
-  for (let i2 = 0, p;p = stack.parent(i2); i2++) {
-    if (p instanceof AST_Statement && p.body === node)
+  for (let i2 = 0, p2;p2 = stack.parent(i2); i2++) {
+    if (p2 instanceof AST_Statement && p2.body === node)
       return true;
-    if (p instanceof AST_Sequence && p.expressions[0] === node || p.TYPE === "Call" && p.expression === node || p instanceof AST_PrefixedTemplateString && p.prefix === node || p instanceof AST_Dot && p.expression === node || p instanceof AST_Sub && p.expression === node || p instanceof AST_Chain && p.expression === node || p instanceof AST_Conditional && p.condition === node || p instanceof AST_Binary && p.left === node || p instanceof AST_UnaryPostfix && p.expression === node) {
-      node = p;
+    if (p2 instanceof AST_Sequence && p2.expressions[0] === node || p2.TYPE === "Call" && p2.expression === node || p2 instanceof AST_PrefixedTemplateString && p2.prefix === node || p2 instanceof AST_Dot && p2.expression === node || p2 instanceof AST_Sub && p2.expression === node || p2 instanceof AST_Chain && p2.expression === node || p2 instanceof AST_Conditional && p2.condition === node || p2 instanceof AST_Binary && p2.left === node || p2 instanceof AST_UnaryPostfix && p2.expression === node) {
+      node = p2;
     } else {
       return false;
     }
@@ -18770,7 +19540,7 @@ function OutputStream(options) {
     if (OUTPUT.length() > insert)
       newline_insert = insert;
   }
-  const gc_scope = options["_destroy_ast"] ? function gc_scope(scope) {
+  const gc_scope = options["_destroy_ast"] ? function gc_scope2(scope) {
     scope.body.length = 0;
     scope.argnames.length = 0;
   } : noop;
@@ -18914,58 +19684,58 @@ var init_output = __esm(() => {
         return true;
       }
       if (output.option("webkit")) {
-        var p = output.parent();
-        if (p instanceof AST_PropAccess && p.expression === this) {
+        var p2 = output.parent();
+        if (p2 instanceof AST_PropAccess && p2.expression === this) {
           return true;
         }
       }
       if (output.option("wrap_iife")) {
-        var p = output.parent();
-        if (p instanceof AST_Call && p.expression === this) {
+        var p2 = output.parent();
+        if (p2 instanceof AST_Call && p2.expression === this) {
           return true;
         }
       }
       if (output.option("wrap_func_args")) {
-        var p = output.parent();
-        if (p instanceof AST_Call && p.args.includes(this)) {
+        var p2 = output.parent();
+        if (p2 instanceof AST_Call && p2.args.includes(this)) {
           return true;
         }
       }
       return false;
     });
     PARENS(AST_Arrow, function(output) {
-      var p = output.parent();
-      if (output.option("wrap_func_args") && p instanceof AST_Call && p.args.includes(this)) {
+      var p2 = output.parent();
+      if (output.option("wrap_func_args") && p2 instanceof AST_Call && p2.args.includes(this)) {
         return true;
       }
-      return p instanceof AST_PropAccess && p.expression === this || p instanceof AST_Conditional && p.condition === this;
+      return p2 instanceof AST_PropAccess && p2.expression === this || p2 instanceof AST_Conditional && p2.condition === this;
     });
     PARENS(AST_Object, function(output) {
       return !output.has_parens() && first_in_statement(output);
     });
     PARENS(AST_ClassExpression, first_in_statement);
     PARENS(AST_Unary, function(output) {
-      var p = output.parent();
-      return p instanceof AST_PropAccess && p.expression === this || p instanceof AST_Call && p.expression === this || p instanceof AST_Binary && p.operator === "**" && this instanceof AST_UnaryPrefix && p.left === this && this.operator !== "++" && this.operator !== "--";
+      var p2 = output.parent();
+      return p2 instanceof AST_PropAccess && p2.expression === this || p2 instanceof AST_Call && p2.expression === this || p2 instanceof AST_Binary && p2.operator === "**" && this instanceof AST_UnaryPrefix && p2.left === this && this.operator !== "++" && this.operator !== "--";
     });
     PARENS(AST_Await, function(output) {
-      var p = output.parent();
-      return p instanceof AST_PropAccess && p.expression === this || p instanceof AST_Call && p.expression === this || p instanceof AST_Binary && p.operator === "**" && p.left === this || output.option("safari10") && p instanceof AST_UnaryPrefix;
+      var p2 = output.parent();
+      return p2 instanceof AST_PropAccess && p2.expression === this || p2 instanceof AST_Call && p2.expression === this || p2 instanceof AST_Binary && p2.operator === "**" && p2.left === this || output.option("safari10") && p2 instanceof AST_UnaryPrefix;
     });
     PARENS(AST_Sequence, function(output) {
-      var p = output.parent();
-      return p instanceof AST_Call || p instanceof AST_Unary || p instanceof AST_Binary || p instanceof AST_VarDefLike || p instanceof AST_PropAccess || p instanceof AST_Array || p instanceof AST_ObjectProperty || p instanceof AST_Conditional || p instanceof AST_Arrow || p instanceof AST_DefaultAssign || p instanceof AST_Expansion || p instanceof AST_ForOf && this === p.object || p instanceof AST_Yield || p instanceof AST_Export;
+      var p2 = output.parent();
+      return p2 instanceof AST_Call || p2 instanceof AST_Unary || p2 instanceof AST_Binary || p2 instanceof AST_VarDefLike || p2 instanceof AST_PropAccess || p2 instanceof AST_Array || p2 instanceof AST_ObjectProperty || p2 instanceof AST_Conditional || p2 instanceof AST_Arrow || p2 instanceof AST_DefaultAssign || p2 instanceof AST_Expansion || p2 instanceof AST_ForOf && this === p2.object || p2 instanceof AST_Yield || p2 instanceof AST_Export;
     });
     PARENS(AST_Binary, function(output) {
-      var p = output.parent();
-      if (p instanceof AST_Call && p.expression === this)
+      var p2 = output.parent();
+      if (p2 instanceof AST_Call && p2.expression === this)
         return true;
-      if (p instanceof AST_Unary)
+      if (p2 instanceof AST_Unary)
         return true;
-      if (p instanceof AST_PropAccess && p.expression === this)
+      if (p2 instanceof AST_PropAccess && p2.expression === this)
         return true;
-      if (p instanceof AST_Binary) {
-        const parent_op = p.operator;
+      if (p2 instanceof AST_Binary) {
+        const parent_op = p2.operator;
         const op = this.operator;
         if (op === "??" && (parent_op === "||" || parent_op === "&&")) {
           return true;
@@ -18975,64 +19745,64 @@ var init_output = __esm(() => {
         }
         const pp2 = PRECEDENCE[parent_op];
         const sp = PRECEDENCE[op];
-        if (pp2 > sp || pp2 == sp && (this === p.right || parent_op == "**")) {
+        if (pp2 > sp || pp2 == sp && (this === p2.right || parent_op == "**")) {
           return true;
         }
       }
-      if (p instanceof AST_PrivateIn) {
+      if (p2 instanceof AST_PrivateIn) {
         const op = this.operator;
         const pp2 = PRECEDENCE["in"];
         const sp = PRECEDENCE[op];
-        if (pp2 > sp || pp2 == sp && this === p.value) {
+        if (pp2 > sp || pp2 == sp && this === p2.value) {
           return true;
         }
       }
     });
     PARENS(AST_PrivateIn, function(output) {
-      var p = output.parent();
-      if (p instanceof AST_Call && p.expression === this) {
+      var p2 = output.parent();
+      if (p2 instanceof AST_Call && p2.expression === this) {
         return true;
       }
-      if (p instanceof AST_Unary) {
+      if (p2 instanceof AST_Unary) {
         return true;
       }
-      if (p instanceof AST_PropAccess && p.expression === this) {
+      if (p2 instanceof AST_PropAccess && p2.expression === this) {
         return true;
       }
-      if (p instanceof AST_Binary) {
-        const parent_op = p.operator;
+      if (p2 instanceof AST_Binary) {
+        const parent_op = p2.operator;
         const pp2 = PRECEDENCE[parent_op];
         const sp = PRECEDENCE["in"];
-        if (pp2 > sp || pp2 == sp && (this === p.right || parent_op == "**")) {
+        if (pp2 > sp || pp2 == sp && (this === p2.right || parent_op == "**")) {
           return true;
         }
       }
-      if (p instanceof AST_PrivateIn && this === p.value) {
+      if (p2 instanceof AST_PrivateIn && this === p2.value) {
         return true;
       }
     });
     PARENS(AST_Yield, function(output) {
-      var p = output.parent();
-      if (p instanceof AST_Binary && p.operator !== "=")
+      var p2 = output.parent();
+      if (p2 instanceof AST_Binary && p2.operator !== "=")
         return true;
-      if (p instanceof AST_Call && p.expression === this)
+      if (p2 instanceof AST_Call && p2.expression === this)
         return true;
-      if (p instanceof AST_Conditional && p.condition === this)
+      if (p2 instanceof AST_Conditional && p2.condition === this)
         return true;
-      if (p instanceof AST_Unary)
+      if (p2 instanceof AST_Unary)
         return true;
-      if (p instanceof AST_PropAccess && p.expression === this)
+      if (p2 instanceof AST_PropAccess && p2.expression === this)
         return true;
     });
     PARENS(AST_Chain, function(output) {
-      var p = output.parent();
-      if (!(p instanceof AST_Call || p instanceof AST_PropAccess))
+      var p2 = output.parent();
+      if (!(p2 instanceof AST_Call || p2 instanceof AST_PropAccess))
         return false;
-      return p.expression === this;
+      return p2.expression === this;
     });
     PARENS(AST_PropAccess, function(output) {
-      var p = output.parent();
-      if (p instanceof AST_New && p.expression === this) {
+      var p2 = output.parent();
+      if (p2 instanceof AST_New && p2.expression === this) {
         return walk2(this, (node) => {
           if (node instanceof AST_Scope)
             return true;
@@ -19043,19 +19813,19 @@ var init_output = __esm(() => {
       }
     });
     PARENS(AST_Call, function(output) {
-      var p = output.parent(), p1;
-      if (p instanceof AST_New && p.expression === this || p instanceof AST_Export && p.is_default && this.expression instanceof AST_Function)
+      var p2 = output.parent(), p1;
+      if (p2 instanceof AST_New && p2.expression === this || p2 instanceof AST_Export && p2.is_default && this.expression instanceof AST_Function)
         return true;
-      return this.expression instanceof AST_Function && p instanceof AST_PropAccess && p.expression === this && (p1 = output.parent(1)) instanceof AST_Assign && p1.left === p;
+      return this.expression instanceof AST_Function && p2 instanceof AST_PropAccess && p2.expression === this && (p1 = output.parent(1)) instanceof AST_Assign && p1.left === p2;
     });
     PARENS(AST_New, function(output) {
-      var p = output.parent();
-      if (this.args.length === 0 && (p instanceof AST_PropAccess || p instanceof AST_Call && p.expression === this || p instanceof AST_PrefixedTemplateString && p.prefix === this))
+      var p2 = output.parent();
+      if (this.args.length === 0 && (p2 instanceof AST_PropAccess || p2 instanceof AST_Call && p2.expression === this || p2 instanceof AST_PrefixedTemplateString && p2.prefix === this))
         return true;
     });
     PARENS(AST_Number, function(output) {
-      var p = output.parent();
-      if (p instanceof AST_PropAccess && p.expression === this) {
+      var p2 = output.parent();
+      if (p2 instanceof AST_PropAccess && p2.expression === this) {
         var value = this.getValue();
         if (value < 0 || /^0/.test(make_num(value))) {
           return true;
@@ -19063,8 +19833,8 @@ var init_output = __esm(() => {
       }
     });
     PARENS(AST_BigInt, function(output) {
-      var p = output.parent();
-      if (p instanceof AST_PropAccess && p.expression === this) {
+      var p2 = output.parent();
+      if (p2 instanceof AST_PropAccess && p2.expression === this) {
         var value = this.getValue();
         if (value.startsWith("-")) {
           return true;
@@ -19072,16 +19842,16 @@ var init_output = __esm(() => {
       }
     });
     PARENS([AST_Assign, AST_Conditional], function(output) {
-      var p = output.parent();
-      if (p instanceof AST_Unary)
+      var p2 = output.parent();
+      if (p2 instanceof AST_Unary)
         return true;
-      if (p instanceof AST_Binary && !(p instanceof AST_Assign))
+      if (p2 instanceof AST_Binary && !(p2 instanceof AST_Assign))
         return true;
-      if (p instanceof AST_Call && p.expression === this)
+      if (p2 instanceof AST_Call && p2.expression === this)
         return true;
-      if (p instanceof AST_Conditional && p.condition === this)
+      if (p2 instanceof AST_Conditional && p2.condition === this)
         return true;
-      if (p instanceof AST_PropAccess && p.expression === this)
+      if (p2 instanceof AST_PropAccess && p2.expression === this)
         return true;
       if (this instanceof AST_Assign && this.left instanceof AST_Destructuring && this.left.is_array === false)
         return true;
@@ -19416,20 +20186,20 @@ var init_output = __esm(() => {
       self2._do_print(output, "continue");
     });
     function make_then(self2, output) {
-      var b = self2.body;
-      if (output.option("braces") || output.option("ie8") && b instanceof AST_Do)
-        return make_block(b, output);
-      if (!b)
+      var b2 = self2.body;
+      if (output.option("braces") || output.option("ie8") && b2 instanceof AST_Do)
+        return make_block(b2, output);
+      if (!b2)
         return output.force_semicolon();
       while (true) {
-        if (b instanceof AST_If) {
-          if (!b.alternative) {
+        if (b2 instanceof AST_If) {
+          if (!b2.alternative) {
             make_block(self2.body, output);
             return;
           }
-          b = b.alternative;
-        } else if (b instanceof AST_StatementWithBody) {
-          b = b.body;
+          b2 = b2.alternative;
+        } else if (b2 instanceof AST_StatementWithBody) {
+          b2 = b2.body;
         } else
           break;
       }
@@ -19534,9 +20304,9 @@ var init_output = __esm(() => {
           output.comma();
         def.print(output);
       });
-      var p = output.parent();
-      var in_for = p instanceof AST_For || p instanceof AST_ForIn;
-      var output_semicolon = !in_for || p && p.init !== this;
+      var p2 = output.parent();
+      var in_for = p2 instanceof AST_For || p2 instanceof AST_ForIn;
+      var output_semicolon = !in_for || p2 && p2.init !== this;
       if (output_semicolon)
         output.semicolon();
     });
@@ -19699,8 +20469,8 @@ var init_output = __esm(() => {
         output.space();
         output.print("=");
         output.space();
-        var p = output.parent(1);
-        var noin = p instanceof AST_For || p instanceof AST_ForIn;
+        var p2 = output.parent(1);
+        var noin = p2 instanceof AST_For || p2 instanceof AST_ForIn;
         parenthesize_for_noin(self2.value, output, noin);
       }
     });
@@ -21110,8 +21880,8 @@ var init_scope = __esm(() => {
         frequency.set(str[i2], frequency.get(str[i2]) + delta);
       }
     }
-    function compare(a, b) {
-      return frequency.get(b) - frequency.get(a);
+    function compare(a, b2) {
+      return frequency.get(b2) - frequency.get(a);
     }
     function sort() {
       chars = mergeSort(leading, compare).concat(mergeSort(digits, compare));
@@ -21872,11 +22642,11 @@ function is_modified(compressor, tw, node, value, level, immutable) {
   }
 }
 function is_used_in_expression(tw) {
-  for (let p = -1, node, parent;node = tw.parent(p), parent = tw.parent(p + 1); p++) {
+  for (let p2 = -1, node, parent;node = tw.parent(p2), parent = tw.parent(p2 + 1); p2++) {
     if (parent instanceof AST_Sequence) {
       const nth_expression = parent.expressions.indexOf(node);
       if (nth_expression !== parent.expressions.length - 1) {
-        const grandparent = tw.parent(p + 2);
+        const grandparent = tw.parent(p2 + 2);
         if (parent.expressions.length > 2 || parent.expressions.length === 1 || !requires_sequence_to_maintain_binding(grandparent, parent, parent.expressions[1])) {
           return false;
         }
@@ -24272,11 +25042,11 @@ var init_reduce_vars = __esm(() => {
 });
 
 // node_modules/terser/lib/compress/tighten-body.js
-function loop_body(x) {
-  if (x instanceof AST_IterationStatement) {
-    return x.body instanceof AST_BlockStatement ? x.body : x;
+function loop_body(x2) {
+  if (x2 instanceof AST_IterationStatement) {
+    return x2.body instanceof AST_BlockStatement ? x2.body : x2;
   }
-  return x;
+  return x2;
 }
 function is_lhs_read_only(lhs) {
   if (lhs instanceof AST_This)
@@ -25341,19 +26111,19 @@ function tighten_body(statements, compressor) {
       };
       if (!def.value.properties.every(diff))
         break;
-      var p = def.value.properties.filter(function(p2) {
-        return p2.key === prop;
+      var p2 = def.value.properties.filter(function(p3) {
+        return p3.key === prop;
       })[0];
-      if (!p) {
+      if (!p2) {
         def.value.properties.push(make_node(AST_ObjectKeyVal, node, {
           key: prop,
           value: node.right
         }));
       } else {
-        p.value = new AST_Sequence({
-          start: p.start,
-          expressions: [p.value.clone(), node.right.clone()],
-          end: p.end
+        p2.value = new AST_Sequence({
+          start: p2.start,
+          expressions: [p2.value.clone(), node.right.clone()],
+          end: p2.end
         });
       }
       exprs.shift();
@@ -25634,11 +26404,11 @@ function inline_into_call(self2, compressor) {
     let nearest_scope;
     if (simple_args && !fn.uses_arguments && !(compressor.parent() instanceof AST_Class) && !(fn.name && fn instanceof AST_Function) && (returned_value = can_flatten_body(stat)) && (exp === fn || has_annotation(self2, _INLINE) || compressor.option("unused") && (def = exp.definition()).references.length == 1 && !is_recursive_ref(compressor, def) && fn.is_constant_expression(exp.scope)) && !has_annotation(self2, _PURE | _NOINLINE) && !fn.contains_this() && can_inject_symbols() && (nearest_scope = compressor.find_scope()) && !scope_encloses_variables_in_this_scope(nearest_scope, fn) && !function in_default_assign() {
       let i2 = 0;
-      let p;
-      while (p = compressor.parent(i2++)) {
-        if (p instanceof AST_DefaultAssign)
+      let p2;
+      while (p2 = compressor.parent(i2++)) {
+        if (p2 instanceof AST_DefaultAssign)
           return true;
-        if (p instanceof AST_Block)
+        if (p2 instanceof AST_Block)
           break;
       }
       return false;
@@ -26374,12 +27144,12 @@ var init_compress = __esm(() => {
       if (!this.option("booleans"))
         return false;
       var self2 = this.self();
-      for (var i2 = 0, p;p = this.parent(i2); i2++) {
-        if (p instanceof AST_SimpleStatement || p instanceof AST_Conditional && p.condition === self2 || p instanceof AST_DWLoop && p.condition === self2 || p instanceof AST_For && p.condition === self2 || p instanceof AST_If && p.condition === self2 || p instanceof AST_UnaryPrefix && p.operator == "!" && p.expression === self2) {
+      for (var i2 = 0, p2;p2 = this.parent(i2); i2++) {
+        if (p2 instanceof AST_SimpleStatement || p2 instanceof AST_Conditional && p2.condition === self2 || p2 instanceof AST_DWLoop && p2.condition === self2 || p2 instanceof AST_For && p2.condition === self2 || p2 instanceof AST_If && p2.condition === self2 || p2 instanceof AST_UnaryPrefix && p2.operator == "!" && p2.expression === self2) {
           return true;
         }
-        if (p instanceof AST_Binary && (p.operator == "&&" || p.operator == "||" || p.operator == "??") || p instanceof AST_Conditional || p.tail_node() === self2) {
-          self2 = p;
+        if (p2 instanceof AST_Binary && (p2.operator == "&&" || p2.operator == "||" || p2.operator == "??") || p2 instanceof AST_Conditional || p2.tail_node() === self2) {
+          self2 = p2;
         } else {
           return false;
         }
@@ -26389,19 +27159,19 @@ var init_compress = __esm(() => {
       if (!this.option("evaluate"))
         return false;
       var self2 = this.self();
-      for (var i2 = 0, p;p = this.parent(i2); i2++) {
-        if (p instanceof AST_Binary && bitwise_binop.has(p.operator)) {
+      for (var i2 = 0, p2;p2 = this.parent(i2); i2++) {
+        if (p2 instanceof AST_Binary && bitwise_binop.has(p2.operator)) {
           if (other_operand_must_be_number) {
-            return (self2 === p.left ? p.right : p.left).is_number(this);
+            return (self2 === p2.left ? p2.right : p2.left).is_number(this);
           } else {
             return true;
           }
         }
-        if (p instanceof AST_UnaryPrefix) {
-          return p.operator === "~";
+        if (p2 instanceof AST_UnaryPrefix) {
+          return p2.operator === "~";
         }
-        if (p instanceof AST_Binary && (p.operator == "&&" && p.right === self2 || p.operator == "||" && p.right === self2 || p.operator == "??" && p.right === self2) || p instanceof AST_Conditional && p.condition !== self2 || p.tail_node() === self2) {
-          self2 = p;
+        if (p2 instanceof AST_Binary && (p2.operator == "&&" && p2.right === self2 || p2.operator == "||" && p2.right === self2 || p2.operator == "??" && p2.right === self2) || p2 instanceof AST_Conditional && p2.condition !== self2 || p2.tail_node() === self2) {
+          self2 = p2;
         } else {
           return false;
         }
@@ -26411,8 +27181,8 @@ var init_compress = __esm(() => {
       if (!this.option("evaluate"))
         return false;
       var self2 = this.self();
-      for (var i2 = 0, p;p = this.parent(i2); i2++) {
-        if (p instanceof AST_ObjectProperty && p.key === self2) {
+      for (var i2 = 0, p2;p2 = this.parent(i2); i2++) {
+        if (p2 instanceof AST_ObjectProperty && p2.key === self2) {
           return true;
         }
       }
@@ -26667,15 +27437,15 @@ var init_compress = __esm(() => {
               ++vars_found;
             });
             var seq = node.to_assignments(compressor);
-            var p = tt.parent();
-            if (p instanceof AST_ForIn && p.init === node) {
+            var p2 = tt.parent();
+            if (p2 instanceof AST_ForIn && p2.init === node) {
               if (seq == null) {
                 var def2 = node.definitions[0].name;
                 return make_node(AST_SymbolRef, def2, def2);
               }
               return seq;
             }
-            if (p instanceof AST_For && p.init === node) {
+            if (p2 instanceof AST_For && p2.init === node) {
               return seq;
             }
             if (!seq)
@@ -26694,7 +27464,7 @@ var init_compress = __esm(() => {
         const is_lambda = self2 instanceof AST_Lambda;
         const args_as_names = is_lambda ? self2.args_as_names() : null;
         vars.forEach((def2, name) => {
-          if (is_lambda && args_as_names.some((x) => x.name === def2.name.name)) {
+          if (is_lambda && args_as_names.some((x2) => x2.name === def2.name.name)) {
             vars.delete(name);
           } else {
             def2 = def2.clone();
@@ -27079,10 +27849,10 @@ var init_compress = __esm(() => {
             if (!equivalentBranch && last_branch) {
               next.body.push(make_node(AST_Break));
             }
-            let x = j - 1;
+            let x2 = j - 1;
             let fallthroughDepth = 0;
-            while (x > i3) {
-              if (is_inert_body(body[x--])) {
+            while (x2 > i3) {
+              if (is_inert_body(body[x2--])) {
                 fallthroughDepth++;
               } else {
                 break;
@@ -27653,7 +28423,7 @@ var init_compress = __esm(() => {
     if (compressor.option("unsafe_Function") && is_undeclared_ref(exp) && exp.name == "Function") {
       if (self2.args.length == 0)
         return make_empty_function(self2).optimize(compressor);
-      if (self2.args.every((x) => x instanceof AST_String)) {
+      if (self2.args.every((x2) => x2 instanceof AST_String)) {
         try {
           var code = "n(function(" + self2.args.slice(0, -1).map(function(arg2) {
             return arg2.value;
@@ -27755,11 +28525,11 @@ var init_compress = __esm(() => {
   AST_Unary.DEFMETHOD("lift_sequences", function(compressor) {
     if (compressor.option("sequences")) {
       if (this.expression instanceof AST_Sequence) {
-        var x = this.expression.expressions.slice();
+        var x2 = this.expression.expressions.slice();
         var e = this.clone();
-        e.expression = x.pop();
-        x.push(e);
-        return make_sequence(this, x).optimize(compressor);
+        e.expression = x2.pop();
+        x2.push(e);
+        return make_sequence(this, x2).optimize(compressor);
       }
     }
     return this;
@@ -27843,32 +28613,32 @@ var init_compress = __esm(() => {
   AST_Binary.DEFMETHOD("lift_sequences", function(compressor) {
     if (compressor.option("sequences")) {
       if (this.left instanceof AST_Sequence) {
-        var x = this.left.expressions.slice();
+        var x2 = this.left.expressions.slice();
         var e = this.clone();
-        e.left = x.pop();
-        x.push(e);
-        return make_sequence(this, x).optimize(compressor);
+        e.left = x2.pop();
+        x2.push(e);
+        return make_sequence(this, x2).optimize(compressor);
       }
       if (this.right instanceof AST_Sequence && !this.left.has_side_effects(compressor)) {
         var assign = this.operator == "=" && this.left instanceof AST_SymbolRef;
-        var x = this.right.expressions;
-        var last = x.length - 1;
+        var x2 = this.right.expressions;
+        var last = x2.length - 1;
         for (var i2 = 0;i2 < last; i2++) {
-          if (!assign && x[i2].has_side_effects(compressor))
+          if (!assign && x2[i2].has_side_effects(compressor))
             break;
         }
         if (i2 == last) {
-          x = x.slice();
+          x2 = x2.slice();
           var e = this.clone();
-          e.right = x.pop();
-          x.push(e);
-          return make_sequence(this, x).optimize(compressor);
+          e.right = x2.pop();
+          x2.push(e);
+          return make_sequence(this, x2).optimize(compressor);
         } else if (i2 > 0) {
           var e = this.clone();
-          e.right = make_sequence(this.right, x.slice(i2));
-          x = x.slice(0, i2);
-          x.push(e);
-          return make_sequence(this, x).optimize(compressor);
+          e.right = make_sequence(this.right, x2.slice(i2));
+          x2 = x2.slice(0, i2);
+          x2.push(e);
+          return make_sequence(this, x2).optimize(compressor);
         }
       }
     }
@@ -27946,14 +28716,14 @@ var init_compress = __esm(() => {
             if (self2.right instanceof AST_Number && self2.right.value === 0) {
               return booleanify(self2.left, self2.operator[0] === "!");
             }
-            let and_op, x, mask;
-            if ((and_op = self2.left instanceof AST_Binary ? self2.left : self2.right instanceof AST_Binary ? self2.right : null) && (mask = and_op === self2.left ? self2.right : self2.left) && and_op.operator === "&" && mask instanceof AST_Number && mask.is_32_bit_integer(compressor) && (x = and_op.left.equivalent_to(mask) ? and_op.right : and_op.right.equivalent_to(mask) ? and_op.left : null)) {
+            let and_op, x2, mask;
+            if ((and_op = self2.left instanceof AST_Binary ? self2.left : self2.right instanceof AST_Binary ? self2.right : null) && (mask = and_op === self2.left ? self2.right : self2.left) && and_op.operator === "&" && mask instanceof AST_Number && mask.is_32_bit_integer(compressor) && (x2 = and_op.left.equivalent_to(mask) ? and_op.right : and_op.right.equivalent_to(mask) ? and_op.left : null)) {
               let optimized = booleanify(make_node(AST_Binary, self2, {
                 operator: "&",
                 left: mask,
                 right: make_node(AST_UnaryPrefix, self2, {
                   operator: "~",
-                  expression: x
+                  expression: x2
                 })
               }), self2.operator[0] === "!");
               return best_of(compressor, optimized, self2);
@@ -28664,17 +29434,17 @@ var init_compress = __esm(() => {
     }
     function single_arg_diff() {
       var a = consequent.args;
-      var b = alternative.args;
+      var b2 = alternative.args;
       for (var i2 = 0, len = a.length;i2 < len; i2++) {
         if (a[i2] instanceof AST_Expansion)
           return;
-        if (!a[i2].equivalent_to(b[i2])) {
-          if (b[i2] instanceof AST_Expansion)
+        if (!a[i2].equivalent_to(b2[i2])) {
+          if (b2[i2] instanceof AST_Expansion)
             return;
           for (var j = i2 + 1;j < len; j++) {
             if (a[j] instanceof AST_Expansion)
               return;
-            if (!a[j].equivalent_to(b[j]))
+            if (!a[j].equivalent_to(b2[j]))
               return;
           }
           return i2;
@@ -28687,17 +29457,17 @@ var init_compress = __esm(() => {
       return make_node(AST_Number, self2, {
         value: +self2.value
       });
-    var p = compressor.parent();
+    var p2 = compressor.parent();
     if (compressor.option("booleans_as_integers")) {
-      if (p instanceof AST_Binary && (p.operator == "===" || p.operator == "!==")) {
-        p.operator = p.operator.replace(/=$/, "");
+      if (p2 instanceof AST_Binary && (p2.operator == "===" || p2.operator == "!==")) {
+        p2.operator = p2.operator.replace(/=$/, "");
       }
       return make_node(AST_Number, self2, {
         value: +self2.value
       });
     }
     if (compressor.option("booleans")) {
-      if (p instanceof AST_Binary && (p.operator == "==" || p.operator == "!=")) {
+      if (p2 instanceof AST_Binary && (p2.operator == "==" || p2.operator == "!=")) {
         return make_node(AST_Number, self2, {
           value: +self2.value
         });
@@ -28725,7 +29495,7 @@ var init_compress = __esm(() => {
       for (var i2 = props.length;--i2 >= 0; ) {
         var prop = props[i2];
         if ("" + (prop instanceof AST_ConciseMethod ? prop.key.name : prop.key) == key) {
-          const all_props_flattenable = props.every((p) => (p instanceof AST_ObjectKeyVal || arrows && p instanceof AST_ConciseMethod && !p.value.is_generator) && !p.computed_key());
+          const all_props_flattenable = props.every((p2) => (p2 instanceof AST_ObjectKeyVal || arrows && p2 instanceof AST_ConciseMethod && !p2.value.is_generator) && !p2.computed_key());
           if (!all_props_flattenable)
             return;
           if (!safe_to_flatten(prop.value, compressor))
@@ -29107,8 +29877,8 @@ var init_compress = __esm(() => {
     return self2;
     function is_destructuring_export_decl(compressor2) {
       var ancestors = [/^VarDef$/, /^(Const|Let|Var)$/, /^Export$/];
-      for (var a = 0, p = 0, len = ancestors.length;a < len; p++) {
-        var parent = compressor2.parent(p);
+      for (var a = 0, p2 = 0, len = ancestors.length;a < len; p2++) {
+        var parent = compressor2.parent(p2);
         if (!parent)
           return false;
         if (a === 0 && parent.TYPE == "Destructuring")
@@ -29218,8 +29988,8 @@ function decode(mappings) {
 function sort(line) {
   line.sort(sortComparator);
 }
-function sortComparator(a, b) {
-  return a[0] - b[0];
+function sortComparator(a, b2) {
+  return a[0] - b2[0];
 }
 function encode(decoded) {
   const writer = new StringWriter;
@@ -29520,8 +30290,8 @@ function sortSegments(line, owned) {
     line = line.slice();
   return line.sort(sortComparator2);
 }
-function sortComparator2(a, b) {
-  return a[COLUMN] - b[COLUMN];
+function sortComparator2(a, b2) {
+  return a[COLUMN] - b2[COLUMN];
 }
 function buildBySources(decoded, memos) {
   const sources = memos.map(() => []);
@@ -40133,257 +40903,9 @@ var init_main = __esm(() => {
   init_cli();
 });
 
-// src/bundler/runtime/core-runtime.ts
-var CORE_RUNTIME_SOURCE = `
-// Pulse v0.11.0 Core Runtime - Signal System
-let activeEffect = null;
-const effectStack = [];
+// src/runtime/runtime-builder.ts
+import path7 from "path";
 
-export function createSignal(initialValue) {
-  let value = initialValue;
-  const subscribers = new Set();
-  
-  const read = () => {
-    if (activeEffect) subscribers.add(activeEffect);
-    return value;
-  };
-  
-  const write = (newValue) => {
-    const next = typeof newValue === 'function' ? newValue(value) : newValue;
-    if (value !== next) {
-      value = next;
-      subscribers.forEach(effect => effect());
-    }
-  };
-  
-  return [read, write];
-}
-
-export function createEffect(fn) {
-  const effect = () => {
-    effectStack.push(effect);
-    activeEffect = effect;
-    try {
-      fn();
-    } finally {
-      effectStack.pop();
-      activeEffect = effectStack[effectStack.length - 1] || null;
-    }
-  };
-  effect();
-  return effect;
-}
-
-export function createMemo(fn) {
-  const [signal, setSignal] = createSignal();
-  createEffect(() => setSignal(fn()));
-  return signal;
-}
-
-export function batch(fn) {
-  const updates = [];
-  let batching = true;
-  try {
-    fn();
-  } finally {
-    batching = false;
-    updates.forEach(update => update());
-  }
-}
-
-export function hydrate(selector, Component, props = {}) {
-  const el = document.querySelector(selector);
-  if (!el) return console.warn('[Pulse] Hydration target not found:', selector);
-  
-  try {
-    const vnode = Component(props);
-    if (vnode instanceof HTMLElement) {
-      el.replaceWith(vnode);
-    } else if (vnode instanceof DocumentFragment) {
-      el.replaceWith(...Array.from(vnode.childNodes));
-    } else if (vnode && typeof vnode === 'object' && 'nodeType' in vnode) {
-      el.replaceWith(vnode);
-    } else {
-      console.warn('[Pulse] Component did not return a valid DOM node');
-    }
-  } catch (error) {
-    console.error('[Pulse] Hydration error:', error);
-  }
-}
-`;
-
-// src/bundler/runtime/primitives/list.ts
-var LIST_PRIMITIVE_SOURCE = `
-import { createEffect } from '../core.js';
-
-export function List(props) {
-  const container = document.createElement('div');
-  container.style.display = 'contents';
-  container.setAttribute('data-pulse-list', 'true');
-  
-  const itemsGetter = typeof props.each === 'function' ? props.each : () => props.each || [];
-  const template = props.children;
-  const keyFn = props.key || ((item, index) => item?.id ?? item?.key ?? index);
-  
-  let prevItems = [];
-  let prevNodes = new Map();
-  
-  createEffect(() => {
-    const items = itemsGetter();
-    const newItems = Array.isArray(items) ? items : [];
-    
-    const newKeys = new Map();
-    newItems.forEach((item, index) => {
-      const key = keyFn(item, index);
-      newKeys.set(key, { item, index });
-    });
-    
-    const oldKeys = new Map();
-    prevItems.forEach((item, index) => {
-      const key = keyFn(item, index);
-      oldKeys.set(key, { item, index });
-    });
-    
-    const nodesToKeep = new Map();
-    const nodesToAdd = [];
-    const nodesToRemove = [];
-    
-    newKeys.forEach((newData, key) => {
-      if (oldKeys.has(key)) {
-        const oldData = oldKeys.get(key);
-        const node = prevNodes.get(key);
-        
-        // Strict equality check for item reuse
-        if (node && oldData.item === newData.item) {
-          nodesToKeep.set(key, { node, item: newData.item, index: newData.index });
-        } else {
-          // If item changed, treat as new (re-render)
-          nodesToAdd.push({ key, item: newData.item, index: newData.index });
-        }
-      } else {
-        nodesToAdd.push({ key, item: newData.item, index: newData.index });
-      }
-    });
-    
-    oldKeys.forEach((oldData, key) => {
-      if (!newKeys.has(key)) {
-        const node = prevNodes.get(key);
-        if (node) nodesToRemove.push({ key, node });
-      }
-    });
-    
-    nodesToRemove.forEach(({ key, node }) => {
-      if (node.parentNode === container) container.removeChild(node);
-      prevNodes.delete(key);
-    });
-    
-    const newNodes = new Map(nodesToKeep);
-    nodesToAdd.forEach(({ key, item, index }) => {
-      const node = typeof template === 'function' ? template(item, index) : document.createTextNode(String(item));
-      newNodes.set(key, node instanceof Node ? node : document.createTextNode(String(node)));
-    });
-    
-    const fragment = document.createDocumentFragment();
-    newItems.forEach((item, index) => {
-      const key = keyFn(item, index);
-      const node = newNodes.get(key);
-      if (node) fragment.appendChild(node);
-    });
-    
-    container.innerHTML = '';
-    container.appendChild(fragment);
-    prevItems = newItems;
-    prevNodes = newNodes;
-  });
-  
-  return container;
-}
-`;
-
-// src/bundler/runtime/primitives/show.ts
-var SHOW_PRIMITIVE_SOURCE = `
-import { createEffect } from '../core.js';
-
-export function Show(props) {
-  const anchor = document.createComment('show');
-  const container = document.createElement('div');
-  container.style.display = 'contents';
-  container.appendChild(anchor);
-  
-  let currentNode = null;
-  let isShowing = false;
-  let init = true;
-  
-  createEffect(() => {
-    const condition = typeof props.when === 'function' ? props.when() : props.when;
-    const shouldShow = !!condition;
-
-    if (init || shouldShow !== isShowing) {
-       if (shouldShow) {
-         // Switch to Showing
-         if (currentNode && currentNode.parentNode === container) {
-            container.removeChild(currentNode);
-         }
-         const content = typeof props.children === 'function' ? props.children() : props.children;
-         currentNode = content instanceof Node ? content : document.createTextNode(String(content || ''));
-         if (currentNode.classList) currentNode.classList.add('p-enter');
-         container.insertBefore(currentNode, anchor);
-         isShowing = true;
-       } else {
-         // Switch to Hiding (Fallback)
-         if (currentNode && currentNode.parentNode === container) {
-            container.removeChild(currentNode);
-         }
-         if (props.fallback) {
-            const fallback = typeof props.fallback === 'function' ? props.fallback() : props.fallback;
-            currentNode = fallback instanceof Node ? fallback : document.createTextNode(String(fallback || ''));
-             if (currentNode.classList) currentNode.classList.add('p-enter');
-            container.insertBefore(currentNode, anchor);
-         } else {
-            currentNode = null;
-         }
-         isShowing = false;
-       }
-       init = false;
-    }
-  });
-  
-  return container;
-}
-`;
-
-// src/bundler/runtime/primitives/portal.ts
-var PORTAL_PRIMITIVE_SOURCE = `
-import { createEffect } from '../core.js';
-
-export function Portal(props) {
-  const placeholder = document.createComment('portal');
-  
-  createEffect(() => {
-    const target = typeof props.target === 'string' 
-      ? document.querySelector(props.target)
-      : props.target;
-    
-    if (!target) {
-      console.warn('Portal target not found:', props.target);
-      return;
-    }
-    
-    const content = typeof props.children === 'function' ? props.children() : props.children;
-    const node = content instanceof Node ? content : document.createTextNode(String(content || ''));
-    
-    target.appendChild(node);
-    
-    return () => {
-      if (node.parentNode === target) target.removeChild(node);
-    };
-  });
-  
-  return placeholder;
-}
-`;
-
-// src/bundler/runtime/runtime-builder.ts
 class RuntimeBuilder {
   ctx;
   constructor(ctx) {
@@ -40412,30 +40934,27 @@ class RuntimeBuilder {
   collectPrimitives(graph) {
     const primitives = new Set;
     for (const node of graph.nodes.values()) {
-      node.primitives.forEach((p) => primitives.add(p));
+      node.primitives.forEach((p2) => primitives.add(p2));
     }
     return primitives;
   }
   async buildCoreRuntime() {
-    return this.minifyCode(CORE_RUNTIME_SOURCE);
+    const corePath = path7.resolve(import.meta.dir, "../../runtime/core.ts");
+    const file = Bun.file(corePath);
+    if (await file.exists()) {
+      return this.minifyCode(await file.text());
+    }
+    return "";
   }
   async buildPrimitive(primitive) {
-    let source = "";
-    switch (primitive) {
-      case "List":
-        source = LIST_PRIMITIVE_SOURCE;
-        break;
-      case "Show":
-        source = SHOW_PRIMITIVE_SOURCE;
-        break;
-      case "Portal":
-        source = PORTAL_PRIMITIVE_SOURCE;
-        break;
-      default:
-        console.warn(`Unknown primitive: ${primitive}`);
-        return "";
+    const fileName = `${primitive.toLowerCase()}.ts`;
+    const primitivePath = path7.resolve(import.meta.dir, "../../runtime/primitives", fileName);
+    const file = Bun.file(primitivePath);
+    if (await file.exists()) {
+      return this.minifyCode(await file.text());
     }
-    return this.minifyCode(source);
+    console.warn(`[RuntimeBuilder] Primitive ${primitive} not found at ${primitivePath}`);
+    return "";
   }
   async minifyCode(code) {
     if (!this.ctx.config.build.minify) {
@@ -40477,7 +40996,7 @@ var init_runtime_builder = __esm(() => {
   init_main();
 });
 
-// src/bundler/bundler/code-splitter.ts
+// src/bundler/code-splitter.ts
 class CodeSplitter {
   split(graph) {
     const bundles = new Map;
@@ -40494,11 +41013,11 @@ class CodeSplitter {
   collectDependencies(nodePath, graph) {
     const collected = new Set;
     const visited = new Set;
-    const collect = (path7) => {
-      if (visited.has(path7))
+    const collect = (path8) => {
+      if (visited.has(path8))
         return;
-      visited.add(path7);
-      const deps = graph.edges.get(path7);
+      visited.add(path8);
+      const deps = graph.edges.get(path8);
       if (deps) {
         deps.forEach((dep) => {
           collected.add(dep);
@@ -40514,7 +41033,7 @@ class CodeSplitter {
   }
 }
 
-// src/bundler/bundler/compressor.ts
+// src/bundler/compressor.ts
 import { gzipSync, brotliCompressSync, constants } from "zlib";
 
 class Compressor2 {
@@ -40542,7 +41061,7 @@ class Compressor2 {
 }
 var init_compressor = () => {};
 
-// src/bundler/bundler/entry-generator.ts
+// src/bundler/entry-generator.ts
 class EntryGenerator {
   generate(page, islands, runtimePath, isStatic) {
     if (isStatic) {
@@ -40605,7 +41124,7 @@ class EntryGenerator {
   }
 }
 
-// src/bundler/bundler/minifier.ts
+// src/bundler/minifier.ts
 class Minifier {
   async minify(code, isModule = true) {
     const result = await minify(code, {
@@ -40642,7 +41161,7 @@ var init_minifier = __esm(() => {
 });
 
 // src/bundler/index.ts
-import path7 from "path";
+import path8 from "path";
 var {$, Glob } = globalThis.Bun;
 
 class PulseBundler {
@@ -40699,7 +41218,7 @@ class PulseBundler {
 `);
       console.log("\uD83D\uDCCA Phase 1: Analyzing dependencies...");
       const analyzer = new DependencyAnalyzer(this.ctx.config);
-      const pagesDir = path7.resolve(this.ctx.config.root, this.ctx.config.pages.dir);
+      const pagesDir = path8.resolve(this.ctx.config.root, this.ctx.config.pages.dir);
       const pageFiles = await this.findPulseFiles(pagesDir);
       for (const pageFile of pageFiles) {
         this.ctx.graph = await analyzer.analyze(pageFile);
@@ -40713,12 +41232,12 @@ class PulseBundler {
 \u2699\uFE0F  Phase 3: Building runtime...`);
       const runtimeBuilder = new RuntimeBuilder(this.ctx);
       const runtimes = await runtimeBuilder.buildRuntime(this.ctx.graph);
-      const runtimeDir = path7.join(this.ctx.config.outDir, "runtime");
+      const runtimeDir = path8.join(this.ctx.config.outDir, "runtime");
       await $`mkdir -p ${runtimeDir}`;
       for (const [name, code] of runtimes) {
         const finalCode = this.ctx.config.build.minify ? await this.minifier.minify(code) : code;
-        const filePath = path7.join(runtimeDir, `${name}.js`);
-        await $`mkdir -p ${path7.dirname(filePath)}`;
+        const filePath = path8.join(runtimeDir, `${name}.js`);
+        await $`mkdir -p ${path8.dirname(filePath)}`;
         await Bun.write(filePath, finalCode);
         if (this.ctx.config.optimization.compress && this.compressor.shouldCompress(Buffer.byteLength(finalCode))) {
           const compressed = this.compressor.compress(finalCode, this.ctx.config.optimization.compress);
@@ -40759,8 +41278,8 @@ class PulseBundler {
           isPreloaded: false
         };
         this.ctx.output.islands.set(island.id, manifest);
-        const islandPath = path7.join(this.ctx.config.outDir, "islands", `${island.id}.js`);
-        await $`mkdir -p ${path7.dirname(islandPath)}`;
+        const islandPath = path8.join(this.ctx.config.outDir, "islands", `${island.id}.js`);
+        await $`mkdir -p ${path8.dirname(islandPath)}`;
         await Bun.write(islandPath, finalCode);
         if (this.ctx.config.optimization.compress && this.compressor.shouldCompress(manifest.size)) {
           const compressed = this.compressor.compress(finalCode, this.ctx.config.optimization.compress);
@@ -40813,7 +41332,7 @@ class PulseBundler {
     const files = [];
     const glob = new Glob("**/*.pulse");
     for await (const file of glob.scan(dir)) {
-      files.push(path7.join(dir, file));
+      files.push(path8.join(dir, file));
     }
     return files;
   }
@@ -40831,8 +41350,8 @@ class PulseBundler {
     }
     const html = this.entryGenerator.generate(node, pageIslands, "/runtime/core.js", isStatic);
     const finalHTML = this.ctx.config.build.minify ? await this.minifier.minifyHTML(html) : html;
-    const pagePath = path7.join(this.ctx.config.outDir, node.name === "index" ? "index.html" : `${node.name}/index.html`);
-    await $`mkdir -p ${path7.dirname(pagePath)}`;
+    const pagePath = path8.join(this.ctx.config.outDir, node.name === "index" ? "index.html" : `${node.name}/index.html`);
+    await $`mkdir -p ${path8.dirname(pagePath)}`;
     await Bun.write(pagePath, finalHTML);
     if (this.ctx.config.optimization.compress && this.compressor.shouldCompress(Buffer.byteLength(finalHTML))) {
       const compressed = this.compressor.compress(finalHTML, this.ctx.config.optimization.compress);
@@ -40873,11 +41392,11 @@ class PulseBundler {
       version: "5.0.0",
       buildTime: new Date().toISOString(),
       stats: this.ctx.output.stats,
-      pages: Array.from(this.ctx.output.pages.values()).map((p) => ({
-        path: p.path,
-        isStatic: p.isStatic,
-        size: p.size,
-        islands: p.islands
+      pages: Array.from(this.ctx.output.pages.values()).map((p2) => ({
+        path: p2.path,
+        isStatic: p2.isStatic,
+        size: p2.size,
+        islands: p2.islands
       })),
       islands: Array.from(this.ctx.output.islands.values()).map((i2) => ({
         id: i2.id,
@@ -40891,7 +41410,7 @@ class PulseBundler {
         hitRate: this.ctx.cache.hits / (this.ctx.cache.hits + this.ctx.cache.misses)
       }
     };
-    const manifestPath = path7.join(this.ctx.config.outDir, "manifest.json");
+    const manifestPath = path8.join(this.ctx.config.outDir, "manifest.json");
     await Bun.write(manifestPath, JSON.stringify(manifest, null, 2));
   }
   printSummary() {
@@ -40938,7 +41457,7 @@ var init_bundler = __esm(() => {
   init_minifier();
 });
 
-// src/cli/utils/logger.ts
+// src/cli/logger.ts
 class Logger {
   static info(message) {
     console.log(import_picocolors2.default.blue("\u2139"), message);
@@ -41000,7 +41519,7 @@ var init_logger = __esm(() => {
   import_picocolors2 = __toESM(require_picocolors(), 1);
 });
 
-// src/cli/utils/spinner.ts
+// src/cli/spinner.ts
 class Spinner {
   frames = ["\u280B", "\u2819", "\u2839", "\u2838", "\u283C", "\u2834", "\u2826", "\u2827", "\u2807", "\u280F"];
   currentFrame = 0;
@@ -41042,7 +41561,7 @@ var init_spinner = __esm(() => {
   import_picocolors3 = __toESM(require_picocolors(), 1);
 });
 
-// src/cli/commands/build.ts
+// src/cli/build.ts
 var exports_build = {};
 __export(exports_build, {
   buildCommand: () => buildCommand
@@ -41104,20 +41623,20 @@ var init_build = __esm(() => {
   import_picocolors4 = __toESM(require_picocolors(), 1);
 });
 
-// src/cli/commands/preview.ts
+// src/cli/preview.ts
 var exports_preview = {};
 __export(exports_preview, {
   previewCommand: () => previewCommand
 });
-import path8 from "path";
+import path9 from "path";
 async function previewCommand(config) {
   console.log(import_picocolors5.default.bold(import_picocolors5.default.magenta(`
 \uD83D\uDCE6 Pulse Production Preview
 `)));
-  const outDir = path8.resolve(config.outDir);
+  const outDir = path9.resolve(config.outDir);
   const port = config.devServer.port || 3000;
   try {
-    const manifestPath = path8.join(outDir, "manifest.json");
+    const manifestPath = path9.join(outDir, "manifest.json");
     const manifestFile = Bun.file(manifestPath);
     if (!await manifestFile.exists()) {
       console.error(import_picocolors5.default.red('\u274C No build found. Run "pulse build" first.'));
@@ -41136,7 +41655,7 @@ async function previewCommand(config) {
         filePath = "/index.html";
       }
       try {
-        const fullPath = path8.join(outDir, filePath);
+        const fullPath = path9.join(outDir, filePath);
         const file = Bun.file(fullPath);
         if (await file.exists()) {
           if (req.headers.get("accept-encoding")?.includes("br")) {
@@ -41169,7 +41688,7 @@ async function previewCommand(config) {
           });
         }
         if (!filePath.includes(".")) {
-          const indexFile = Bun.file(path8.join(outDir, filePath, "index.html"));
+          const indexFile = Bun.file(path9.join(outDir, filePath, "index.html"));
           if (await indexFile.exists()) {
             return new Response(indexFile, {
               headers: { "Content-Type": "text/html" }
@@ -41191,7 +41710,7 @@ async function previewCommand(config) {
 `));
 }
 function getContentType(filePath) {
-  const ext = path8.extname(filePath).toLowerCase();
+  const ext = path9.extname(filePath).toLowerCase();
   const types2 = {
     ".html": "text/html",
     ".js": "application/javascript",
@@ -41215,17 +41734,17 @@ var init_preview = __esm(() => {
   import_picocolors5 = __toESM(require_picocolors(), 1);
 });
 
-// src/cli/commands/analyze.ts
+// src/cli/analyze.ts
 var exports_analyze = {};
 __export(exports_analyze, {
   analyzeCommand: () => analyzeCommand
 });
-import path9 from "path";
+import path10 from "path";
 async function analyzeCommand(config) {
   console.log(import_picocolors6.default.bold(import_picocolors6.default.magenta(`
 \uD83D\uDCCA Bundle Analysis
 `)));
-  const manifestPath = path9.join(config.outDir, "manifest.json");
+  const manifestPath = path10.join(config.outDir, "manifest.json");
   try {
     const manifestFile = await Bun.file(manifestPath).text();
     const manifest = JSON.parse(manifestFile);
@@ -41264,7 +41783,7 @@ var init_analyze = __esm(() => {
 
 // src/cli/index.ts
 import { parseArgs } from "util";
-import path10 from "path";
+import path11 from "path";
 
 // src/bundler/types.ts
 function createDefaultConfig(partial = {}) {
@@ -41303,6 +41822,7 @@ function createDefaultConfig(partial = {}) {
 
 // src/cli/index.ts
 var import_picocolors7 = __toESM(require_picocolors(), 1);
+console.log("--- PULSE CLI DEBUG: Using source from src/cli/index.ts ---");
 var PULSE_VERSION = "0.13.0";
 async function main() {
   const { values, positionals } = parseArgs({
@@ -41363,8 +41883,8 @@ async function main() {
   }
 }
 async function loadConfig(configPath) {
-  const defaultPath = path10.resolve(process.cwd(), "pulse.config.ts");
-  const finalPath = configPath ? path10.resolve(process.cwd(), configPath) : defaultPath;
+  const defaultPath = path11.resolve(process.cwd(), "pulse.config.ts");
+  const finalPath = configPath ? path11.resolve(process.cwd(), configPath) : defaultPath;
   try {
     const module = await import(finalPath);
     const userConfig = module.default;

@@ -1,8 +1,16 @@
 {
-	"extends": "../tsconfig.json",
-	"compilerOptions": {
-		"outDir": "../out",
-		"rootDir": "./src"
-	},
-	"include": ["./src/**/*"]
+  "compilerOptions": {
+    "module": "commonjs",
+    "target": "es2020",
+    "outDir": "out",
+    "rootDir": "src",
+    "lib": ["es2020"],
+    "sourceMap": true,
+    "strict": false,
+    "moduleResolution": "node",
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "skipLibCheck": true
+  },
+  "include": ["src"]
 }

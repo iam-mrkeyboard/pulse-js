@@ -1,0 +1,281 @@
+<script>
+  import Navbar from '../../components/Navbar.pulse';
+  import Footer from '../../components/Footer.pulse';
+
+  let title = "Pulse v0.14: The \"Vibe Coding\" Update";
+  let subtitle = "Unified Runtime, Microtask Scheduling, and High-Performance Primitives.";
+  let date = "February 5, 2026";
+</script>
+
+<Navbar />
+
+<main class="page">
+  <div class="content">
+    <div class="header">
+      <span class="date">{date}</span>
+      <h1>{title}</h1>
+      <p class="subtitle">{subtitle}</p>
+    </div>
+
+    <div class="body">
+      <p>
+        Pulse v0.14 is here, and it's our biggest architectural leap yet. We've focused entirely on 
+        "Vibe Coding" performance—ensuring that the framework feels instantaneous even under heavy loads. 
+        This release brings a unified runtime, intelligent scheduling, and major optimizations to our core primitives.
+      </p>
+
+      <h2>Unified Runtime Architecture</h2>
+      <p>
+        In previous versions, the runtime logic was scattered across bundler and server directories. 
+        v0.14 consolidates everything into a single, optimized <code>src/runtime</code> core. 
+        This not only reduces the bundle size but also ensures consistent behavior across client and server environments. 
+        We've removed duplicate files and established a "Single Source of Truth" for all framework logic.
+      </p>
+
+      <h2>Microtask Scheduler</h2>
+      <p>
+        State updates are now batched using a <strong>Microtask Scheduler</strong>. 
+        Instead of updating the DOM immediately with every signal change (which can cause layout thrashing), 
+        Pulse now collects updates and flushes them in a single coherent microtask.
+      </p>
+      <div class="highlight-box">
+        <strong>The Benefit:</strong>
+        <code>
+// v0.13 (Synchronous - 3 DOM updates)
+setCount(1); // update
+setCount(2); // update
+setCount(3); // update
+
+// v0.14 (Batched - 1 DOM update)
+setCount(1);
+setCount(2);
+setCount(3);
+// ... Microtask flushes once with value 3
+        </code>
+      </div>
+
+      <h2>Optimized DOM Helpers</h2>
+      <p>
+        We've introduced two powerful new helpers: <code>template()</code> and <code>walk()</code>.
+      </p>
+      <ul>
+        <li><strong><code>template()</code></strong>: Creates cached <code>&lt;template&gt;</code> elements once, allowing us to clone nodes efficiently instead of creating them from scratch.</li>
+        <li><strong><code>walk()</code></strong>: A highly optimized DOM traverser that uses pre-calculated paths (like a treasure map) to locate dynamic nodes instantly, bypassing slow <code>querySelector</code> calls.</li>
+      </ul>
+
+      <h2>Supercharged Primitives</h2>
+      <p>
+        The <code>&lt;List&gt;</code> primitive has received a massive upgrade:
+      </p>
+      <ul>
+        <li><strong>Virtualization:</strong> Render massive datasets (1000+ items) with zero lag by using the `virtual` prop. Pulse only renders what's visible on screen.</li>
+        <li><strong>FLIP Animations:</strong> Automatic, buttery-smooth 60fps reordering animations for lists using the FLIP (First, Last, Invert, Play) technique.</li>
+      </ul>
+
+      <h2>v0.13 vs v0.14 Comparison</h2>
+      <div class="table-container">
+        <table>
+          <thead>
+            <tr>
+              <th>Feature</th>
+              <th>v0.13</th>
+              <th>v0.14 (Current)</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>Runtime Structure</strong></td>
+              <td>Fragmented (Bundler/Server split)</td>
+              <td><strong>Unified Core</strong></td>
+            </tr>
+            <tr>
+              <td><strong>Reactivity</strong></td>
+              <td>Synchronous (Immediate)</td>
+              <td><strong>Microtask Batching (Async)</strong></td>
+            </tr>
+            <tr>
+              <td><strong>DOM Traversal</strong></td>
+              <td>Path Walker (Basic)</td>
+              <td><strong>Optimized <code>walk()</code> & <code>template()</code></strong></td>
+            </tr>
+            <tr>
+              <td><strong>List Rendering</strong></td>
+              <td>Keyed Reconciliation</td>
+              <td><strong>Virtualization & FLIP Animations</strong></td>
+            </tr>
+            <tr>
+              <td><strong>Testing</strong></td>
+              <td>Manual</td>
+              <td><strong>Bun Test Suite (Core, DOM, Compiler)</strong></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h2>Testing Infrastructure</h2>
+      <p>
+        Reliability is key. We've introduced a comprehensive testing suite using <strong>Bun Test</strong> and <strong>Happy DOM</strong>. 
+        We now have automated unit tests covering the Core Reactivity system, DOM Runtime, and the Compiler, ensuring that Pulse assumes nothing and verifies everything.
+      </p>
+
+      <h2>What's Next?</h2>
+      <p>
+        With a solid, high-performance foundation in place, we're turning our sights to advanced Server-Side Rendering (SSR) features and an even richer ecosystem of built-in components.
+      </p>
+    </div>
+  </div>
+</main>
+
+<Footer />
+
+<style>
+  .page {
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 100px 20px;
+    font-family: 'Inter', system-ui, sans-serif;
+    color: #1f2937;
+  }
+
+  .header {
+    text-align: center;
+    margin-bottom: 60px;
+  }
+
+  .date {
+    color: #6b46c1;
+    font-weight: 600;
+    font-size: 0.9rem;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+
+  h1 {
+    font-size: 3.5rem;
+    font-weight: 800;
+    margin: 10px 0 20px;
+    background: linear-gradient(135deg, #111827 0%, #4b5563 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    line-height: 1.1;
+  }
+
+  .subtitle {
+    font-size: 1.5rem;
+    color: #6b7280;
+    font-weight: 400;
+    max-width: 600px;
+    margin: 0 auto;
+  }
+
+  .body {
+    font-size: 1.1rem;
+    line-height: 1.8;
+  }
+
+  h2 {
+    font-size: 2rem;
+    margin-top: 50px;
+    margin-bottom: 25px;
+    color: #111827;
+  }
+
+  .highlight-box {
+    background: #f3f4f6;
+    border-left: 4px solid #6b46c1;
+    padding: 20px;
+    margin: 40px 0;
+    border-radius: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  code {
+    background: #1f2937;
+    color: #a5b4fc;
+    padding: 15px;
+    border-radius: 6px;
+    font-family: 'Fira Code', monospace;
+    display: block;
+    width: fit-content;
+    white-space: pre;
+    overflow-x: auto;
+    font-size: 0.9rem;
+  }
+
+  ul {
+    list-style-type: none;
+    padding: 0;
+  }
+
+  ul li {
+    padding-left: 24px;
+    position: relative;
+    margin-bottom: 12px;
+  }
+
+  ul li::before {
+    content: "•";
+    color: #6b46c1;
+    font-weight: bold;
+    font-size: 1.5rem;
+    position: absolute;
+    left: 0;
+    top: -5px;
+  }
+
+  /* Table Styles */
+  .table-container {
+    overflow-x: auto;
+    margin-top: 2rem;
+    margin-bottom: 2rem;
+    border-radius: 12px;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+    background: white;
+  }
+  
+  table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    font-size: 0.95rem;
+    overflow: hidden;
+  }
+  
+  th, td {
+    padding: 1rem 1.5rem;
+    text-align: left;
+    border-bottom: 1px solid #f3f4f6;
+  }
+  
+  th {
+    background: #6b46c1;
+    color: white;
+    font-weight: 600;
+    text-transform: uppercase;
+    font-size: 0.85rem;
+    letter-spacing: 0.05em;
+  }
+  
+  th:first-child {
+    border-top-left-radius: 8px;
+  }
+  th:last-child {
+    border-top-right-radius: 8px;
+  }
+  
+  tr:last-child td {
+    border-bottom: none;
+  }
+  
+  tr:nth-child(even) {
+    background: #f9fafb;
+    color: #1f2937;
+  }
+  
+  tr:hover td {
+    background: #f3e8ff;
+    color: #1f2937;
+  }
+</style>

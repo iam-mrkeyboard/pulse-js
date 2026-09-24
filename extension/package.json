@@ -2,7 +2,7 @@
   "name": "pulse-framework",
   "displayName": "Pulse Framework",
   "description": "Advanced language support for .pulse files with IntelliSense, diagnostics, and more",
-  "version": "1.4.0",
+  "version": "1.5.0",
   "publisher": "pulse",
   "icon": "images/icon.png",
   "repository": {
@@ -23,12 +23,14 @@
     "jsx",
     "reactive",
     "framework",
-    "typescript"
+    "typescript",
+    "bun",
+    "signals"
   ],
   "activationEvents": [
     "onLanguage:pulse"
   ],
-  "main": "./out/extension.js",
+  "main": "./client/out/extension.js",
   "contributes": {
     "languages": [
       {
@@ -55,7 +57,11 @@
         "embeddedLanguages": {
           "meta.embedded.block.javascript": "javascript",
           "meta.embedded.block.typescript": "typescript",
-          "meta.embedded.block.css": "css"
+          "meta.embedded.block.css": "css",
+          "meta.embedded.expression.pulse": "javascript",
+          "source.js": "javascript",
+          "source.ts": "typescript",
+          "source.css": "css"
         }
       }
     ],
@@ -73,9 +79,16 @@
           "other": true,
           "comments": false,
           "strings": true
-        }
+        },
+        "editor.suggest.insertMode": "replace",
+        "editor.acceptSuggestionOnEnter": "on"
       }
     },
+    "path": "./syntaxes/injection.json",
+    "scopeName": "pulse.injection",
+    "injectTo": [
+      "source.pulse"
+    ],
     "configuration": {
       "title": "Pulse Framework",
       "properties": {
@@ -89,6 +102,11 @@
           "default": true,
           "description": "Enable autocomplete suggestions"
         },
+        "pulse.autocomplete.cssInStyle": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable CSS property suggestions in style={{}} objects"
+        },
         "pulse.validate.imports": {
           "type": "boolean",
           "default": true,
@@ -98,6 +116,16 @@
           "type": "boolean",
           "default": true,
           "description": "Show HTML attribute suggestions"
+        },
+        "pulse.trace.server": {
+          "type": "string",
+          "enum": [
+            "off",
+            "messages",
+            "verbose"
+          ],
+          "default": "off",
+          "description": "Traces the communication between VS Code and the language server"
         }
       }
     }
@@ -106,25 +134,29 @@
     "vscode:prepublish": "npm run compile",
     "compile": "tsc -b client server",
     "watch": "tsc -b client server -w",
-    "postinstall": "cd client && npm install && cd ../server && npm install",
-    "test": "sh ./scripts/e2e.sh",
+    "lint": "eslint ./client/src ./server/src --ext .ts,.tsx",
+    "test": "npm run compile && node ./client/out/test/runTest.js",
     "package": "vsce package",
-    "antigravity:validate": "bun run ./scripts/verify-validator.ts"
+    "publish": "vsce publish"
   },
   "dependencies": {
     "acorn": "^8.15.0",
     "acorn-walk": "^8.3.4",
-    "tree-sitter-wasms": "^0.1.13",
     "vscode-languageclient": "^9.0.1",
     "vscode-languageserver": "^9.0.1",
-    "vscode-languageserver-textdocument": "^1.0.11",
-    "vscode-uri": "^3.0.8",
+    "vscode-languageserver-textdocument": "^1.0.12",
+    "vscode-uri": "^3.1.0",
     "web-tree-sitter": "0.22.6"
   },
   "devDependencies": {
     "@types/bun": "^1.3.6",
     "@types/node": "18.x",
+    "@types/vscode": "^1.90.0",
+    "@vscode/test-electron": "^2.3.9",
     "@vscode/vsce": "^2.22.0",
-    "typescript": "^5.3.0"
+    "eslint": "^8.57.0",
+    "@typescript-eslint/eslint-plugin": "^7.0.0",
+    "@typescript-eslint/parser": "^7.0.0",
+    "typescript": "^5.9.3"
   }
 }
