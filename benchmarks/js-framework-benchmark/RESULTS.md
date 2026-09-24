@@ -10,7 +10,8 @@
 | CPU iterations | **10** per test (default is 15; reduced for wall-clock; labelled) |
 | Benchmarks | CPU only (`01_`–`09_`). Memory / startup / size **not run to completion** (stopped after steering request; partial `21_ready-memory` for pulse+solid only — omitted from ranking). |
 | Pulse entry | `frameworks/keyed/pulse` — **runtime API fallback** (see below) |
-| Pulse version | 0.15.0 (branch `merge/restructure-with-fixes`) |
+| Pulse version | 0.16.0 (measured against a 0.15.0-era runtime snapshot — see note) |
+| Runtime snapshot | `pulse-runtime/` vendored from the `3770a68`-era tree, before the v0.16.0 host-mode hydration refinements (`ssr-markers`, List/Show host mode). This CPU bench creates rows fresh client-side (no SSR), so host-mode does not affect these numbers. |
 | isKeyed | **PASSED** — keyed for run / remove / swap |
 | Date | 2026-09-24 |
 

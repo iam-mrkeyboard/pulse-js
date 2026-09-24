@@ -1,11 +1,11 @@
 {
   "name": "js-framework-benchmark-pulse",
-  "version": "0.15.0",
+  "version": "0.16.0",
   "description": "Pulse keyed implementation for js-framework-benchmark",
   "type": "module",
   "main": "dist/main.js",
   "js-framework-benchmark": {
-    "frameworkVersion": "0.15.0",
+    "frameworkVersion": "0.16.0",
     "frameworkHomeURL": "https://github.com/iam-mrkeyboard/pulse-js",
     "language": "JavaScript",
     "repoURL": "https://github.com/iam-mrkeyboard/pulse-js"
