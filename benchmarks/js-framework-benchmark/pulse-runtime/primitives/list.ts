@@ -107,6 +107,20 @@ export function List(props: ListProps) {
 
     const newKeys = workItems.map((it, i) => keyOf(it, startIndex + i));
 
+    // Dev-only: Map reconcile collapses duplicate keys (last wins). Warn once per update.
+    if (typeof process === 'undefined' || process.env?.NODE_ENV !== 'production') {
+      const seen = new Set();
+      for (const k of newKeys) {
+        if (seen.has(k)) {
+          console.warn(
+            `[Pulse List] Duplicate key ${JSON.stringify(k)} — only the last item with this key is kept. Keys must be unique.`,
+          );
+          break;
+        }
+        seen.add(k);
+      }
+    }
+
     if (hydrating) {
       // Adopt by key from host children / initialNodes
       const byKey = new Map<any, Node>();

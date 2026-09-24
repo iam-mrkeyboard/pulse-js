@@ -125,3 +125,30 @@ describe('Keyed List (prefix/suffix + Map)', () => {
     expect(moves).toBeLessThanOrEqual(4);
   });
 });
+
+describe('List duplicate keys', () => {
+  test('warns in development when keys collide', () => {
+    const warnings: string[] = [];
+    const orig = console.warn;
+    console.warn = (...args: any[]) => { warnings.push(String(args[0])); };
+    try {
+      const host = document.createElement('tbody');
+      document.body.appendChild(host);
+      const [items, setItems] = createSignal([{ id: 1 }, { id: 1 }]);
+      List({
+        each: () => items(),
+        key: (r: any) => r.id,
+        children: (r: any) => {
+          const tr = document.createElement('tr');
+          tr.dataset.id = String(r.id);
+          return tr;
+        },
+        host,
+      } as any);
+      expect(warnings.some(w => w.includes('Duplicate key'))).toBe(true);
+      host.remove();
+    } finally {
+      console.warn = orig;
+    }
+  });
+});
