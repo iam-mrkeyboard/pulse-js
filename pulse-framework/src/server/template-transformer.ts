@@ -6,6 +6,7 @@
 import { HTMLParser, type ParsedNode, type ParsedExpression } from '../bundler/compiler/html-parser';
 import * as acorn from 'acorn';
 import { walk } from 'estree-walker';
+import { safeEval as safeEvalSSR } from '../runtime/safe-eval.js';
 
 export class TemplateTransformer {
   constructor() {
@@ -90,6 +91,32 @@ export class TemplateTransformer {
       setterMap.set(v.name, v.setter || ('set' + v.name.charAt(0).toUpperCase() + v.name.slice(1)));
     });
 
+    // Serialize a child list, tracking real DOM childNodes indices. Adjacent text
+    // runs (e.g. "Count: " + a {count} placeholder) would merge into ONE text node
+    // when the HTML is parsed (innerHTML or SSR HTML), breaking walk() paths, so an
+    // empty comment separator is emitted between them and counted in the index.
+    const serializeChildren = (
+      children: ParsedNode[], scope: any, isInScope: boolean, isRaw: boolean, basePath: number[]
+    ): string => {
+      let out = '';
+      let domIndex = 0;
+      let prevText = false;
+      for (const c of children) {
+        const isTextish = c.type === 'text' || c.type === 'expression';
+        if (c.type === 'text' && !(c.content || '')) continue;
+        if (isTextish && prevText) {
+          out += '<!---->';
+          domIndex++;
+        }
+        const str = serialize(c, scope, isInScope, isRaw, [...basePath, domIndex]);
+        if (str === '') continue;
+        out += str;
+        domIndex++;
+        prevText = isTextish;
+      }
+      return out;
+    };
+
     // Helper: Serialize Node with Path Tracking
     const serialize = (node: ParsedNode, scope: any = {}, isInScope = false, isRaw = false, path: number[] = []): string => {
 
@@ -117,18 +144,12 @@ export class TemplateTransformer {
           }
         }
 
-        // For Computed/Declarations?
+        // Non-reactive expressions over script declarations (`let title = "…"`,
+        // `const code = \`…\``) or props are evaluated once through a text binding
+        // (the effect has no signal deps) so SSR renders the value instead of "{title}".
         if (!isDependent) {
-          for (const dName of declarations.map(d => d.name)) {
-            if (content.includes(dName)) {
-              // Declarations might be reactive (computed) or static.
-              // Assuming static for now unless we know better.
-              // But computed are passed as computedVars?
-              // ComponentCompiler passes `[...stateVars, ...computedVars]`.
-              // So stateNames INCLUDES computed.
-              // So isDependent check is correct.
-            }
-          }
+          const refsDecl = declarations.some(d => new RegExp(`(^|[^\\w$.])${d.name.replace(/\$/g, '\\$')}([^\\w$]|$)`).test(content));
+          if (refsDecl || /^\s*props\./.test(content)) isDependent = true;
         }
 
         if (isInScope) {
@@ -136,7 +157,7 @@ export class TemplateTransformer {
           scope._listBindings.push({
             type: 'text',
             path: [...path],
-            expr: content
+            expr: this.transformExpression(content, stateNames)
           });
           // Placeholder for text node
           return ` `;
@@ -200,10 +221,10 @@ export class TemplateTransformer {
 
           let attrs = ` each="{${eachExpr}}" as="${asVar}"`;
           if (keyExpr) attrs += ` key="{${keyExpr}}"`;
-          const listScope = { ...scope, _listBindings: [], _listBindingCount: 0 };
+          const listScope = { ...scope, _listBindings: [], _listBindingCount: 0, _asVar: asVar };
 
           // Reset path for children of List Item
-          const rawTemplate = children.map((c, i) => serialize(c, listScope, true, isRaw, [i])).join('');
+          const rawTemplate = serializeChildren(children, listScope, true, isRaw, []);
 
           const templateId = `tmpl_${templates.size}`;
           templates.set(templateId, rawTemplate);
@@ -228,7 +249,7 @@ export class TemplateTransformer {
           if (fallbackExpr) attrs += ` fallback="{${fallbackExpr}}"`;
 
           // Show children need to be templates usually
-          const childrenStr = children.map((c, i) => serialize(c, scope, isInScope, isRaw, [...path, i])).join('');
+          const childrenStr = serializeChildren(children, scope, isInScope, isRaw, path);
 
           return `<pulse-show${attrs} style="display:contents"><template data-pulse-template>${childrenStr}</template></pulse-show>`;
         }
@@ -244,7 +265,7 @@ export class TemplateTransformer {
               attrsStr += ` ${key}="${valStr.replaceAll('"', '&quot;')}"`;
             });
           }
-          const childrenStr = children.map((c, i) => serialize(c, scope, isInScope, isRaw, [...path, i])).join('');
+          const childrenStr = serializeChildren(children, scope, isInScope, isRaw, path);
           return `<div data-pulse-component="${originalTagName}"${attrsStr} style="display:contents"><template data-pulse-template>${childrenStr}</template></div>`;
         }
 
@@ -292,14 +313,40 @@ export class TemplateTransformer {
             }
 
             if (key.startsWith('on')) {
-              attrsStr += ` data-on-${key.slice(2).toLowerCase()}="${valStr.replaceAll('"', '&quot;')}"`;
+              // Same accessor convention as bindings: state reads become count().
+              const handlerStr = typeof val !== 'string' || (valStr.startsWith('{') && valStr.endsWith('}'))
+                ? `{${this.transformExpression(typeof val === 'string' ? valStr.slice(1, -1) : val.code, stateNames)}}`
+                : valStr;
+              attrsStr += ` data-on-${key.slice(2).toLowerCase()}="${handlerStr.replaceAll('"', '&quot;')}"`;
               return;
             }
 
             // Regular attribute binding
-            const hasStateDep = valStr.includes('{') && Array.from(stateNames).some(name => valStr.includes(name));
-            if (hasStateDep) {
-              const expr = valStr.slice(1, -1);
+            const isExprAttr = typeof val !== 'string' || (valStr.startsWith('{') && valStr.endsWith('}'));
+            const expr = isExprAttr
+              ? (typeof val === 'string' ? valStr.slice(1, -1) : val.code)
+              : null;
+
+            if (isInScope && expr !== null && Array.isArray(scope._listBindings)) {
+              // Keep list-item bindings (class, attrs) on the item, not the page root.
+              const asVar = (scope as any)._asVar as string | undefined;
+              const dependsOnItem = asVar ? expr.includes(asVar) : true;
+              const dependsOnState = Array.from(stateNames).some(name => expr.includes(name));
+              if (dependsOnItem || dependsOnState || expr.includes('?')) {
+                scope._listBindings.push({
+                  type: 'attribute',
+                  path: [...path],
+                  name: key,
+                  expr: this.transformExpression(expr, stateNames),
+                });
+                return;
+              }
+            }
+
+            // Any {...} attribute expression becomes a binding (incl. template literals
+            // like class={`btn btn-${variant}`}). Do NOT embed raw ` / ${ into static HTML —
+            // that breaks the outer _tpl.innerHTML = `...` template literal.
+            if (expr !== null && !isInScope) {
               const expressionCode = this.transformExpression(expr, stateNames);
               bindings.push({
                 type: 'attribute',
@@ -307,13 +354,24 @@ export class TemplateTransformer {
                 name: key,
                 expression: expressionCode
               });
+              // Leave a placeholder attribute so path indices stay stable
+              attrsStr += ` ${key}=""`;
+            } else if (expr !== null && isInScope && Array.isArray(scope._listBindings)) {
+              scope._listBindings.push({
+                type: 'attribute',
+                path: [...path],
+                name: key,
+                expr: this.transformExpression(expr, stateNames),
+              });
+            } else if (expr !== null) {
+              attrsStr += ` ${key}=""`;
             } else {
               attrsStr += ` ${key}="${valStr.replaceAll('"', '&quot;')}"`;
             }
           });
         }
 
-        const childrenStr = children.map((c, i) => serialize(c, scope, isInScope, isRaw, [...path, i])).join('');
+        const childrenStr = serializeChildren(children, scope, isInScope, isRaw, path);
 
         const voidElements = new Set(['area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input', 'link', 'meta', 'param', 'source', 'track', 'wbr']);
         if (voidElements.has(tagName) && children.length === 0) {
@@ -325,39 +383,23 @@ export class TemplateTransformer {
     };
 
     // Start with empty path [] for root children
-    const html = (root.children || []).map((node, i) => serialize(node, { _componentNames: componentNames }, false, false, [i])).join('');
+    const html = serializeChildren(root.children || [], { _componentNames: componentNames }, false, false, []);
 
     return { html, bindings, templates };
   }
 }
 
-// Helper for SSR evaluation
+
+// Helper for SSR evaluation — delegates to shared Function-free evaluator.
 const evalSSR = (code: string, item: any, as: string, globalScope: Record<string, any>): any => {
-  try {
-    const scopeKeys = Object.keys(globalScope);
-    const scopeValues = Object.values(globalScope);
-    const fn = new Function(as, ...scopeKeys, `try { return ${code} } catch(e) { return "" }`);
-    return fn(item, ...scopeValues);
-  } catch (e) {
-    return "";
-  }
-}
+  return safeEvalSSR(code, { ...globalScope, [as]: item });
+};
 
 const interpolateSSR = (tpl: string, item: any, as: string, globalScope: Record<string, any> = {}): string => {
-  let result = tpl;
-  const regex = /\{([^}]+)\}/g;
-  result = result.replace(regex, (match, code) => {
-    try {
-      const scopeKeys = Object.keys(globalScope);
-      const scopeValues = Object.values(globalScope);
-
-      const fn = new Function(as, ...scopeKeys, `try { return ${code} } catch(e) { return "" }`);
-      const val = fn(item, ...scopeValues);
-
-      return val !== undefined ? String(val) : '';
-    } catch (e) {
-      return "";
-    }
+  return tpl.replace(/\{([^}]+)\}/g, (_match, code) => {
+    const val = evalSSR(code, item, as, globalScope);
+    return val !== undefined && val !== null ? String(val) : '';
   });
-  return result;
-}
+};
+
+export { evalSSR, interpolateSSR, safeEvalSSR };

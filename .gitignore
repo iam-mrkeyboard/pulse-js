@@ -32,3 +32,15 @@ yarn-error.log*
 
 # Pulse specific
 pulse-app/.pulse/
+
+# Extension compiled output (tsc -b client server)
+extension/out/
+extension/client/out/
+extension/server/out/
+
+# Generated / vendored wasm copies (keep sources under extension/server/src if needed)
+extension/**/out/**/*.wasm
+extension/tree-sitter-*.wasm
+
+# Framework build artefacts (also covered by dist/)
+pulse-framework/dist/

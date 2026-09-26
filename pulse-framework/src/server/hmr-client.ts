@@ -3,7 +3,7 @@
 // Extracted from dev-server.ts - HMR client code generation
 // ============================================================================
 
-import type { PulseConfig } from '../../bundler/types';
+import type { PulseConfig } from '../bundler/types';
 
 /**
  * Generates the HMR client JavaScript that runs in the browser

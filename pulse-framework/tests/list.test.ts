@@ -94,4 +94,111 @@ describe('Keyed List (prefix/suffix + Map)', () => {
     setItems([]);
     expect(rows().length).toBe(0);
   });
+
+  test('distant swap reuses nodes and does not move the whole list', () => {
+    const initial = Array.from({ length: 20 }, (_, i) => ({ id: i + 1, label: String(i + 1) }));
+    const [items, setItems] = createSignal(initial);
+    const rows = mount(() => items());
+    const before = rows();
+    const n1 = before[1];
+    const n18 = before[18];
+
+    let moves = 0;
+    const parent = n1.parentNode as HTMLElement;
+    const orig = parent.insertBefore.bind(parent);
+    parent.insertBefore = ((node: Node, ref: Node | null) => {
+      moves++;
+      return orig(node, ref);
+    }) as any;
+
+    const next = items().slice();
+    const tmp = next[1];
+    next[1] = next[18];
+    next[18] = tmp;
+    setItems(next);
+
+    const after = rows();
+    expect(after[1]).toBe(n18);
+    expect(after[18]).toBe(n1);
+    expect(after[0]).toBe(before[0]);
+    expect(after[19]).toBe(before[19]);
+    expect(moves).toBeLessThanOrEqual(4);
+  });
+});
+
+describe('List duplicate keys', () => {
+  test('warns in development when keys collide', () => {
+    const warnings: string[] = [];
+    const orig = console.warn;
+    console.warn = (...args: any[]) => { warnings.push(String(args[0])); };
+    try {
+      const host = document.createElement('tbody');
+      document.body.appendChild(host);
+      const [items, setItems] = createSignal([{ id: 1 }, { id: 1 }]);
+      List({
+        each: () => items(),
+        key: (r: any) => r.id,
+        children: (r: any) => {
+          const tr = document.createElement('tr');
+          tr.dataset.id = String(r.id);
+          return tr;
+        },
+        host,
+      } as any);
+      expect(warnings.some(w => w.includes('Duplicate key'))).toBe(true);
+      host.remove();
+    } finally {
+      console.warn = orig;
+    }
+  });
+});
+
+describe('List item identity remount', () => {
+  test('same key with new object remounts the row', () => {
+    const host = document.createElement('div');
+    document.body.appendChild(host);
+    const [items, setItems] = createSignal([{ id: 1, label: 'a' }]);
+    let mounts = 0;
+    List({
+      each: () => items(),
+      key: (r: any) => r.id,
+      children: (r: any) => {
+        mounts++;
+        const el = document.createElement('div');
+        el.textContent = r.label;
+        el.dataset.id = String(r.id);
+        return el;
+      },
+      host,
+    } as any);
+    expect(mounts).toBe(1);
+    expect(host.firstElementChild?.textContent).toBe('a');
+    setItems([{ id: 1, label: 'b' }]);
+    expect(mounts).toBe(2);
+    expect(host.firstElementChild?.textContent).toBe('b');
+    host.remove();
+  });
+
+  test('same key same object reference does not remount', () => {
+    const host = document.createElement('div');
+    document.body.appendChild(host);
+    const row = { id: 1, label: 'a' };
+    const [items, setItems] = createSignal([row]);
+    let mounts = 0;
+    List({
+      each: () => items(),
+      key: (r: any) => r.id,
+      children: (r: any) => {
+        mounts++;
+        const el = document.createElement('div');
+        el.textContent = r.label;
+        return el;
+      },
+      host,
+    } as any);
+    expect(mounts).toBe(1);
+    setItems([row]); // same ref
+    expect(mounts).toBe(1);
+    host.remove();
+  });
 });

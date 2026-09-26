@@ -10,7 +10,7 @@
     "clean": "pulse clean"
   },
   "dependencies": {
-    "pulse-framework": "link:pulse-framework"
+    "pulse-framework": "file:../pulse-framework"
   },
   "devDependencies": {
     "@types/bun": "latest",

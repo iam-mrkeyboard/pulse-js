@@ -1,5 +1,5 @@
 import { describe, test, expect } from 'bun:test';
-import { createSignal, createEffect, createMemo, batch } from '../src/runtime/core';
+import { createSignal, createEffect, createMemo, batch, createSelector } from '../src/runtime/core';
 
 describe('Pulse Core Reactivity', () => {
   test('createSignal should track values', () => {
@@ -72,5 +72,32 @@ describe('Pulse Core Reactivity', () => {
     // So it should run ONCE for the final value.
     expect(runs).toBe(2);
     expect(count()).toBe(3);
+  });
+
+  test('createSelector only notifies keys whose match status changed', () => {
+    const [selected, setSelected] = createSignal<number | null>(null);
+    const isSelected = createSelector(selected);
+    const runs = new Map<number, number>();
+    for (let i = 1; i <= 20; i++) {
+      const id = i;
+      createEffect(() => {
+        isSelected(id);
+        runs.set(id, (runs.get(id) || 0) + 1);
+      });
+    }
+    for (let i = 1; i <= 20; i++) expect(runs.get(i)).toBe(1);
+
+    setSelected(4);
+    expect(runs.get(4)).toBe(2);
+    for (let i = 1; i <= 20; i++) {
+      if (i !== 4) expect(runs.get(i)).toBe(1);
+    }
+
+    setSelected(9);
+    expect(runs.get(4)).toBe(3);
+    expect(runs.get(9)).toBe(2);
+    for (let i = 1; i <= 20; i++) {
+      if (i !== 4 && i !== 9) expect(runs.get(i)).toBe(1);
+    }
   });
 });

@@ -27,6 +27,15 @@ export class ComponentCompiler {
     this.unifiedParser = new UnifiedParser();
   }
 
+  
+  /** Escape a string so it is safe inside a JS template literal. */
+  private escapeForTemplateLiteral(s: string): string {
+    return s
+      .replace(/\\/g, '\\\\')
+      .replace(/`/g, '\\`')
+      .replace(/\$\{/g, '\\${');
+  }
+
   public async compile(filePath: string, content: string): Promise<string> {
     let componentName = path.basename(filePath, '.pulse');
     // Sanitize to valid JS identifier
@@ -67,11 +76,17 @@ export class ComponentCompiler {
     const hasShowPrimitive = template.includes('<Show') || template.includes('data-pulse-show');
 
     // Build module code
+    // Extra core APIs the user script calls directly (createMemo, batch, …) unless imported.
+    const importedNames = new Set(imports.flatMap((i) => i.names));
+    const extraCore = ['createMemo', 'batch', 'onCleanup', 'untrack', 'createSelector', 'createRoot']
+      .filter((name) => !importedNames.has(name) && new RegExp(`\\b${name}\\s*\\(`).test(scriptContent));
+    const coreImports = ['createSignal', 'createEffect', ...extraCore].join(', ');
+
     let moduleCode = `
-import { createSignal, createEffect } from '/runtime/core.js';
-import { mountPrimitives as dom_mountPrimitives, walk } from '/runtime/dom.js';
-${hasListPrimitive ? "import { List } from '/runtime/primitives/list.js';" : ''}
-${hasShowPrimitive ? "import { Show } from '/runtime/primitives/show.js';" : ''}
+import { ${coreImports} } from 'pulse/runtime';
+import { mountPrimitives as dom_mountPrimitives, walk } from 'pulse/runtime/dom';
+${hasListPrimitive ? "import { List } from 'pulse/runtime/list';" : ''}
+${hasShowPrimitive ? "import { Show } from 'pulse/runtime/show';" : ''}
 ${imports.map(i => {
       // reconstruct import statement
       if (i.isDefault) {
@@ -99,23 +114,68 @@ ${imports.map(i => {
         let magicString = codeFragment;
         const replacements: { start: number, end: number, value: string }[] = [];
 
+        const scopeStack: Set<string>[] = [new Set()];
+        const isLocal = (name: string) => {
+          for (let i = scopeStack.length - 1; i >= 0; i--) {
+            if (scopeStack[i].has(name)) return true;
+          }
+          return false;
+        };
+        const addParams = (params: any[]) => {
+          for (const p of params || []) {
+            if (p.type === 'Identifier') scopeStack[scopeStack.length - 1].add(p.name);
+            else if (p.type === 'AssignmentPattern' && p.left?.type === 'Identifier') {
+              scopeStack[scopeStack.length - 1].add(p.left.name);
+            } else if (p.type === 'RestElement' && p.argument?.type === 'Identifier') {
+              scopeStack[scopeStack.length - 1].add(p.argument.name);
+            }
+          }
+        };
+        const isFn = (n: any) =>
+          n && (n.type === 'FunctionDeclaration' || n.type === 'FunctionExpression' || n.type === 'ArrowFunctionExpression');
+
         walk(ast as any, {
           enter(node: any, parent: any) {
+            if (isFn(node)) {
+              if (node.type === 'FunctionDeclaration' && node.id?.name) {
+                scopeStack[scopeStack.length - 1].add(node.id.name);
+              }
+              scopeStack.push(new Set());
+              if (node.id?.name && node.type !== 'FunctionDeclaration') {
+                scopeStack[scopeStack.length - 1].add(node.id.name);
+              }
+              addParams(node.params);
+            } else if (node.type === 'BlockStatement' && !isFn(parent)) {
+              scopeStack.push(new Set());
+            } else if (node.type === 'VariableDeclarator' && node.id?.type === 'Identifier') {
+              scopeStack[scopeStack.length - 1].add(node.id.name);
+            }
+
             if (node.type === 'Identifier') {
               if (allStateNames.has(node.name)) {
+                if (isLocal(node.name)) return;
                 // Avoid replacing definition key or property access
                 if (parent && (
                   (parent.type === 'Property' && parent.key === node && !parent.computed) ||
                   (parent.type === 'MemberExpression' && parent.property === node && !parent.computed) ||
                   (parent.type === 'VariableDeclarator' && parent.id === node) ||
                   (parent.type === 'FunctionDeclaration' && parent.id === node) ||
+                  (parent.type === 'FunctionExpression' && parent.id === node) ||
                   // Don't unwrap if it's the declaration we are transforming!
                   (parent.type === 'AssignmentPattern' && parent.left === node)
                 )) return;
 
                 let replacement;
                 if (stateNames.has(node.name)) {
-                  replacement = 'get_' + node.name;
+                  // Reads unwrap the signal (count -> get_count()). Writes keep the
+                  // accessor name so an assignment is not turned into invalid syntax.
+                  const isWrite = parent && (
+                    (parent.type === 'AssignmentExpression' && parent.left === node) ||
+                    parent.type === 'UpdateExpression'
+                  );
+                  // Explicit accessor calls (count()) keep their call: count() -> get_count().
+                  const isCallee = parent && parent.type === 'CallExpression' && parent.callee === node;
+                  replacement = isWrite || isCallee ? 'get_' + node.name : 'get_' + node.name + '()';
                 } else {
                   // Computed: just use name (it's the function name)
                   replacement = node.name;
@@ -127,6 +187,13 @@ ${imports.map(i => {
                   value: replacement
                 });
               }
+            }
+          },
+          leave(node: any, parent: any) {
+            if (isFn(node)) {
+              scopeStack.pop();
+            } else if (node.type === 'BlockStatement' && !isFn(parent)) {
+              scopeStack.pop();
             }
           }
         });
@@ -162,7 +229,10 @@ ${imports.map(i => {
       // Remove caching issues by NOT re-scoping every render
     }
 
-    if (hasState || functions.length > 0) {
+    // The static (innerHTML + ${props.x}) path cannot render child components or
+    // script declarations, so anything using them goes through the binding path.
+    const importsComponents = imports.some(i => i.names.some(n => /^[A-Z]/.test(n)));
+    if (hasState || functions.length > 0 || declarations.length > 0 || importsComponents) {
       // ---------------------------------------------------------
       // STATEFUL COMPONENT
       // ---------------------------------------------------------
@@ -176,7 +246,7 @@ ${imports.map(i => {
       moduleCode += `
 // Static Template
 const _tpl = document.createElement('template');
-_tpl.innerHTML = \`${fullTemplateHTML.replaceAll('`', '\\`')}\`; // Escape backticks
+_tpl.innerHTML = \`${this.escapeForTemplateLiteral(fullTemplateHTML)}\`;
 
 export default function ${componentName}(props) {
   props = props || {};
@@ -208,6 +278,17 @@ export default function ${componentName}(props) {
       stateVars.forEach(({ name, value, setterName }) => {
         const setter = setterName || `set_${name}`;
         moduleCode += `  const [get_${name}, ${setter}] = createSignal(${value});\n`;
+      });
+      // Template bindings call state as \`name()\`; expose the accessor under that name.
+      const declared = new Set([
+        ...computedVars.map((c) => c.name),
+        ...declarations.map((d) => d.name),
+        ...functions.map((f) => f.name),
+      ]);
+      stateVars.forEach(({ name }) => {
+        if (!declared.has(name) && /^[A-Za-z_$][\w$]*$/.test(name)) {
+          moduleCode += `  const ${name} = get_${name};\n`;
+        }
       });
 
       // Emit Computed Vars
@@ -260,9 +341,22 @@ export default function ${componentName}(props) {
       declarations.forEach(({ name }) => {
         moduleCode += `    ${name}: ${name}, \n`;
       });
+      // Add setters (inline handlers such as onClick={() => setOpen(!open)})
+      stateVars.forEach(({ name, setterName }) => {
+        const setter = setterName || `set_${name}`;
+        if (!declared.has(setter)) moduleCode += `    ${setter}: ${setter}, \n`;
+      });
       // Add props
       moduleCode += `    props: props, \n`; // Allow props access
+      moduleCode += `    state: state, \n`;
       moduleCode += `  }; \n\n`;
+      // Accessors for runtime-evaluated expressions (Show when / List each / inline
+      // handlers), which the template transformer rewrites to \`count()\` form.
+      const accessorEntries = [
+        ...stateVars.map(({ name }) => `${name}: get_${name}`),
+        ...computedVars.map(({ name }) => `${name}: ${name}`),
+      ];
+      moduleCode += `  Object.defineProperty(scope, '__accessors', { value: { ${accessorEntries.join(', ')} }, enumerable: false });\n\n`;
 
       // Mount primitives helper using Runtime
       moduleCode += `  const mountPrimitives = (cont) => {
@@ -324,11 +418,12 @@ export default function ${componentName}(props) {
 
       // Event handlers - DELEGATION OPTIMIZATION
       moduleCode += `  const handlers = { ${functions.map((f) => `${f.name}: ${f.name}`).join(', ')} };\n`;
-      moduleCode += `  container.__pulseHandlers = handlers;\n\n`;
+      moduleCode += `  container.__pulseHandlers = handlers;\n`;
+      moduleCode += `  container.__pulseScope = scope;\n\n`;
 
 
       // Handle children/slots
-      moduleCode += `  if (props.children && props.children.length > 0) {\n`;
+      moduleCode += `  if (!props._hydrationNode && props.children && props.children.length > 0) {\n`;
       moduleCode += `    const slotEl = container.querySelector('slot');\n`;
       moduleCode += `    if (slotEl) {\n`;
       moduleCode += `      const fragment = document.createDocumentFragment();\n`;
@@ -376,6 +471,13 @@ export default function ${componentName}(props) {
       // So detailed rework of static component logic is secondary, but let's at least fix scope ID.
 
       moduleCode += `export default function ${componentName}(props = {}) {\n`;
+      // Hydration: static markup is already correct; adopt the SSR node as-is.
+      moduleCode += `  if (props._hydrationNode) {\n`;
+      if (template.includes('onClick={')) {
+        moduleCode += `    const b = props._hydrationNode.querySelector('button');\n`;
+        moduleCode += `    if (b && typeof props.onClick === 'function') b.addEventListener('click', props.onClick);\n`;
+      }
+      moduleCode += `    return props._hydrationNode;\n  }\n`;
       // REMOVED random scopeId generation
 
       moduleCode += `  const container = document.createElement('div');\n`;
@@ -408,7 +510,7 @@ export default function ${componentName}(props) {
             }
             if (isWord) {
               result += processedTemplate.slice(lastIndex, i);
-              result += '${props.' + prop + ' || ""}';
+              result += `\u0000PULSEPROP:${prop}\u0000`;
               i = close;
               lastIndex = i + 1;
             }
@@ -418,7 +520,13 @@ export default function ${componentName}(props) {
       result += processedTemplate.slice(lastIndex);
       processedTemplate = result;
 
-      moduleCode += `  container.innerHTML = \`${scopedStyles ? `<style>${scopedStyles}</style>` : ''}${processedTemplate}\`;\n\n`;
+      // Escape the markup first, then splice in the ${props.x} interpolations (escaping
+      // afterwards would turn them into literal "${props.x}" text).
+      const staticHTML = this.escapeForTemplateLiteral((scopedStyles ? `<style>${scopedStyles}</style>` : '') + processedTemplate)
+        .replace(/\u0000PULSEPROP:(\w+)\u0000/g, (_m, name) => '${props.' + name + ' ?? ""}');
+      moduleCode += `  container.innerHTML = \`${staticHTML}\`;
+
+`;
 
       // Simple event handling for non-reactive components
       if (template.includes('onClick={')) {
@@ -429,7 +537,7 @@ export default function ${componentName}(props) {
       }
 
       // Slot handling
-      moduleCode += `  if (props.children && props.children.length > 0) {\n`;
+      moduleCode += `  if (!props._hydrationNode && props.children && props.children.length > 0) {\n`;
       moduleCode += `    const slotEl = container.querySelector('slot');\n`;
       moduleCode += `    if (slotEl) {\n`;
       moduleCode += `      const fragment = document.createDocumentFragment();\n`;

@@ -4,8 +4,8 @@
 // ============================================================================
 
 import { minify as terserMinify, type MinifyOptions } from 'terser';
-import { CSSParser, type CSSNode } from '../compiler/css-parser';
-import { HTMLParser, type ParsedNode } from '../compiler/html-parser';
+import { CSSParser, type CSSNode } from './compiler/css-parser';
+import { HTMLParser, type ParsedNode } from './compiler/html-parser';
 
 export class Minifier {
   private cssParser = new CSSParser();
@@ -66,8 +66,8 @@ export class Minifier {
         const children = node.children.length > 0 ? `{${this.serializeCSS(node.children as CSSNode[])}}` : ';';
         return `${node.name}${node.params ? ' ' + node.params : ''}${children}`;
       } else {
-        const selectors = node.selectors.map(s => s.trim()).join(',');
-        const decls = node.declarations.split(';').map(d => d.trim()).filter(d => d).join(';');
+        const selectors = node.selectors.map((s: string) => s.trim()).join(',');
+        const decls = node.declarations.split(';').map((d: string) => d.trim()).filter((d: string) => d).join(';');
         return `${selectors}{${decls}}`;
       }
     }).join('');
@@ -85,7 +85,7 @@ export class Minifier {
     }
     if (node.type === 'element') {
       if (node.tag === 'root') {
-        return (node.children || []).map(c => this.serializeHTML(c)).join('');
+        return (node.children || []).map((c: ParsedNode) => this.serializeHTML(c)).join('');
       }
 
       let attrs = '';
@@ -100,7 +100,7 @@ export class Minifier {
         }
       }
 
-      const children = (node.children || []).map(c => this.serializeHTML(c)).join('');
+      const children = (node.children || []).map((c: ParsedNode) => this.serializeHTML(c)).join('');
 
       const voidElements = new Set(['img', 'br', 'hr', 'input', 'meta', 'link']);
       if (voidElements.has(node.tag?.toLowerCase() || '')) {
@@ -150,7 +150,7 @@ export class CSSScoper {
           result.push(node);
         }
       } else if (node.type === 'rule') {
-        const scopedSelectors = node.selectors.map(sel => this.scopeSelector(sel, hash)).filter(s => s) as string[];
+        const scopedSelectors = node.selectors.map((sel: string) => this.scopeSelector(sel, hash)).filter((s: string | null) => s) as string[];
         if (scopedSelectors.length > 0) {
           // Tree shaked check
           // Simple AST check: if selector has class, must be in usedClasses

@@ -3,7 +3,7 @@
 // Generates HTML entry points for pages
 // ============================================================================
 
-import type { ComponentNode, IslandManifest } from '../types';
+import type { ComponentNode, IslandManifest } from './types';
 
 export class EntryGenerator {
   generate(

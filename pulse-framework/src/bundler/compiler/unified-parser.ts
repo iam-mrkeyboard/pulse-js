@@ -121,35 +121,33 @@ export class UnifiedParser {
       styles: ''
     };
 
-    // Extract Script
+    // Extract Script (first <script> block). Everything after is searched for
+    // <style> separately so a "<style>" inside a script string is not treated
+    // as the component's style block.
+    let rest = source;
     const scriptOpen = source.indexOf('<script');
     if (scriptOpen !== -1) {
+      const tagEnd = source.indexOf('>', scriptOpen);
       const scriptClose = source.indexOf('</script>', scriptOpen);
-      if (scriptClose !== -1) {
-        const tagEnd = source.indexOf('>', scriptOpen);
-        if (tagEnd !== -1 && tagEnd < scriptClose) {
-          sections.script = source.slice(tagEnd + 1, scriptClose);
-        }
+      if (tagEnd !== -1 && scriptClose !== -1 && tagEnd < scriptClose) {
+        sections.script = source.slice(tagEnd + 1, scriptClose);
+        rest = source.slice(0, scriptOpen) + source.slice(scriptClose + '</script>'.length);
       }
     }
 
-    // Extract Style
-    const styleOpen = source.indexOf('<style');
+    // Extract Style (outside the script block)
+    const styleOpen = rest.indexOf('<style');
     if (styleOpen !== -1) {
-      const styleClose = source.indexOf('</style>', styleOpen);
-      if (styleClose !== -1) {
-        const tagEnd = source.indexOf('>', styleOpen);
-        if (tagEnd !== -1 && tagEnd < styleClose) {
-          sections.styles = source.slice(tagEnd + 1, styleClose);
-        }
+      const tagEnd = rest.indexOf('>', styleOpen);
+      const styleClose = rest.indexOf('</style>', styleOpen);
+      if (tagEnd !== -1 && styleClose !== -1 && tagEnd < styleClose) {
+        sections.styles = rest.slice(tagEnd + 1, styleClose);
+        rest = rest.slice(0, styleOpen) + rest.slice(styleClose + '</style>'.length);
       }
     }
 
     // Template is everything ELSE.
-    sections.template = source
-      .replace(/<script[\s\S]*?>[\s\S]*?<\/script>/gi, '')
-      .replace(/<style[\s\S]*?>[\s\S]*?<\/style>/gi, '')
-      .trim();
+    sections.template = rest.trim();
 
     // Bare leading script (Counter.pulse style): JS before first markup tag when no <script>
     if (!sections.script.trim()) {

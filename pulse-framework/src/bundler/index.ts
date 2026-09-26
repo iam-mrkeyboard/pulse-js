@@ -7,12 +7,12 @@ import path from 'node:path';
 import { $, Glob } from 'bun';
 // fs import removed
 import { DependencyAnalyzer } from './dependency-analyzer';
-import { ComponentCompiler } from './compiler/component-compiler';
-import { RuntimeBuilder } from '../runtime/runtime-builder';
-import { CodeSplitter } from './code-splitter';
+import { ComponentCompiler as ServerComponentCompiler } from '../server/component-compiler';
+import { ScriptParser } from '../server/script-parser';
+import { TemplateTransformer } from '../server/template-transformer';
+import { SSRRenderer } from '../server/ssr';
+import { pulsePlugin } from '../server/pulse-plugin';
 import { Compressor } from './compressor';
-import { EntryGenerator } from './entry-generator';
-import { Minifier } from './minifier';
 import type {
   PulseConfig,
   BuildResult,
@@ -23,10 +23,7 @@ import type {
 
 export class PulseBundler {
   private ctx: CompilationContext;
-  private codeSplitter: CodeSplitter;
   private compressor: Compressor;
-  private entryGenerator: EntryGenerator;
-  private minifier: Minifier;
 
   constructor(config: PulseConfig) {
     this.ctx = {
@@ -63,10 +60,12 @@ export class PulseBundler {
       },
     };
 
-    this.codeSplitter = new CodeSplitter();
     this.compressor = new Compressor();
-    this.entryGenerator = new EntryGenerator();
-    this.minifier = new Minifier();
+  }
+
+  /** Output directory, resolved against the project root (not the process cwd). */
+  private outDir(): string {
+    return path.resolve(this.ctx.config.root, this.ctx.config.outDir);
   }
 
   async build(): Promise<BuildResult> {
@@ -93,133 +92,67 @@ export class PulseBundler {
 
       analyzer.printGraph();
 
-      // Phase 2: Code splitting
-      console.log('\n✂️  Phase 2: Code splitting...');
-      const bundles = this.codeSplitter.split(this.ctx.graph);
-      console.log(`  ✓ Created ${bundles.size} bundles`);
-
-      // Phase 3: Build runtime
-      console.log('\n⚙️  Phase 3: Building runtime...');
-      const runtimeBuilder = new RuntimeBuilder(this.ctx);
-      const runtimes = await runtimeBuilder.buildRuntime(this.ctx.graph);
-
-      // Save runtime files
-      const runtimeDir = path.join(this.ctx.config.outDir, 'runtime');
-      await $`mkdir -p ${runtimeDir}`;
-
-      for (const [name, code] of runtimes) {
-        // Minify runtime if enabled
-        const finalCode = this.ctx.config.build.minify
-          ? await this.minifier.minify(code)
-          : code;
-
-        const filePath = path.join(runtimeDir, `${name}.js`);
-        await $`mkdir -p ${path.dirname(filePath)}`;
-        await Bun.write(filePath, finalCode);
-
-        // Compress if enabled
-        if (
-          this.ctx.config.optimization.compress &&
-          this.compressor.shouldCompress(Buffer.byteLength(finalCode))
-        ) {
-          const compressed = this.compressor.compress(
-            finalCode,
-            this.ctx.config.optimization.compress,
-          );
-
-          if (compressed.gzip) {
-            await Bun.write(filePath + '.gz', compressed.gzip);
-          }
-          if (compressed.brotli) {
-            await Bun.write(filePath + '.br', compressed.brotli);
-          }
-        }
-
-        if (name === 'core') {
-          this.ctx.output.runtime.core = finalCode;
-        } else {
-          this.ctx.output.runtime.primitives.set(name, finalCode);
-        }
-
-        this.ctx.output.runtime.size += Buffer.byteLength(finalCode);
+      // Phase 2: Classify pages (static pages ship no JS)
+      const pages = pageFiles.map((file) => ({
+        file,
+        route: this.routeFor(pagesDir, file),
+        node: this.ctx.graph.nodes.get(file)!,
+        interactive: this.isInteractive(file),
+      }));
+      this.ctx.graph.staticPages.clear();
+      for (const page of pages) {
+        if (!page.interactive) this.ctx.graph.staticPages.add(page.file);
       }
+      console.log(
+        `\n✂️  Phase 2: ${pages.length} pages (${pages.filter((p) => p.interactive).length} interactive, ${pages.filter((p) => !p.interactive).length} static)`,
+      );
 
-      const sizes = await runtimeBuilder.estimateSizes();
-      console.log(`  ✓ Core runtime: ${this.formatBytes(sizes.core)}`);
-      console.log(`  ✓ List primitive: ${this.formatBytes(sizes.list)}`);
-      console.log(`  ✓ Show primitive: ${this.formatBytes(sizes.show)}`);
-      console.log(`  ✓ Portal primitive: ${this.formatBytes(sizes.portal)}`);
-      console.log(`  ✓ Total runtime: ${this.formatBytes(sizes.total)}`);
+      // Shared compiler for SSR and client bundles (same output as the dev server)
+      const compiler = new ServerComponentCompiler(
+        this.ctx.config,
+        new ScriptParser(),
+        new TemplateTransformer(),
+      );
 
-      // Phase 4: Compile components
-      console.log('\n🔧 Phase 4: Compiling components...');
-      const compiler = new ComponentCompiler(this.ctx);
+      // Phase 3: Client hydration bundles (one entry per interactive page, shared chunks)
+      console.log('\n⚙️  Phase 3: Bundling client hydration code...');
+      const clientEntries = await this.buildClientBundles(
+        pages.filter((p) => p.interactive),
+        compiler,
+      );
 
-      // Compile islands
-      const islands = analyzer.getIslands();
-      for (const island of islands) {
-        const result = await compiler.compile(island);
-
-        // Minify island code
-        const finalCode = this.ctx.config.build.minify
-          ? await this.minifier.minify(result.code)
-          : result.code;
-
-        const manifest: IslandManifest = {
-          id: island.id,
-          path: `/islands/${island.id}.js`,
-          code: finalCode,
-          dependencies: result.dependencies,
-          primitives: Array.from(island.primitives),
-          size: Buffer.byteLength(finalCode),
-          isPreloaded: false,
-        };
-
-        this.ctx.output.islands.set(island.id, manifest);
-
-        // Write island file
-        const islandPath = path.join(
-          this.ctx.config.outDir,
-          'islands',
-          `${island.id}.js`,
-        );
-        await $`mkdir -p ${path.dirname(islandPath)}`;
-        await Bun.write(islandPath, finalCode);
-
-        // Compress island
-        if (
-          this.ctx.config.optimization.compress &&
-          this.compressor.shouldCompress(manifest.size)
-        ) {
-          const compressed = this.compressor.compress(
-            finalCode,
-            this.ctx.config.optimization.compress,
-          );
-
-          if (compressed.gzip) {
-            await Bun.write(islandPath + '.gz', compressed.gzip);
-          }
-          if (compressed.brotli) {
-            await Bun.write(islandPath + '.br', compressed.brotli);
-          }
-        }
-
-        console.log(`  ✓ ${island.name}: ${this.formatBytes(manifest.size)}`);
-      }
+      // Phase 4: Server-render every page
+      console.log('\n🔧 Phase 4: Server-rendering pages...');
+      const ssr = new SSRRenderer(this.ctx.config, compiler);
 
       // Phase 5: Generate pages
       console.log('\n📄 Phase 5: Generating pages...');
 
-      for (const entryPath of this.ctx.graph.entryPoints) {
-        const node = this.ctx.graph.nodes.get(entryPath)!;
-        const isStatic = this.ctx.graph.staticPages.has(entryPath);
+      for (const page of pages) {
+        let body = '';
+        try {
+          body = await ssr.renderPageStrict(page.file);
+        } catch (error: any) {
+          const message = String(error?.message || error).split('\n')[0];
+          warnings.push({
+            file: path.relative(this.ctx.config.root, page.file),
+            message: `SSR failed, page falls back to client render: ${message}`,
+          });
+          console.warn(`  ⚠ SSR failed for /${page.route} (client render fallback): ${message}`);
+        }
 
-        const pageManifest = await this.generatePage(node, isStatic);
-        this.ctx.output.pages.set(node.id, pageManifest);
+        const pageManifest = await this.generatePage(
+          page.node,
+          page.route,
+          body,
+          clientEntries.get(page.file),
+          !page.interactive,
+        );
+        this.ctx.output.pages.set(page.node.id, pageManifest);
 
-        const type = isStatic ? '📄 Static' : '🔵 Interactive';
+        const type = page.interactive ? '🔵 Interactive' : '📄 Static';
         console.log(
-          `  ✓ ${type} ${node.name}: ${this.formatBytes(pageManifest.size)}`,
+          `  ✓ ${type} /${page.route}: ${this.formatBytes(pageManifest.size)}${body ? '' : ' (no SSR)'}`,
         );
       }
 
@@ -269,72 +202,165 @@ export class PulseBundler {
     return files;
   }
 
-  private async generatePage(
-    node: any,
-    isStatic: boolean,
-  ): Promise<PageManifest> {
-    // Collect islands for this page
-    const pageIslands: IslandManifest[] = [];
-    const deps = Array.from(node.dependencies) as string[];
+  /** URL route for a page file: pages/index.pulse -> '', pages/blog/v0.16.pulse -> 'blog/v0.16'. */
+  private routeFor(pagesDir: string, file: string): string {
+    const rel = path.relative(pagesDir, file).replace(/\\/g, '/').replace(/\.pulse$/, '');
+    if (rel === 'index') return '';
+    return rel.endsWith('/index') ? rel.slice(0, -'/index'.length) : rel;
+  }
 
-    for (const dep of deps) {
-      const depNode = this.ctx.graph.nodes.get(dep);
-      if (depNode && this.ctx.graph.islands.has(dep)) {
-        const islandManifest = this.ctx.output.islands.get(depNode.id);
-        if (islandManifest) {
-          pageIslands.push(islandManifest);
-        }
-      }
+  /** A page needs client JS if it or any component it imports is interactive. */
+  private isInteractive(file: string, seen = new Set<string>()): boolean {
+    if (seen.has(file)) return false;
+    seen.add(file);
+    const node = this.ctx.graph.nodes.get(file);
+    if (!node) return false;
+    if (!node.isStatic) return true;
+    for (const dep of node.dependencies) {
+      if (this.isInteractive(dep, seen)) return true;
+    }
+    return false;
+  }
+
+  /**
+   * Bundle one hydration entry per interactive page for the browser.
+   * Each entry imports the compiled page and calls hydrate() on #app, which adopts
+   * the server-rendered DOM. Shared runtime/components go into split chunks.
+   */
+  private async buildClientBundles(
+    pages: Array<{ file: string; route: string; node: any }>,
+    compiler: ServerComponentCompiler,
+  ): Promise<Map<string, string>> {
+    const entries = new Map<string, string>(); // page file -> /assets/... URL
+    if (pages.length === 0) return entries;
+
+    const entryDir = path.join(this.ctx.config.root, '.pulse/cache/entries');
+    await $`mkdir -p ${entryDir}`;
+    const entryNameToPage = new Map<string, string>();
+    const entrypoints: string[] = [];
+
+    for (const page of pages) {
+      const name = 'page-' + (page.route || 'index').replace(/[^a-zA-Z0-9_-]/g, '_');
+      const entryFile = path.join(entryDir, `${name}.js`);
+      await Bun.write(
+        entryFile,
+        `import Page from ${JSON.stringify(page.file)};\n` +
+          `import { hydrate } from 'pulse/runtime/hydration';\n` +
+          `hydrate(Page, document.getElementById('app'));\n`,
+      );
+      entrypoints.push(entryFile);
+      entryNameToPage.set(name, page.file);
     }
 
-    // Generate HTML using EntryGenerator
-    const html = this.entryGenerator.generate(
-      node,
-      pageIslands,
-      '/runtime/core.js',
-      isStatic,
-    );
+    const assetsDir = path.join(this.outDir(), 'assets');
+    const result = await Bun.build({
+      entrypoints,
+      outdir: assetsDir,
+      target: 'browser',
+      format: 'esm',
+      splitting: true,
+      minify: !!this.ctx.config.build.minify,
+      sourcemap: 'none',
+      naming: { entry: '[name]-[hash].[ext]', chunk: 'chunk-[hash].[ext]' },
+      plugins: [pulsePlugin(compiler)],
+    });
 
-    // Minify HTML if enabled
-    const finalHTML = this.ctx.config.build.minify
-      ? await this.minifier.minifyHTML(html)
-      : html;
+    if (!result.success) {
+      throw new Error(
+        'Client bundle failed:\n' + result.logs.map((l) => String(l.message)).join('\n'),
+      );
+    }
 
-    // Write HTML file
+    for (const output of result.outputs) {
+      const code = await output.text();
+      const size = Buffer.byteLength(code);
+      this.ctx.output.runtime.size += output.kind === 'chunk' ? size : 0;
+      await this.compressFile(output.path, code);
+
+      if (output.kind !== 'entry-point') continue;
+      const base = path.basename(output.path);
+      const entryName = base.replace(/-[a-z0-9]+\.js$/, '');
+      const pageFile = entryNameToPage.get(entryName);
+      if (!pageFile) continue;
+      const url = '/assets/' + base;
+      entries.set(pageFile, url);
+
+      const node = this.ctx.graph.nodes.get(pageFile)!;
+      const manifest: IslandManifest = {
+        id: node.id,
+        path: url,
+        code,
+        dependencies: [],
+        primitives: Array.from(node.primitives),
+        size,
+        isPreloaded: true,
+      };
+      this.ctx.output.islands.set(node.id, manifest);
+      console.log(`  ✓ ${entryName}: ${this.formatBytes(size)}`);
+    }
+
+    return entries;
+  }
+
+  private async compressFile(filePath: string, content: string): Promise<void> {
+    if (
+      this.ctx.config.optimization.compress &&
+      this.compressor.shouldCompress(Buffer.byteLength(content))
+    ) {
+      const compressed = this.compressor.compress(
+        content,
+        this.ctx.config.optimization.compress,
+      );
+      if (compressed.gzip) await Bun.write(filePath + '.gz', compressed.gzip);
+      if (compressed.brotli) await Bun.write(filePath + '.br', compressed.brotli);
+    }
+  }
+
+  private escapeHTML(s: string): string {
+    return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  }
+
+  private async generatePage(
+    node: any,
+    route: string,
+    body: string,
+    clientEntry: string | undefined,
+    isStatic: boolean,
+  ): Promise<PageManifest> {
+    // Only the document shell is minified. The server-rendered body is written
+    // verbatim: whitespace / comments are part of the DOM that hydration walks.
+    const minify = !!this.ctx.config.build.minify;
+    const nl = minify ? '' : '\n';
+    const head = [
+      '<meta charset="UTF-8">',
+      '<meta name="viewport" content="width=device-width, initial-scale=1.0">',
+      `<title>${this.escapeHTML(node.name)}</title>`,
+      clientEntry ? `<link rel="modulepreload" href="${clientEntry}">` : '',
+    ]
+      .filter(Boolean)
+      .join(nl);
+    const script = clientEntry
+      ? `<script type="module" src="${clientEntry}"></script>`
+      : '';
+    const finalHTML =
+      `<!DOCTYPE html>${nl}<html lang="en">${nl}<head>${nl}${head}${nl}</head>${nl}` +
+      `<body>${nl}<div id="app">${body}</div>${nl}${script}${nl}</body>${nl}</html>${nl}`;
+
     const pagePath = path.join(
-      this.ctx.config.outDir,
-      node.name === 'index' ? 'index.html' : `${node.name}/index.html`,
+      this.outDir(),
+      route === '' ? 'index.html' : path.join(route, 'index.html'),
     );
 
     await $`mkdir -p ${path.dirname(pagePath)}`;
     await Bun.write(pagePath, finalHTML);
-
-    // Compress HTML
-    if (
-      this.ctx.config.optimization.compress &&
-      this.compressor.shouldCompress(Buffer.byteLength(finalHTML))
-    ) {
-      const compressed = this.compressor.compress(
-        finalHTML,
-        this.ctx.config.optimization.compress,
-      );
-
-      if (compressed.gzip) {
-        await Bun.write(pagePath + '.gz', compressed.gzip);
-      }
-      if (compressed.brotli) {
-        await Bun.write(pagePath + '.br', compressed.brotli);
-      }
-    }
+    await this.compressFile(pagePath, finalHTML);
 
     return {
-      path: `/${node.name === 'index' ? '' : node.name}`,
+      path: '/' + route,
       html: finalHTML,
-      islands: pageIslands.map((i) => i.id),
+      islands: clientEntry ? [node.id] : [],
       isStatic,
-      preloads: isStatic
-        ? []
-        : ['/runtime/core.js', ...pageIslands.map((i) => i.path)],
+      preloads: clientEntry ? [clientEntry] : [],
       css: [],
       size: Buffer.byteLength(finalHTML),
     };
@@ -386,7 +412,7 @@ export class PulseBundler {
       },
     };
 
-    const manifestPath = path.join(this.ctx.config.outDir, 'manifest.json');
+    const manifestPath = path.join(this.outDir(), 'manifest.json');
     await Bun.write(manifestPath, JSON.stringify(manifest, null, 2));
   }
   private printSummary(): void {
@@ -409,7 +435,7 @@ export class PulseBundler {
       `Cache Hit Rate:    ${((this.ctx.cache.hits / (this.ctx.cache.hits + this.ctx.cache.misses)) * 100).toFixed(1)}%`,
     );
     console.log('━'.repeat(60));
-    console.log(`✨ Output: ${this.ctx.config.outDir}`);
+    console.log(`✨ Output: ${this.outDir()}`);
     console.log('━'.repeat(60) + '\n');
   }
   private formatBytes(bytes: number): string {

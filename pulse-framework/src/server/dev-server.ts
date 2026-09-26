@@ -210,7 +210,7 @@ export class DevServer {
       const clientScript = `
         <script type="module">
           import Page from '${clientModuleUrl}';
-          import { hydrate } from '/runtime/dom.js';
+          import { hydrate } from '/runtime/hydration.js';
           
           const app = document.getElementById('app');
           hydrate(Page, app);
@@ -224,10 +224,28 @@ export class DevServer {
         </script>
       `;
 
+      // Compiled modules import 'pulse/runtime*' (package specifiers); map them to
+      // the dev server's /runtime/ routes so the browser can resolve them.
+      const importMap = {
+        imports: {
+          'pulse/runtime': '/runtime/core.js',
+          'pulse/runtime/dom': '/runtime/dom.js',
+          'pulse/runtime/list': '/runtime/primitives/list.js',
+          'pulse/runtime/show': '/runtime/primitives/show.js',
+          'pulse/runtime/hydration': '/runtime/hydration.js',
+          'pulse-framework/runtime': '/runtime/core.js',
+          'pulse-framework/runtime/dom': '/runtime/dom.js',
+          'pulse-framework/runtime/list': '/runtime/primitives/list.js',
+          'pulse-framework/runtime/show': '/runtime/primitives/show.js',
+          'pulse-framework/runtime/hydration': '/runtime/hydration.js',
+        },
+      };
+      const head = `<script type="importmap">${JSON.stringify(importMap)}</script>\n  ${getHMRScript(this.config)}`;
+
       const fullHtml = this.ssr.wrapHTML(`
         <div id="app">${ssrHtml}</div>
         ${clientScript}
-      `);
+      `, 'Pulse App', head);
 
       return new Response(fullHtml, {
         headers: {
@@ -312,6 +330,21 @@ export class DevServer {
     // DOM Runtime
     if (runtimePath === 'dom.js') {
       return await serveTsFile('dom.ts');
+    }
+
+    // Hydration + SSR markers (browser resolves relative imports from these modules)
+    if (runtimePath === 'hydration.js') {
+      return await serveTsFile('hydration.ts');
+    }
+    if (runtimePath === 'ssr-markers.js') {
+      return await serveTsFile('ssr-markers.ts');
+    }
+
+    // Generic fallback: /runtime/foo/bar.js → foo/bar.ts under the runtime dir
+    if (runtimePath.endsWith('.js')) {
+      const tsName = runtimePath.replace(/\.js$/, '.ts');
+      const candidate = await serveTsFile(tsName);
+      if (candidate.status !== 404) return candidate;
     }
 
     return new Response('console.error("Runtime file not found")', { status: 404 });

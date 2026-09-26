@@ -1,37 +1,26 @@
 # Pulse SFC compiler notes (js-framework-benchmark entry)
 
-Attempted: compile `src/App.pulse` with Pulse's shared SFC compiler
-(`pulse-framework/src/server/component-compiler.ts`) and ship that as the bench bundle.
+The keyed bench bundle is still `src/main.js` against the Pulse runtime API
+(`createSignal`, `batch`, `createEffect`, `createSelector`, keyed `List`).
+That is the same runtime compiled SFCs call.
 
-## Failures observed (2026-09-24, branch `merge/restructure-with-fixes`)
+The three compiler bugs that blocked `src/App.pulse` are fixed:
 
-1. **List item `class={...}` binding is hoisted incorrectly**
-   - Expression `state.selected === row.id ? "danger" : ""` was emitted as a
-     top-level `createEffect` that references unbound `row`, instead of a
-     per-item attribute binding inside the List template.
-   - Consequence: select-row highlighting cannot work from compiled output.
+1. **List item `class={...}` stays on the item.** Attribute bindings inside
+   `<List>` go into `data-bindings` on `<pulse-list>`, not a page-level
+   `createEffect` that referenced unbound `row`.
+2. **List item attribute bindings are complete.** `class` (and other
+   expression attributes) are included next to the text bindings.
+3. **Runtime imports are package specifiers.** Compiled output uses
+   `pulse/runtime`, `pulse/runtime/dom`, `pulse/runtime/list`,
+   `pulse/runtime/show`. The dev server import map still points those at
+   `/runtime/*.js`. `package.json` exports the built files under
+   `dist/runtime/`.
 
-2. **List item attribute bindings incomplete**
-   - Compiled `data-bindings` contained only text bindings (`row.id`, `row.label`),
-     not the `class` attribute binding for the `<tr>`.
+`src/App.compiled.js` is the current compiler output of `src/App.pulse`.
 
-3. **No fine-grained nested reactivity for row fields**
-   - Top-level `state.*` fields become signals; nested `row.label` is a plain
-     property. List reuses DOM nodes by key and does **not** re-invoke `children`
-     when the same key's data changes, so "update every 10th row" does not update
-     text unless each row exposes a signal (Solid-style) that an effect reads.
-   - The compiled List binding `createEffect` closes over the original `item`
-     plain object and only re-runs when a tracked signal is read — plain
-     `row.label` reads track nothing.
-
-4. **Absolute `/runtime/*.js` imports**
-   - Compiler emits `import ... from '/runtime/core.js'` (dev-server paths),
-     which must be rewritten for a standalone browser bundle.
-
-## Fallback used for this entry
-
-`src/main.js` uses the **Pulse runtime API directly** (`createSignal`, `batch`,
-`createEffect`, keyed `List`, template clone) — clearly labelled in source.
-This is still Pulse (same runtime as compiled SFCs), not hand-written vanilla DOM
-diffing. Per-row `label` signals mirror Solid's fine-grained update pattern so
-partial update and keyed reuse both pass the benchmark's validation.
+Remaining SFC gap for a compiled bench: nested `row.label` on a plain object
+does not notify the item text binding when the object is replaced under the
+same key. The runtime entry keeps per-row label signals so "update every 10th"
+stays keyed. Script transform is now scope-aware (`const data` inside
+`buildData` is no longer rewritten to `get_data`).

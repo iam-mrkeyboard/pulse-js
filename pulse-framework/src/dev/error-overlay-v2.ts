@@ -57,13 +57,13 @@ export class VisualErrorSystem {
     if (error.codeFrame) {
       const frame = document.createElement('pre');
       frame.className = 'pulse-error-code-frame';
-      frame.textContent = error.codeFrame;
+      frame.textContent = this.formatCodeFrame(error.codeFrame);
       content.appendChild(frame);
-    } else if (error.source && error.location) {
+    } else if ((error as any).source && error.location) {
       // Generate code frame roughly if not provided
       const frame = document.createElement('pre');
       frame.className = 'pulse-error-code-frame';
-      frame.textContent = this.generateSimpleFrame(error.source, error.location);
+      frame.textContent = this.generateSimpleFrame((error as any).source as string, error.location);
       content.appendChild(frame);
     }
 
@@ -84,6 +84,15 @@ export class VisualErrorSystem {
 
     container.appendChild(content);
     return container;
+  }
+
+  private formatCodeFrame(frame: { start: number; lines: Array<{ content: string; lineNo: number; isError?: boolean; column?: number }> }): string {
+    return frame.lines.map(l => {
+      const marker = l.isError ? '>' : ' ';
+      const gutter = String(l.lineNo).padStart(4, ' ');
+      const caret = l.isError && l.column != null ? '\n' + ' '.repeat(6 + (l.column || 0)) + '^' : '';
+      return `${marker} ${gutter} | ${l.content}${caret}`;
+    }).join('\n');
   }
 
   private generateSimpleFrame(source: string, loc: { line: number, column: number }): string {

@@ -1,7 +1,7 @@
 {
   "name": "pulse",
   "version": "0.16.0",
-  "description": "The fastest web framework - lightweight islands architecture (pre-1.0; runtime size re-measured — see README)",
+  "description": "The fastest web framework - lightweight islands architecture (pre-1.0; runtime size re-measured \u2014 see README)",
   "main": "./dist/index.js",
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -16,18 +16,29 @@
     "./runtime": {
       "import": "./dist/runtime/core.js"
     },
+    "./runtime/dom": {
+      "import": "./dist/runtime/dom.js"
+    },
+    "./runtime/list": {
+      "import": "./dist/runtime/primitives/list.js"
+    },
+    "./runtime/show": {
+      "import": "./dist/runtime/primitives/show.js"
+    },
     "./cli": {
       "import": "./dist/cli/index.js"
     }
   },
   "scripts": {
-    "build": "bun build ./src/index.ts --outdir ./dist --target bun --format esm --sourcemap=none --external lightningcss && bun build ./src/cli/index.ts --outdir ./dist/cli --target bun --format esm --sourcemap=none --external lightningcss",
+    "build": "bun build ./src/index.ts --outdir ./dist --target bun --format esm --sourcemap=none --external lightningcss && bun build ./src/cli/index.ts --outdir ./dist/cli --target bun --format esm --sourcemap=none --external lightningcss && bun ./scripts/build-runtime.ts && bunx tsc -p tsconfig.dts.json",
+    "build:runtime": "bun ./scripts/build-runtime.ts",
     "dev": "bun run src/cli/index.ts dev",
     "test": "bun test",
     "type-check": "tsc --noEmit",
     "link": "bun link",
     "unlink": "bun unlink",
-    "clean": "rm -rf dist"
+    "clean": "rm -rf dist",
+    "build:dts": "bunx tsc -p tsconfig.dts.json"
   },
   "keywords": [
     "framework",

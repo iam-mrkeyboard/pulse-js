@@ -10,10 +10,6 @@ Historical entries for **v0.6.0–v0.15.0** are reconstructed from the project's
 
 ## [Unreleased]
 
-### Added
-
-- Nothing yet. Add new entries here.
-
 ---
 
 ## [0.16.0] - 2026-09-24
@@ -26,6 +22,13 @@ Historical entries for **v0.6.0–v0.15.0** are reconstructed from the project's
 - Hydration mismatch fallback with `onMismatch` and a dev `console.warn` when the SSR root is missing.
 - Shared SFC compiler at `src/compiler` (server `ComponentCompiler`; bundler interactive path delegates) (PR #1 / #2).
 - Keyed `<List>` reconcile with common prefix/suffix + Map reuse; explicit `key` wiring through transformer and mount (PR #1 / #2).
+- Longest-increasing-subsequence reorder in the keyed `List` middle range after the prefix/suffix skip, run only when surviving rows actually moved (PR #6).
+- `createSelector` and `createRoot` on the core runtime (Solid-style selected-row updates; List disposes row effects on remove) (PR #6).
+- Production browser runtime files under `dist/runtime/` and `pulse/runtime` package exports (PR #6).
+- `dist/index.d.ts` emitted from `tsconfig.dts.json` so package `types`/`exports` resolve after build (PR #6).
+- Dev-only `console.warn` when `List` sees duplicate keys (Map reconcile keeps the last item; no production cost) (PR #6).
+- List remounts a row when the key is unchanged but the item object identity changes (immutable plain-object updates) (PR #6).
+- js-framework-benchmark keyed entry (`benchmarks/js-framework-benchmark`) using one delegated click listener on `<tbody>` (PR #5 / #6).
 - Headless Chromium microbenchmark harness under `bench/` with recorded local results (PR #1 / #2 / #3).
 - Project hygiene: `CHANGELOG.md`, `ROADMAP.md`, `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`, `SECURITY.md`, GitHub issue/PR templates, and CI workflow.
 - Blog post for v0.16.0 on the docs site.
@@ -45,11 +48,29 @@ Historical entries for **v0.6.0–v0.15.0** are reconstructed from the project's
 - Error-boundary and HMR error UI use `textContent` / DOM APIs instead of HTML injection (PR #1 / #2).
 - `errors-v2` → `errors` import fix in `dev/auto-fixer.ts`, `dev/error-overlay-v2.ts`, and `test_dev_tools.ts` (PR #2).
 - Delegated events and effect-wrapped text bindings for reactive updates (PR #1 / #2).
+- Row swap no longer `insertBefore`s the whole middle of the list (PR #6).
+- Empty list clear uses a bulk `replaceChildren` path (PR #6).
+- List item `class` / attribute bindings stay on the item instead of being hoisted (PR #6).
+- Compiled SFCs import `pulse/runtime` instead of `/runtime/*.js` (PR #6).
+- `RuntimeBuilder` emits a non-empty production runtime (path + TS transpile) (PR #6).
+- Script transform skips locally shadowed state names (`const data` inside `buildData`) (PR #6).
+- `pulse-app` depends on `file:../pulse-framework` (Bun `link:` failed against package name `pulse`) (PR #6).
+- Dev server imports and serves the real `hydrate` (`/runtime/hydration.js` + allowlist) (PR #6).
+- Nested template-literal class attributes (``class={`btn btn-${x}`}``) emit valid JS; the docs site minifies with terser (PR #6).
+- `tsc --noEmit` is clean after import-path fixes (PR #6).
+- Hygiene: untracked extension `out/`, framework `dist/`, logs, duplicate wasm; `.gitignore` updated (PR #6).
+- **Production build shipped an empty `<body>`** on every page (minified and unminified): nothing ever set the page `staticHTML`, the minifier stripped the leftover comment, and page JS was never loaded (island imports used bare `pulse/runtime` specifiers the browser could not resolve). `pulse build` now server-renders each page into `<div id="app">` with the `data-p-h` / `data-p-c` / `data-p-list` / `data-p-show` (and, for keyed lists, `data-p-key`) hydration markers, and bundles one hydration entry per interactive page (`Bun.build`, shared chunks, `/assets/*`), which adopts that DOM instead of remounting. Pages with no interactive components ship no JS (PR #6).
+- Build output follows the route tree (`pages/blog/v0.16.pulse` → `dist/blog/v0.16/index.html`); basename collisions no longer drop pages (30/30 built instead of 28), and `outDir` resolves against the project root (PR #6).
+- Hydration adopts server-rendered child components (`data-p-c`) and binds adopted `<List>` rows (events, bindings, nested `<Show>`). Object items without a `key` adopt by position instead of all mapping to `"[object Object]"` (PR #6).
+- Compiler: adjacent text and `{expr}` interpolations get a `<!---->` separator so they no longer merge into one text node (`Count: {count}` rendered blank); `{decl}` / `{props.x}` interpolations render their value; static components no longer print literal `${props.x}`; explicit accessor calls (`count()`) and `createMemo` work in scripts; inline handlers (`onClick={() => setOpen(!open)}`) and `{handler}` names are resolved; a `<style>` inside a script string is no longer taken as the component stylesheet (PR #6).
+- Dev server: SSR resolves `pulse/runtime*` with a Bun plugin; happy-dom no longer replaces the native `Response` (Bun.serve failed with "Expected a Response object"); pages get an import map for `pulse/runtime*` and the real HMR client instead of a `/@vite/client` placeholder; SSR does not attach document event delegation (PR #6).
+- `pulse build --no-minify` (documented in `--help`) is accepted (PR #6).
 
 ### Security
 
 - Error UI no longer injects HTML via `innerHTML` for boundary / overlay messages (PR #1 / #2).
 - Expression eval hardened behind `safeEvalExpr` with a stricter scope (PR #1 / #2).
+- Template transformer no longer uses `new Function`; it goes through the shared `safeEval` evaluator (PR #6).
 
 ### Removed
 
@@ -65,6 +86,19 @@ From `bench/RESULTS.md` on HeadlessChrome via Puppeteer:
 | remount_1k keyed rows | ~1.0 ms |
 | List append_1k (prefix/suffix+Map) | ~2.6–2.7 ms |
 | List append_1k (always-insertBefore) | ~5.4–5.9 ms |
+
+From `benchmarks/js-framework-benchmark/RESULTS.md` (js-framework-benchmark CPU tests, Chrome 151, headless, count 10, same run as vanillajs / Solid / Vue):
+
+| Test | Pulse / vanilla |
+|------|-----------------|
+| Create 1,000 rows | 1.11 |
+| Select a row | 1.14 |
+| Swap two rows | 1.13 |
+| Create 10,000 rows | 1.17 |
+| Clear all rows | 1.39 |
+| **Geometric mean (9 CPU tests)** | **1.16** |
+
+Measured and rejected during PR #6: clearing via `textContent = ''` (slower than `replaceChildren`) and merging the label and select effects into one (select about 3× slower).
 
 ---
 
