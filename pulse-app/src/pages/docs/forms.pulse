@@ -37,7 +37,7 @@
         <div class="code-header">
           <span class="label">Text Input Binding</span>
         </div>
-        <pre><code>&lt;script&gt;
+        <pre><code is:raw>&lt;script&gt;
   const [name, setName] = createSignal('');
 &lt;/script&gt;
 
@@ -53,7 +53,7 @@
 
       <h3>Email & Password</h3>
       <div class="code-block">
-        <pre><code>const [email, setEmail] = createSignal('');
+        <pre><code is:raw>const [email, setEmail] = createSignal('');
 const [password, setPassword] = createSignal('');
 
 &lt;input 
@@ -91,7 +91,7 @@ const [password, setPassword] = createSignal('');
         <div class="code-header">
           <span class="label">Checkbox Binding</span>
         </div>
-        <pre><code>&lt;script&gt;
+        <pre><code is:raw>&lt;script&gt;
   const [subscribed, setSubscribed] = createSignal(false);
 &lt;/script&gt;
 
@@ -125,7 +125,7 @@ const [password, setPassword] = createSignal('');
       </div>
 
       <div class="code-block">
-        <pre><code>&lt;script&gt;
+        <pre><code is:raw>&lt;script&gt;
   const [role, setRole] = createSignal('user');
 &lt;/script&gt;
 
@@ -141,7 +141,7 @@ const [password, setPassword] = createSignal('');
 
       <h3>Radio Buttons</h3>
       <div class="code-block">
-        <pre><code>&lt;script&gt;
+        <pre><code is:raw>&lt;script&gt;
   const [theme, setTheme] = createSignal('light');
 &lt;/script&gt;
 
@@ -175,7 +175,7 @@ const [password, setPassword] = createSignal('');
         <div class="code-header">
           <span class="label">Validated Form</span>
         </div>
-        <pre><code>&lt;script&gt;
+        <pre><code is:raw>&lt;script&gt;
   const [email, setEmail] = createSignal('');
   const [password, setPassword] = createSignal('');
   

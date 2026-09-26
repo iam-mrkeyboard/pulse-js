@@ -21,7 +21,7 @@
       <p>We introduced the core control flow primitives: <code>&lt;List&gt;</code> and <code>&lt;Show&gt;</code>. Unlike other frameworks that use compiler magic around `.map()`, Pulse primitives are optimized at the compiler level to handle DOM updates efficiently. This reduces the boilerplate needed for rendering collections and conditional logic.</p>
 
       <h3>💅 Smart Scoped CSS</h3>
-      <p>v0.7 brings automatic CSS scoping. Styles defined in a <code>&lt;style&gt;</code> block are hashed and attached locally to the component. No more naming collisions or BEM methodology requirements—just write <code>.button {}</code> and let Pulse handle the rest.</p>
+      <p>v0.7 brings automatic CSS scoping. Styles defined in a <code>&lt;style&gt;</code> block are hashed and attached locally to the component. No more naming collisions or BEM methodology requirements—just write <code is:raw>.button {}</code> and let Pulse handle the rest.</p>
     </div>
   </div>
 </main>

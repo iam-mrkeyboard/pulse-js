@@ -78,6 +78,25 @@ type Sections = {
   styles: string;
 };
 
+/** Remove comments (JS line/block or HTML) that precede the first markup of a template. */
+export function stripLeadingComments(text: string): string {
+  let t = text.trim();
+  for (;;) {
+    if (t.startsWith('//')) {
+      const nl = t.indexOf('\n');
+      t = nl === -1 ? '' : t.slice(nl + 1).trimStart();
+    } else if (t.startsWith('/*')) {
+      const end = t.indexOf('*/');
+      t = end === -1 ? '' : t.slice(end + 2).trimStart();
+    } else if (t.startsWith('<!--')) {
+      const end = t.indexOf('-->');
+      t = end === -1 ? '' : t.slice(end + 3).trimStart();
+    } else {
+      return t;
+    }
+  }
+}
+
 // ----------------------------------------------------------------------------
 // UNIFIED PARSER
 // ----------------------------------------------------------------------------
@@ -146,8 +165,10 @@ export class UnifiedParser {
       }
     }
 
-    // Template is everything ELSE.
-    sections.template = rest.trim();
+    // Template is everything ELSE, minus a leading file-header comment block
+    // (`// ...` lines, `/* ... */`, `<!-- ... -->` before the first markup), which
+    // is an authoring note, not page text.
+    sections.template = stripLeadingComments(rest);
 
     // Bare leading script (Counter.pulse style): JS before first markup tag when no <script>
     if (!sections.script.trim()) {

@@ -51,7 +51,7 @@
 
   <div class="code-section">
     <h2>Code</h2>
-    <pre><code>&lt;script&gt;
+    <pre><code is:raw>&lt;script&gt;
   const [count, setCount] = createSignal(0);
   
   // Derived values - only recompute when count changes

@@ -46,7 +46,7 @@ setCount(c => c + 1);  // Updater function</code></pre>
 
       <h3>Signal Types</h3>
       <div class="code-block">
-        <pre><code>// Primitive values
+        <pre><code is:raw>// Primitive values
 const [name, setName] = createSignal('');
 const [age, setAge] = createSignal(0);
 const [active, setActive] = createSignal(false);
@@ -69,7 +69,7 @@ setItems(prev => [...prev, newItem]);</code></pre>
         <div class="code-header">
           <span class="label">Basic Effect</span>
         </div>
-        <pre><code>const [count, setCount] = createSignal(0);
+        <pre><code is:raw>const [count, setCount] = createSignal(0);
 
 // This runs whenever count() changes
 createEffect(() => {
@@ -82,7 +82,7 @@ setCount(2);  // Logs: "Count is now: 2"</code></pre>
 
       <h3>Effect with Cleanup</h3>
       <div class="code-block">
-        <pre><code>createEffect(() => {
+        <pre><code is:raw>createEffect(() => {
   const timer = setInterval(() => {
     console.log('Tick');
   }, 1000);
@@ -120,7 +120,7 @@ console.log(total());  // 500</code></pre>
 
       <h3>Complex Computations</h3>
       <div class="code-block">
-        <pre><code>const [users, setUsers] = createSignal([...]);
+        <pre><code is:raw>const [users, setUsers] = createSignal([...]);
 const [filter, setFilter] = createSignal('active');
 
 const filteredUsers = createMemo(() => {

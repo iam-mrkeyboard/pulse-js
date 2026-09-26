@@ -385,10 +385,6 @@ export default function ${componentName}(props) {
       moduleCode += `  }; \n\n`;
 
 
-      if (componentName === 'form') {
-        console.log(`[ComponentCompiler] Form bindings count: `, bindings.length);
-      }
-
       // NO innerHTML here! We already cloned.
 
       // Reactive bindings
@@ -456,19 +452,7 @@ export default function ${componentName}(props) {
         scopedStyles = cssScoper.scope(styles, scopeId, template);
       }
 
-      // Process props in template (simple regex replace on the static string)
-      // Since it's static, we can bake it into the template string BUT it has ${props.x}
-      // which needs evaluation at runtime.
-      // So we can't fully staticize the HTML if it has prop interpolations baked in as ${}.
-      // UNLESS we use a function to generate the HTML.
-      // OR we use the same bindings approach as stateful?
-      // For now, to keep it simple and consistent with previous "Static" logic:
-      // We will keep the `innerHTML` approach for Static components because they might rely on 
-      // simple JS interpolation `${props.foo}` which `cloneNode` doesn't support (it needs bindings).
-      // BUT we can still fix the SCOPE ID randomness!
-
-      // Update: The plan demanded scope ID stability. We achieved that above.
-      // So detailed rework of static component logic is secondary, but let's at least fix scope ID.
+      // Static components render props with ${props.x} inside an innerHTML template.
 
       moduleCode += `export default function ${componentName}(props = {}) {\n`;
       // Hydration: static markup is already correct; adopt the SSR node as-is.
@@ -484,41 +468,9 @@ export default function ${componentName}(props) {
       moduleCode += `  container.classList.add('${scopeId}');\n`;
       moduleCode += `  container.className += ' pulse-component-${componentName.toLowerCase()}';\n\n`;
 
-      // Process template...
-      let processedTemplate = template;
-      let result = '';
-      let lastIndex = 0;
-      for (let i = 0; i < processedTemplate.length; i++) {
-        if (processedTemplate[i] === '{') {
-          const close = processedTemplate.indexOf('}', i);
-          if (close !== -1) {
-            const prop = processedTemplate.slice(i + 1, close);
-            // Manual alphanumeric check
-            let isWord = true;
-            if (prop.length === 0) isWord = false;
-            for (let j = 0; j < prop.length; j++) {
-              const c = prop.charCodeAt(j);
-              if (!(
-                (c >= 48 && c <= 57) || // 0-9
-                (c >= 65 && c <= 90) || // A-Z
-                (c >= 97 && c <= 122) || // a-z
-                (c === 95) // _
-              )) {
-                isWord = false;
-                break;
-              }
-            }
-            if (isWord) {
-              result += processedTemplate.slice(lastIndex, i);
-              result += `\u0000PULSEPROP:${prop}\u0000`;
-              i = close;
-              lastIndex = i + 1;
-            }
-          }
-        }
-      }
-      result += processedTemplate.slice(lastIndex);
-      processedTemplate = result;
+      // Serialize the parsed template (comments dropped, whitespace normalized,
+      // `is:raw` children literal); {identifier} becomes a props interpolation.
+      const processedTemplate = (templateNode.children || []).map((c) => this.serializeStatic(c)).join('');
 
       // Escape the markup first, then splice in the ${props.x} interpolations (escaping
       // afterwards would turn them into literal "${props.x}" text).
@@ -559,32 +511,36 @@ export default function ${componentName}(props) {
     return moduleCode;
   }
 
-  private serializeNode(node: ParsedNode): string {
-    if (node.type === 'comment') return `<!--${node.content}-->`;
+  /**
+   * Serialize a parsed node for the static (innerHTML) component path.
+   * `{identifier}` in text or attributes becomes a props interpolation marker
+   * (spliced in after template-literal escaping); other expressions stay literal;
+   * event attributes are omitted (bound separately); raw text is emitted verbatim.
+   */
+  private serializeStatic(node: ParsedNode): string {
+    const PROP = (name: string) => `\u0000PULSEPROP:${name}\u0000`;
+    if (node.type === 'comment') return '';
     if (node.type === 'text') return node.content || '';
-    if (node.type === 'expression') return `{${node.content}}`;
-
+    if (node.type === 'expression') {
+      const code = (node.content || '').trim();
+      return /^[A-Za-z_$][\w$]*$/.test(code) ? PROP(code) : `{${code}}`;
+    }
     if (node.type === 'element') {
       let attrs = '';
-      if (node.attributes) {
-        node.attributes.forEach((val, key) => {
-          // val can be string or ParsedExpression
-          if (typeof val === 'string') {
-            attrs += ` ${key}="${val.replaceAll('"', '&quot;')}"`;
-          } else {
-            // ParsedExpression - output without quotes to preserve expression type for TemplateTransformer
-            attrs += ` ${key}={${val.code}}`;
-          }
-        });
-      }
-
-      const children = node.children ? node.children.map(c => this.serializeNode(c)).join('') : '';
-
+      node.attributes?.forEach((val, key) => {
+        if (/^on[A-Z]/.test(key) || key.startsWith('on:')) return;
+        if (typeof val === 'string') {
+          attrs += val === '' ? ` ${key}` : ` ${key}="${val.replaceAll('"', '&quot;')}"`;
+        } else {
+          const code = val.code.trim();
+          attrs += /^[A-Za-z_$][\w$]*$/.test(code) ? ` ${key}="${PROP(code)}"` : '';
+        }
+      });
+      const children = (node.children || []).map((c) => this.serializeStatic(c)).join('');
       const voidElements = new Set(['area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input', 'link', 'meta', 'param', 'source', 'track', 'wbr']);
       if (node.tag && voidElements.has(node.tag.toLowerCase()) && !children) {
         return `<${node.tag}${attrs} />`;
       }
-
       return `<${node.tag}${attrs}>${children}</${node.tag}>`;
     }
     return '';

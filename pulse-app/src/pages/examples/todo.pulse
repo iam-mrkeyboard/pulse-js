@@ -63,7 +63,7 @@
       </form>
       
       <ul class="todo-list">
-        <List each={todos} as="todo">
+        <List each={todos} as="todo" key={todo.id}>
           <li class={todo.done ? 'done' : ''}>
             <input 
               type="checkbox" 
@@ -80,7 +80,7 @@
 
   <div class="code-section">
     <h2>Code</h2>
-    <pre><code>&lt;script&gt;
+    <pre><code is:raw>&lt;script&gt;
   const [todos, setTodos] = createSignal([
     { id: 1, text: 'Learn Pulse', done: false }
   ]);

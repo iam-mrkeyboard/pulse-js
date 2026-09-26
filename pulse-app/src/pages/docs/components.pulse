@@ -12,6 +12,7 @@
       <a href="/docs/components#creating">Creating</a>
       <a href="/docs/components#props">Props</a>
       <a href="/docs/components#composition">Composition</a>
+      <a href="/docs/components#braces">Literal Braces</a>
     </nav>
     <a href="/docs" class="back">← All Docs</a>
   </aside>
@@ -41,7 +42,7 @@
         <div class="code-header">
           <span class="label">components/Button.pulse</span>
         </div>
-        <pre><code>&lt;script&gt;
+        <pre><code is:raw>&lt;script&gt;
   // Component logic
   const { label, variant = 'primary', onClick } = props;
 &lt;/script&gt;
@@ -83,7 +84,7 @@
         <div class="code-header">
           <span class="label">Passing Props</span>
         </div>
-        <pre><code>&lt;script&gt;
+        <pre><code is:raw>&lt;script&gt;
   import Button from './components/Button.pulse';
   import Card from './components/Card.pulse';
   
@@ -108,7 +109,7 @@
 
       <h3>Default Props</h3>
       <div class="code-block">
-        <pre><code>// Using destructuring with defaults
+        <pre><code is:raw>// Using destructuring with defaults
 const { 
   label = 'Button',
   variant = 'primary',
@@ -136,7 +137,7 @@ const {
         <div class="code-header">
           <span class="label">components/Card.pulse</span>
         </div>
-        <pre><code>&lt;script&gt;
+        <pre><code is:raw>&lt;script&gt;
   import Button from './Button.pulse';
   
   const { title, description, actions } = props;
@@ -170,7 +171,7 @@ const {
 
       <h3>Page Using Components</h3>
       <div class="code-block">
-        <pre><code>&lt;script&gt;
+        <pre><code is:raw>&lt;script&gt;
   import Navbar from './components/Navbar.pulse';
   import Card from './components/Card.pulse';
   import Button from './components/Button.pulse';
@@ -197,6 +198,24 @@ const {
       </div>
     </section>
 
+    <section id="braces">
+      <h2>Expressions &amp; Literal Braces</h2>
+      <p>
+        <code is:raw>{expression}</code> is evaluated everywhere in the template, including inside
+        <code>&lt;pre&gt;</code>, <code>&lt;code&gt;</code>, <code>&lt;textarea&gt;</code> and <code>&lt;title&gt;</code>.
+        Only <code>&lt;script&gt;</code> and <code>&lt;style&gt;</code> bodies are raw.
+      </p>
+      <p>
+        To show code samples with literal braces, add <code>is:raw</code> to the element: its children are
+        emitted verbatim (no expressions, no components) and the attribute is removed from the output.
+        For a single literal brace, use <code>&amp;#123;</code> and <code>&amp;#125;</code>.
+      </p>
+      <div class="code-block">
+        <pre><code is:raw>&lt;pre&gt;&lt;code&gt;{snippet}&lt;/code&gt;&lt;/pre&gt;          &lt;!-- renders the value of snippet --&gt;
+&lt;pre&gt;&lt;code is:raw&gt;{snippet}&lt;/code&gt;&lt;/pre&gt;   &lt;!-- renders the text {snippet} --&gt;</code></pre>
+      </div>
+    </section>
+
     <section id="reference">
       <h2>Quick Reference</h2>
       <table>
@@ -213,7 +232,7 @@ const {
           </tr>
           <tr>
             <td>Access Props</td>
-            <td><code>const { label } = props;</code></td>
+            <td><code is:raw>const { label } = props;</code></td>
           </tr>
           <tr>
             <td>Pass String</td>
@@ -221,7 +240,7 @@ const {
           </tr>
           <tr>
             <td>Pass Expression</td>
-            <td><code>&lt;Button onClick={fn} /&gt;</code></td>
+            <td><code is:raw>&lt;Button onClick={fn} /&gt;</code></td>
           </tr>
           <tr>
             <td>Self-Closing</td>

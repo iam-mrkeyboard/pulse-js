@@ -42,7 +42,7 @@
         <div class="code-header">
           <span class="label">Scoped CSS Example</span>
         </div>
-        <pre><code>&lt;!-- ComponentA.pulse --&gt;
+        <pre><code is:raw>&lt;!-- ComponentA.pulse --&gt;
 &lt;button class="btn"&gt;Click Me&lt;/button&gt;
 
 &lt;style&gt;
@@ -79,7 +79,7 @@
         <div class="code-header">
           <span class="label">Global Selectors</span>
         </div>
-        <pre><code>&lt;style&gt;
+        <pre><code is:raw>&lt;style&gt;
   /* Global body styles */
   :global(body) {
     margin: 0;
@@ -103,7 +103,7 @@
 
       <h3>CSS Variables</h3>
       <div class="code-block">
-        <pre><code>&lt;style&gt;
+        <pre><code is:raw>&lt;style&gt;
   :global(:root) {
     /* Colors */
     --primary: #6b46c1;
@@ -144,7 +144,7 @@
         <div class="code-header">
           <span class="label">Dynamic Classes</span>
         </div>
-        <pre><code>&lt;script&gt;
+        <pre><code is:raw>&lt;script&gt;
   const [isActive, setIsActive] = createSignal(false);
   const [size, setSize] = createSignal('medium');
 &lt;/script&gt;
@@ -170,7 +170,7 @@
 
       <h3>Inline Styles</h3>
       <div class="code-block">
-        <pre><code>&lt;script&gt;
+        <pre><code is:raw>&lt;script&gt;
   const [width, setWidth] = createSignal(50);
   const [color, setColor] = createSignal('#6b46c1');
 &lt;/script&gt;

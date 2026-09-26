@@ -3,6 +3,8 @@
 // Proper JavaScript AST-based parser for extracting state, functions, and declarations
 // ============================================================================
 
+import * as acorn from 'acorn';
+
 interface ParsedState {
   name: string;
   setterName?: string | null; // User-defined setter name from destructuring, e.g., "setName"
@@ -42,6 +44,21 @@ export interface ScriptParseResult {
  * ScriptParser - Uses balanced bracket matching instead of regex
  * to correctly parse JavaScript structures like nested arrays and objects.
  */
+/**
+ * True when a declaration's initializer is itself a function (`() => …`,
+ * `async (e) => …`, `function () {…}`). A value that merely *contains* `=>`
+ * (a string of sample code, a memo, an array of callbacks) is data, not a handler.
+ */
+function isFunctionValue(value: string): boolean {
+  try {
+    const node: any = acorn.parseExpressionAt(value, 0, { ecmaVersion: 'latest', sourceType: 'module' });
+    return node.type === 'ArrowFunctionExpression' || node.type === 'FunctionExpression';
+  } catch {
+    // Unparsable (e.g. TS-only syntax): fall back to the historical heuristic.
+    return value.includes('=>') && !value.startsWith('createMemo');
+  }
+}
+
 export class ScriptParser {
   /**
    * Find the matching closing bracket for an opening bracket
@@ -487,7 +504,7 @@ export class ScriptParser {
         const value = extracted.value;
 
         // Check if it is an Arrow Function
-        if (value.includes('=>') && !value.startsWith('createMemo')) {
+        if (isFunctionValue(value)) {
           // It's a function
           // Normalize to function declaration for hoisting support in handlers?
           // Or keep as const assignment. ComponentCompiler adds them as declarations.

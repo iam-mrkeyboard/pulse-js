@@ -65,7 +65,7 @@
 
   <div class="code-section">
     <h2>Code</h2>
-    <pre><code>&lt;script&gt;
+    <pre><code is:raw>&lt;script&gt;
   const [activeTab, setActiveTab] = createSignal('home');
 &lt;/script&gt;
 

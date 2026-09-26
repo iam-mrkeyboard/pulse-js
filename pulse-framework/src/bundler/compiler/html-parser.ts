@@ -18,12 +18,68 @@ export interface ParsedExpression {
   dependencies: Set<string>;
 }
 
+/** Elements whose text content is never parsed (HTML raw-text elements). */
+const RAW_TEXT_ELEMENTS = new Set(['script', 'style']);
+
+/** Attribute that keeps an element's children literal (like Astro `is:raw` / Vue `v-pre`). */
+export const RAW_ATTRIBUTE = 'is:raw';
+
+/** Elements whose whitespace is significant. */
+const PRESERVE_WS_ELEMENTS = new Set(['pre', 'textarea']);
+
+/** Inline-level elements: whitespace next to them is rendered, so it is kept (collapsed). */
+const INLINE_ELEMENTS = new Set([
+  'a', 'abbr', 'b', 'bdi', 'bdo', 'br', 'button', 'cite', 'code', 'data', 'dfn', 'em', 'i',
+  'img', 'input', 'kbd', 'label', 'mark', 'q', 's', 'samp', 'select', 'small', 'span',
+  'strong', 'sub', 'sup', 'textarea', 'time', 'u', 'var', 'wbr', 'svg',
+]);
+
+function isInlineNode(node: ParsedNode | undefined): boolean {
+  if (!node) return false;
+  if (node.type === 'text' || node.type === 'expression') return true;
+  if (node.type === 'element' && node.tag) return INLINE_ELEMENTS.has(node.tag);
+  return false;
+}
+
+/**
+ * HTML-like whitespace handling for a child list (outside <pre>/<textarea>):
+ * runs of whitespace collapse to one space; whitespace at the start/end of the
+ * parent or between two block-level nodes is dropped; whitespace next to inline
+ * content (text, {expr}, <strong>, …) is kept as a single space so words don't
+ * run together ("<strong>a</strong> b" stays "a b").
+ * Comments are dropped: they are authoring notes, not output.
+ */
+function normalizeChildren(children: ParsedNode[]): ParsedNode[] {
+  const nodes = children.filter((c) => c.type !== 'comment');
+  const out: ParsedNode[] = [];
+  for (let i = 0; i < nodes.length; i++) {
+    const node = nodes[i]!;
+    if (node.type !== 'text' || node.raw !== undefined) {
+      out.push(node);
+      continue;
+    }
+    const prev = out[out.length - 1];
+    const next = nodes[i + 1];
+    let text = (node.content || '').replace(/\s+/g, ' ');
+    if (text === ' ') {
+      // whitespace-only: keep one space only between two nodes, one of them inline
+      if (prev && next && (isInlineNode(prev) || isInlineNode(next))) out.push({ type: 'text', content: ' ' });
+      continue;
+    }
+    if (text.startsWith(' ') && !(prev && isInlineNode(prev))) text = text.slice(1);
+    if (text.endsWith(' ') && !(next && isInlineNode(next))) text = text.slice(0, -1);
+    if (text) out.push({ type: 'text', content: text });
+  }
+  return out;
+}
+
 export class HTMLParser {
   private pos = 0;
   private input = '';
+  /** > 0 while parsing inside <pre>/<textarea>: whitespace is kept verbatim. */
+  private preserveWs = 0;
 
   parse(html: string): ParsedNode {
-    console.log('[HTMLParser] Start Parse');
     this.input = html.trim();
     this.pos = 0;
 
@@ -51,14 +107,12 @@ export class HTMLParser {
         }
       }
     }
-    console.log('[HTMLParser] Finished Parse');
 
+    root.children = normalizeChildren(root.children!);
     return root;
   }
 
   private parseNode(): ParsedNode | null {
-    this.skipWhitespace();
-
     if (this.pos >= this.input.length) {
       return null;
     }
@@ -124,48 +178,32 @@ export class HTMLParser {
       this.consume(1);
     }
 
-    // --- RAW TEXT ELEMENTS HANDLING (FIX) ---
-    // Handle script, style, textarea, title as raw text containers
-    if (['script', 'style', 'textarea', 'title', 'pre', 'code'].includes(tagName.toLowerCase())) {
+    // Raw-text content: <script>/<style>, or any element marked `is:raw`
+    // (children kept literal: no {expressions}, no tags, whitespace verbatim).
+    const lowerTag = tagName.toLowerCase();
+    if (RAW_TEXT_ELEMENTS.has(lowerTag) || attributes.has(RAW_ATTRIBUTE)) {
+      attributes.delete(RAW_ATTRIBUTE);
       const closeTag = `</${tagName}`;
       const contentStart = this.pos;
       let contentEnd = this.input.indexOf(closeTag, this.pos);
-
-      // Handle case insensitive closing tag search or complex logic if needed
-      // For simplicity, assuming exact match or lowercase match if input is normalized?
-      // Actually input is raw. So we need to search Case Insensitive?
-      // Pulse conventions are lowercase usually.
-      // Let's stick to simple search first.
-
-      if (contentEnd === -1) {
-        // Try case insensitive or just end of file
-        // If not found, consume until end
-        contentEnd = this.input.length;
-      }
+      if (contentEnd === -1) contentEnd = this.input.length;
 
       const rawContent = this.input.slice(contentStart, contentEnd);
       this.pos = contentEnd;
 
-      // Consume closing tag if present
-      // We matched `</tagName`. We need to consume `>` too.
+      // Consume `</tagName ... >`
       if (this.pos < this.input.length) {
-        // Find `>` after `</tagName`
         const afterTag = this.input.indexOf('>', this.pos);
-        if (afterTag !== -1) {
-          this.pos = afterTag + 1;
-        } else {
-          this.pos = this.input.length;
-        }
+        this.pos = afterTag !== -1 ? afterTag + 1 : this.input.length;
       }
 
       return {
         type: 'element',
         tag: tagName,
         attributes,
-        children: [{ type: 'text', content: rawContent, raw: rawContent }]
+        children: rawContent ? [{ type: 'text', content: rawContent, raw: rawContent }] : [],
       };
     }
-    // ----------------------------------------
 
     // Parse children for standard elements
     const children: ParsedNode[] = [];
@@ -182,9 +220,9 @@ export class HTMLParser {
     }
 
     // Parse until closing tag
+    const preserve = PRESERVE_WS_ELEMENTS.has(lowerTag);
+    if (preserve) this.preserveWs++;
     while (this.pos < this.input.length) {
-      this.skipWhitespace(); // Skip whitespace before checking closing tag
-
       if (this.peek(2 + tagName.length) === `</${tagName}`) {
         // Found closing tag
         // Check exact match to avoid `</div>` matching `</d`?
@@ -210,11 +248,13 @@ export class HTMLParser {
       }
     }
 
+    if (preserve) this.preserveWs--;
+
     return {
       type: 'element',
       tag: tagName,
       attributes,
-      children,
+      children: this.preserveWs > 0 || preserve ? children.filter((c) => c.type !== 'comment') : normalizeChildren(children),
     };
   }
 

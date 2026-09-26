@@ -25,14 +25,14 @@
       <h3>📝 Problem #2: Two-Way Binding Broken</h3>
       <p>Form inputs with two-way binding weren't working properly:</p>
       <ul>
-        <li><strong>Symptom:</strong> Input fields showed literal <code>{name}</code> instead of actual values.</li>
+        <li><strong>Symptom:</strong> Input fields showed literal <code is:raw>{name}</code> instead of actual values.</li>
         <li><strong>Typing:</strong> Changes weren't updating state.</li>
         <li><strong>Setter Functions:</strong> <code>setName</code>, <code>setEmail</code> were not being generated correctly.</li>
       </ul>
 
       <h3>🛠️ Solution: Smart Getter Detection</h3>
       <p>We updated the <code>getProp</code> function to detect signal getter functions and automatically invoke them:</p>
-      <pre><code>// Before (v0.10.0)
+      <pre><code is:raw>// Before (v0.10.0)
 let result = eval(expr);
 return result; // Returns function, not value!
 
@@ -49,9 +49,9 @@ return result;</code></pre>
         <li><strong>Property Assignment:</strong> Changed from <code>setAttribute('value', ...)</code> to direct <code>el.value = ...</code> for live DOM updates.</li>
         <li><strong>Setter Extraction:</strong> <code>ScriptParser</code> now extracts both getter AND setter names from <code>createSignal</code> destructuring.</li>
         <li><strong>Event Handling:</strong> Removed automatic <code>e.preventDefault()</code> that was blocking input events.</li>
-        <li><strong>Attribute Serialization:</strong> Expression attributes like <code>value={name}</code> are now correctly passed to the template transformer.</li>
+        <li><strong>Attribute Serialization:</strong> Expression attributes like <code is:raw>value={name}</code> are now correctly passed to the template transformer.</li>
       </ul>
-      <pre><code>// Form Example (Now Works!)
+      <pre><code is:raw>// Form Example (Now Works!)
 const [name, setName] = createSignal('');
 const [email, setEmail] = createSignal('');
 
@@ -62,14 +62,14 @@ const [email, setEmail] = createSignal('');
       <h3>📐 Template Transformer Fixes</h3>
       <p>The template transformer was also updated to properly wrap primitive attributes:</p>
       <ul>
-        <li><strong>List each:</strong> Now outputs <code>each="{items}"</code> instead of <code>each="items"</code></li>
-        <li><strong>Show when:</strong> Now outputs <code>when="{isVisible}"</code> instead of <code>when="isVisible"</code></li>
+        <li><strong>List each:</strong> Now outputs <code is:raw>each="{items}"</code> instead of <code>each="items"</code></li>
+        <li><strong>Show when:</strong> Now outputs <code is:raw>when="{isVisible}"</code> instead of <code>when="isVisible"</code></li>
         <li><strong>SSR Evaluation:</strong> Direct state variable names (not just <code>state.</code> prefix) now work for SSR</li>
       </ul>
 
       <h3>🚀 createSignal Pattern</h3>
       <p>v0.11.0 fully embraces the <code>createSignal</code> destructuring pattern that's familiar to SolidJS users:</p>
-      <pre><code>// Recommended pattern
+      <pre><code is:raw>// Recommended pattern
 const [items, setItems] = createSignal([
   { id: 1, name: 'Apple' },
   { id: 2, name: 'Banana' }

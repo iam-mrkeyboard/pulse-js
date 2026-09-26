@@ -39,7 +39,7 @@
         <div class="code-header">
           <span class="label">Basic List</span>
         </div>
-        <pre><code>&lt;script&gt;
+        <pre><code is:raw>&lt;script&gt;
   const [items, setItems] = createSignal([
     { id: 1, name: 'Apple', price: 1.2 },
     { id: 2, name: 'Banana', price: 0.8 },
@@ -59,7 +59,7 @@
 
       <h3>Adding & Removing Items</h3>
       <div class="code-block">
-        <pre><code>function addItem() {
+        <pre><code is:raw>function addItem() {
   const newId = items().length + 1;
   setItems([...items(), { id: newId, name: 'New', price: 0 }]);
 }
@@ -98,7 +98,7 @@ function removeItem(id) {
         <div class="code-header">
           <span class="label">Basic Show</span>
         </div>
-        <pre><code>&lt;script&gt;
+        <pre><code is:raw>&lt;script&gt;
   const [isVisible, setIsVisible] = createSignal(true);
 &lt;/script&gt;
 
@@ -115,7 +115,7 @@ function removeItem(id) {
 
       <h3>With Fallback</h3>
       <div class="code-block">
-        <pre><code>&lt;Show 
+        <pre><code is:raw>&lt;Show 
   when={isLoggedIn} 
   fallback={&lt;p&gt;Please log in to continue.&lt;/p&gt;}
 &gt;
@@ -125,7 +125,7 @@ function removeItem(id) {
 
       <h3>Complex Conditions</h3>
       <div class="code-block">
-        <pre><code>const [count, setCount] = createSignal(0);
+        <pre><code is:raw>const [count, setCount] = createSignal(0);
 
 &lt;Show when={count > 10}&gt;
   &lt;div class="alert"&gt;Count is getting high!&lt;/div&gt;
@@ -145,7 +145,7 @@ function removeItem(id) {
         <div class="code-header">
           <span class="label">Modal Example</span>
         </div>
-        <pre><code>&lt;script&gt;
+        <pre><code is:raw>&lt;script&gt;
   const [showModal, setShowModal] = createSignal(false);
 &lt;/script&gt;
 
@@ -193,12 +193,12 @@ function removeItem(id) {
           <tr>
             <td><code>&lt;List&gt;</code></td>
             <td>Render arrays</td>
-            <td><code>each={array}</code></td>
+            <td><code is:raw>each={array}</code></td>
           </tr>
           <tr>
             <td><code>&lt;Show&gt;</code></td>
             <td>Conditional render</td>
-            <td><code>when={boolean}</code></td>
+            <td><code is:raw>when={boolean}</code></td>
           </tr>
           <tr>
             <td><code>&lt;Portal&gt;</code></td>
