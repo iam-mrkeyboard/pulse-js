@@ -2,7 +2,7 @@
   import Navbar from '../components/Navbar.pulse';
   
   const [posts, setPosts] = createSignal([
-    { id: -7, title: 'Pulse v0.16.0: Correctness & Speed', date: '2026-09-24', excerpt: 'Adopt-and-bind hydration, unified SFC compiler, keyed List prefix/suffix+Map, and hardened runtime — with local hydrate ~0.2 ms vs remount ~1.0 ms for 1k rows.', link: '/blog/v0.16' },
+    { id: -7, title: 'Pulse v0.16.0: Correctness & Speed', date: '2026-09-24', excerpt: 'Adopt-and-bind hydration, unified SFC compiler, keyed List with prefix/suffix + LIS, createSelector, and a hardened runtime. Local js-framework-benchmark CPU geomean about 1.16x vanilla JS.', link: '/blog/v0.16' },
     { id: -6, title: 'Pulse v0.15.0 Released', date: '2026-02-06', excerpt: 'The Performance Update: functional runtime, Reactivity V2, template cloning, LLM introspector, and beautiful errors.', link: '/blog/v0.15' },
     { id: -5, title: 'Pulse v0.14: The "Vibe Coding" Update', date: '2026-02-05', excerpt: 'Unified Runtime, Microtask Scheduling, Virtualized Lists, and a full Bun Test suite.', link: '/blog/v0-14' },
     { id: -4, title: 'v0.13.0 - The Performance Update', date: '2026-01-25', excerpt: "Introducing 'Treasure Map' Path Walker, Keyed Reconciliation, and Template Hoisting for SolidJS-like performance.", link: '/blog/v0.13.0' },

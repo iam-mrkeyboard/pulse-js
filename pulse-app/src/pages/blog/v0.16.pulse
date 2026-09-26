@@ -3,7 +3,7 @@
   import Footer from '../../components/Footer.pulse';
 
   let title = "Pulse v0.16.0 Released";
-  let subtitle = "The Correctness & Speed Update: adopt-and-bind hydration, unified compiler, keyed List, and hardened runtime.";
+  let subtitle = "The Correctness & Speed Update: adopt-and-bind hydration, unified compiler, keyed List with LIS, createSelector, and a hardened runtime.";
   let date = "September 24, 2026";
 </script>
 
@@ -22,7 +22,7 @@
         We are excited to announce <strong>Pulse v0.16.0</strong> — a release focused on
         <strong>correctness and measured speed</strong>. Hydration now adopts the SSR DOM instead of remounting,
         the SFC compiler is unified, keyed lists reconcile with a prefix/suffix + Map strategy, and several
-        security-sensitive paths were hardened. This post describes only changes that landed in PRs #1–#3.
+        security-sensitive paths were hardened. This post describes only changes that landed in PRs #1–#6.
       </p>
 
       <h2>💧 Adopt-and-bind hydration</h2>
@@ -62,11 +62,14 @@
         <code>new Function</code> call sites.
       </p>
 
-      <h2>📋 Keyed List (prefix/suffix + Map)</h2>
+      <h2>📋 Keyed List (prefix/suffix + Map + LIS)</h2>
       <p>
-        <code>&lt;List&gt;</code> uses keyed Map reuse with a common prefix/suffix reconcile (the local bench winner
-        versus always-<code>insertBefore</code> and LIS on jsfb-style ops). Explicit <code>key</code> is wired through
-        the template transformer and mount. List virtualization remains available; <strong>FLIP is opt-in</strong>
+        <code>&lt;List&gt;</code> uses keyed Map reuse with a common prefix/suffix skip. For the changed middle range,
+        it now computes a <strong>longest increasing subsequence</strong> and only moves rows that are not part of it,
+        and it only does that when surviving rows actually moved. Swapping two rows in a 1,000-row list used to
+        <code>insertBefore</code> most of the middle; now it moves only the rows that changed position. Pure appends and creates skip LIS.
+        Explicit <code>key</code> is wired through the template transformer and mount. Duplicate keys print a warning
+        in development (the last item with a key wins). List virtualization remains available; <strong>FLIP is opt-in</strong>
         via <code>flip: true</code>.
       </p>
 
@@ -76,6 +79,59 @@
           <li>prefix/suffix + Map: ~2.6–2.7 ms</li>
           <li>always-insertBefore: ~5.4–5.9 ms</li>
         </ul>
+      </div>
+
+      <h2>🎯 createSelector and createRoot</h2>
+      <p>
+        The core runtime now has <code>createSelector</code>, so a row asks "am I selected?" and only the rows
+        whose answer changed are notified when the selection moves. Selecting a row touches two rows instead of all of
+        them. <code>createRoot</code> gives each List row its own ownership scope, so removing a row disposes its effects.
+      </p>
+
+      <h2>🖱️ One listener on tbody</h2>
+      <p>
+        The js-framework-benchmark entry attaches a single delegated click listener to the <code>&lt;tbody&gt;</code>
+        and finds the row with <code>closest("tr")</code>, instead of adding handlers to every row. Row creation
+        stays a template <code>cloneNode</code> plus two small effects (label and selected class).
+      </p>
+
+      <h2>🛠️ Compiler and build fixes</h2>
+      <ul>
+        <li>List item <code>class</code> and attribute bindings stay on the item instead of being hoisted to the page root.</li>
+        <li>Class attributes written as nested template literals now emit valid JavaScript, so the docs site minifies with terser.</li>
+        <li>Compiled components import <code>pulse/runtime</code> instead of hard-coded <code>/runtime/*.js</code> paths.</li>
+        <li>The production runtime is no longer empty: <code>RuntimeBuilder</code> finds the moved runtime files and transpiles TypeScript before minifying, and <code>bun run build</code> writes <code>dist/runtime/*.js</code> plus <code>dist/index.d.ts</code>.</li>
+        <li>The dev server now loads and serves the real <code>hydrate</code>, so SSR pages actually hydrate during development.</li>
+        <li><code>tsc --noEmit</code> is clean. About 20 type errors were fixed, mostly wrong import paths, without ts-ignore.</li>
+      </ul>
+
+      <h2>🔒 Security</h2>
+      <p>
+        The template transformer no longer calls <code>new Function</code>. It goes through a shared safe evaluator
+        instead. This builds on the earlier move to <code>safeEvalExpr</code>.
+      </p>
+
+      <h2>📊 js-framework-benchmark (local run)</h2>
+      <p>
+        We ran the js-framework-benchmark CPU tests locally: Chrome 151, headless, 10 iterations, with vanillajs,
+        Solid 1.9.3, Vue 3.5.39, and Pulse in the <strong>same run</strong>. Pulse divided by vanilla JS (median total time):
+      </p>
+      <div class="highlight-box">
+        <ul>
+          <li>Create 1,000 rows: <strong>1.11×</strong></li>
+          <li>Replace all rows: 1.15×</li>
+          <li>Update every 10th row: 1.19×</li>
+          <li>Select a row: <strong>1.14×</strong></li>
+          <li>Swap two rows: <strong>1.13×</strong></li>
+          <li>Remove a row: 1.06×</li>
+          <li>Create 10,000 rows: 1.17×</li>
+          <li>Append 1,000 rows: 1.16×</li>
+          <li>Clear all rows: 1.39×</li>
+        </ul>
+        <p style="margin:0">Geometric mean: <strong>about 1.16× vanilla JS</strong>. In the earliest local run, before
+        LIS and createSelector, swap was about 6.3× vanilla and the geometric mean was about 1.39×. These are
+        <strong>local measurements</strong>, not official leaderboard results. Full tables are in
+        <code>benchmarks/js-framework-benchmark/RESULTS.md</code>.</p>
       </div>
 
       <h2>🔒 Hardened error UI</h2>
@@ -95,13 +151,13 @@
       <ul>
         <li>Comment text markers (<code>&lt;!--p--&gt;</code>) exist, but text binding mostly still uses path walk; not every compiler emit path is fully marker-driven yet.</li>
         <li>Deep HTML mismatch falls back rather than surgical patch.</li>
-        <li>js-framework-benchmark entry is tracked separately and is not part of this blog’s claims.</li>
+        <li>Clearing all rows is still the weakest benchmark case (about 1.39× vanilla JS).</li>
+        <li>The benchmark entry uses the runtime API directly, not a compiled <code>.pulse</code> file.</li>
       </ul>
 
       <p>
-        Full details live in <code>CHANGELOG.md</code> and the PR descriptions for #1–#3. Next up: finish
-        comment-marker hydration across emit paths, keep sizing the runtime honestly, and continue the
-        js-framework-benchmark work.
+        Full details live in <code>CHANGELOG.md</code> and the PR descriptions for #1–#6. Next up: finish
+        comment-marker hydration across emit paths, keep sizing the runtime honestly, and make clearing rows faster.
       </p>
     </div>
   </div>

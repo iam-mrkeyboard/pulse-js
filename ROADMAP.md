@@ -30,7 +30,7 @@ Pulse is **pre-1.0**. APIs may change. This file tracks near-term work; it is no
 
 ## From code audit
 
-Fixed in the post-v0.16.0 bench round:
+Fixed in v0.16.0 (PR #6):
 
 1. Empty production runtime — `RuntimeBuilder` looked in the wrong directory after the file move and minified TypeScript with terser; it now resolves `src/runtime` / `dist/runtime` and transpiles TS first.
 2. Missing `dist/runtime/*.js` — `bun run build` emits browser ESM runtime files; `./runtime` package exports resolve.
