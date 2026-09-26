@@ -215,45 +215,6 @@ export interface CompilationWarning {
   suggestion?: string;
 }
 
-export interface RuntimeConfig {
-  mode: 'hydrate' | 'spa' | 'static';
-  islands: string[];
-  version: string;
-}
-
-export interface IslandDescriptor {
-  id: string;
-  selector: string;
-  props: Record<string, any>;
-  hydrate: 'load' | 'idle' | 'visible' | 'media';
-}
-
-export interface AnalysisResult {
-  component: ComponentNode;
-  complexity: ComplexityScore;
-  recommendations: Recommendation[];
-}
-
-export interface ComplexityScore {
-  overall: number;
-  reactivity: number;
-  dom: number;
-  dependencies: number;
-}
-
-export interface Recommendation {
-  type: 'performance' | 'size' | 'maintainability';
-  severity: 'info' | 'warning' | 'error';
-  message: string;
-  fix?: string;
-}
-
-export interface OptimizationPass {
-  name: string;
-  run(node: ComponentNode, ctx: CompilationContext): ComponentNode;
-  priority: number;
-}
-
 export interface TransformResult {
   code: string;
   map?: string;

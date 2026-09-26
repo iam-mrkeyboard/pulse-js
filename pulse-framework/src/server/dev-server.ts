@@ -6,32 +6,22 @@ import path from 'node:path';
 import type { PulseConfig } from '../bundler/types';
 import { HMRManager } from './hmr';
 import { SSRRenderer } from './ssr';
-import { ModuleGraph } from './module-graph';
 import { CompilationCache } from './compilation-cache';
 import { ErrorOverlay, type DevError } from './error-overlay';
 import { FileWatcher } from './file-watcher';
 
-import { DependencyAnalyzer } from '../bundler/dependency-analyzer';
-import { HotReload } from './hot-reload';
 import {
   ComponentPropsError,
   ComponentImportError,
 } from '../bundler/compiler/errors';
 import { SafeCompiler } from '../bundler/compiler/safe-compiler';
 import { CompilationError } from '../bundler/compiler/errors';
-import { ReactivityTransformer } from '../bundler/compiler/reactivity-transformer';
-import { CSSScoper } from '../bundler/compiler/css-scoper';
-import { ScriptParser, type ScriptParseResult } from './script-parser';
+import { ScriptParser } from './script-parser';
 
 // Extracted modules
 import { serveHMRClient, getHMRScript } from './hmr-client';
 import { wrapHTML, serve404, generateSuggestion } from './html-wrapper';
-// import { getInlineListPrimitive } from './primitives/inline-list';
-// import { getInlineShowPrimitive } from './primitives/inline-show';
-// import { getInlineRuntime } from './runtime/inline-runtime';
 import { TemplateTransformer } from './template-transformer';
-import { getMountScript } from './mount-script-generator';
-import { PageCompiler } from './page-compiler';
 import { ComponentCompiler } from './component-compiler';
 
 export class DevServer {
@@ -39,16 +29,11 @@ export class DevServer {
   private config: PulseConfig;
   private ssr: SSRRenderer;
   private server?: any;
-  private moduleGraph: ModuleGraph;
   private cache: CompilationCache;
   private watcher: FileWatcher;
-  private analyzer: DependencyAnalyzer;
   private compiler?: ComponentCompiler; // Reusing existing name but now implies the class
   private safeCompiler?: SafeCompiler;
-  private pageCompiler: PageCompiler;
   private lastError?: DevError;
-  private hotReload: HotReload;
-  private reactivityTransformer: ReactivityTransformer;
   private compiledComponents: Map<string, string>;
   private scriptParser: ScriptParser;
   private templateTransformer: TemplateTransformer;
@@ -57,18 +42,13 @@ export class DevServer {
     this.config = config;
     this.hmr = new HMRManager();
     this.scriptParser = new ScriptParser();
-    this.moduleGraph = new ModuleGraph();
     this.cache = new CompilationCache();
     this.watcher = new FileWatcher();
-    this.analyzer = new DependencyAnalyzer(config);
-    this.hotReload = new HotReload(this.moduleGraph, this.hmr);
     this.templateTransformer = new TemplateTransformer();
-    this.pageCompiler = new PageCompiler(config, this.scriptParser, this.templateTransformer);
     this.compiler = new ComponentCompiler(config, this.scriptParser, this.templateTransformer);
     // SSR needs compiler
     this.ssr = new SSRRenderer(config, this.compiler);
     this.safeCompiler = new SafeCompiler(this.compiler);
-    this.reactivityTransformer = new ReactivityTransformer();
     this.compiledComponents = new Map();
   }
 
@@ -184,9 +164,6 @@ export class DevServer {
         return serve404(pathname);
       }
 
-      // Track dependency
-      this.moduleGraph.addModule(pagePath, 'page');
-
       // SSR Render
       console.log(`🔨 SSR Compiling: ${path.basename(pagePath)}`);
       const ssrHtml = await this.ssr.renderPage(pagePath);
@@ -293,7 +270,6 @@ export class DevServer {
       frameworkRuntimeDir = path.resolve(import.meta.dir, '../../src/runtime');
     }
 
-    // console.log('[DevServer] Serving runtime from:', frameworkRuntimeDir); // Debug log (optional)
 
     // Common helper to serve TS files from src/runtime
     const serveTsFile = async (fileName: string) => {

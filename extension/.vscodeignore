@@ -7,8 +7,6 @@ server/tsconfig.json
 server/node_modules/**
 client/node_modules/**
 out/test/**
-test-fixtures/**
-scripts/**
 **/*.map
 **/*.ts
 **/*.tsbuildinfo

@@ -3,21 +3,14 @@
 // Main entry point for Pulse framework
 // ============================================================================
 
-// Bundler exports
+// Build
 export { PulseBundler, build } from './bundler/index';
 export { DependencyAnalyzer } from './bundler/dependency-analyzer';
-export { ReactivityAnalyzer } from './bundler/reactivity-analyzer';
-export { ComponentCompiler } from './bundler/compiler/component-compiler';
-export { RuntimeBuilder } from './runtime/runtime-builder';
-
-// Bundler utilities
-export { CodeSplitter } from './bundler/code-splitter';
 export { Compressor } from './bundler/compressor';
-export { EntryGenerator } from './bundler/entry-generator';
-export { Minifier } from './bundler/minifier';
-export { CodeGenerator } from './bundler/compiler/code-generator';
-export { TemplateOptimizer } from './bundler/compiler/template-optimizer';
 export { CSSScoper } from './bundler/compiler/css-scoper';
+
+// Compiler (.pulse single-file components -> ES modules; used by dev + build)
+export { ComponentCompiler, TemplateTransformer } from './compiler/index';
 
 // Types
 export type {

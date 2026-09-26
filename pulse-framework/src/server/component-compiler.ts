@@ -8,7 +8,6 @@ import type { PulseConfig } from '../bundler/types';
 import { ScriptParser } from './script-parser';
 import { TemplateTransformer } from './template-transformer';
 import { CSSScoper } from '../bundler/compiler/css-scoper';
-import { getMountScript } from './mount-script-generator';
 import { UnifiedParser } from '../bundler/compiler/unified-parser';
 import { type ParsedNode } from '../bundler/compiler/html-parser';
 import * as acorn from 'acorn';

@@ -11,7 +11,6 @@ const entries: Array<[string, string]> = [
   ['src/runtime/dom.ts', 'dist/runtime'],
   ['src/runtime/hydration.ts', 'dist/runtime'],
   ['src/runtime/ssr-markers.ts', 'dist/runtime'],
-  ['src/runtime/error-boundary.ts', 'dist/runtime'],
   ['src/runtime/primitives/list.ts', 'dist/runtime/primitives'],
   ['src/runtime/primitives/show.ts', 'dist/runtime/primitives'],
 ];
