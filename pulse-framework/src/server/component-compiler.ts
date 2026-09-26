@@ -76,8 +76,14 @@ export class ComponentCompiler {
     const hasShowPrimitive = template.includes('<Show') || template.includes('data-pulse-show');
 
     // Build module code
+    // Extra core APIs the user script calls directly (createMemo, batch, …) unless imported.
+    const importedNames = new Set(imports.flatMap((i) => i.names));
+    const extraCore = ['createMemo', 'batch', 'onCleanup', 'untrack', 'createSelector', 'createRoot']
+      .filter((name) => !importedNames.has(name) && new RegExp(`\\b${name}\\s*\\(`).test(scriptContent));
+    const coreImports = ['createSignal', 'createEffect', ...extraCore].join(', ');
+
     let moduleCode = `
-import { createSignal, createEffect } from 'pulse/runtime';
+import { ${coreImports} } from 'pulse/runtime';
 import { mountPrimitives as dom_mountPrimitives, walk } from 'pulse/runtime/dom';
 ${hasListPrimitive ? "import { List } from 'pulse/runtime/list';" : ''}
 ${hasShowPrimitive ? "import { Show } from 'pulse/runtime/show';" : ''}
@@ -161,7 +167,15 @@ ${imports.map(i => {
 
                 let replacement;
                 if (stateNames.has(node.name)) {
-                  replacement = 'get_' + node.name;
+                  // Reads unwrap the signal (count -> get_count()). Writes keep the
+                  // accessor name so an assignment is not turned into invalid syntax.
+                  const isWrite = parent && (
+                    (parent.type === 'AssignmentExpression' && parent.left === node) ||
+                    parent.type === 'UpdateExpression'
+                  );
+                  // Explicit accessor calls (count()) keep their call: count() -> get_count().
+                  const isCallee = parent && parent.type === 'CallExpression' && parent.callee === node;
+                  replacement = isWrite || isCallee ? 'get_' + node.name : 'get_' + node.name + '()';
                 } else {
                   // Computed: just use name (it's the function name)
                   replacement = node.name;
@@ -215,7 +229,10 @@ ${imports.map(i => {
       // Remove caching issues by NOT re-scoping every render
     }
 
-    if (hasState || functions.length > 0) {
+    // The static (innerHTML + ${props.x}) path cannot render child components or
+    // script declarations, so anything using them goes through the binding path.
+    const importsComponents = imports.some(i => i.names.some(n => /^[A-Z]/.test(n)));
+    if (hasState || functions.length > 0 || declarations.length > 0 || importsComponents) {
       // ---------------------------------------------------------
       // STATEFUL COMPONENT
       // ---------------------------------------------------------
@@ -261,6 +278,17 @@ export default function ${componentName}(props) {
       stateVars.forEach(({ name, value, setterName }) => {
         const setter = setterName || `set_${name}`;
         moduleCode += `  const [get_${name}, ${setter}] = createSignal(${value});\n`;
+      });
+      // Template bindings call state as \`name()\`; expose the accessor under that name.
+      const declared = new Set([
+        ...computedVars.map((c) => c.name),
+        ...declarations.map((d) => d.name),
+        ...functions.map((f) => f.name),
+      ]);
+      stateVars.forEach(({ name }) => {
+        if (!declared.has(name) && /^[A-Za-z_$][\w$]*$/.test(name)) {
+          moduleCode += `  const ${name} = get_${name};\n`;
+        }
       });
 
       // Emit Computed Vars
@@ -313,10 +341,22 @@ export default function ${componentName}(props) {
       declarations.forEach(({ name }) => {
         moduleCode += `    ${name}: ${name}, \n`;
       });
+      // Add setters (inline handlers such as onClick={() => setOpen(!open)})
+      stateVars.forEach(({ name, setterName }) => {
+        const setter = setterName || `set_${name}`;
+        if (!declared.has(setter)) moduleCode += `    ${setter}: ${setter}, \n`;
+      });
       // Add props
       moduleCode += `    props: props, \n`; // Allow props access
       moduleCode += `    state: state, \n`;
       moduleCode += `  }; \n\n`;
+      // Accessors for runtime-evaluated expressions (Show when / List each / inline
+      // handlers), which the template transformer rewrites to \`count()\` form.
+      const accessorEntries = [
+        ...stateVars.map(({ name }) => `${name}: get_${name}`),
+        ...computedVars.map(({ name }) => `${name}: ${name}`),
+      ];
+      moduleCode += `  Object.defineProperty(scope, '__accessors', { value: { ${accessorEntries.join(', ')} }, enumerable: false });\n\n`;
 
       // Mount primitives helper using Runtime
       moduleCode += `  const mountPrimitives = (cont) => {
@@ -378,11 +418,12 @@ export default function ${componentName}(props) {
 
       // Event handlers - DELEGATION OPTIMIZATION
       moduleCode += `  const handlers = { ${functions.map((f) => `${f.name}: ${f.name}`).join(', ')} };\n`;
-      moduleCode += `  container.__pulseHandlers = handlers;\n\n`;
+      moduleCode += `  container.__pulseHandlers = handlers;\n`;
+      moduleCode += `  container.__pulseScope = scope;\n\n`;
 
 
       // Handle children/slots
-      moduleCode += `  if (props.children && props.children.length > 0) {\n`;
+      moduleCode += `  if (!props._hydrationNode && props.children && props.children.length > 0) {\n`;
       moduleCode += `    const slotEl = container.querySelector('slot');\n`;
       moduleCode += `    if (slotEl) {\n`;
       moduleCode += `      const fragment = document.createDocumentFragment();\n`;
@@ -430,6 +471,13 @@ export default function ${componentName}(props) {
       // So detailed rework of static component logic is secondary, but let's at least fix scope ID.
 
       moduleCode += `export default function ${componentName}(props = {}) {\n`;
+      // Hydration: static markup is already correct; adopt the SSR node as-is.
+      moduleCode += `  if (props._hydrationNode) {\n`;
+      if (template.includes('onClick={')) {
+        moduleCode += `    const b = props._hydrationNode.querySelector('button');\n`;
+        moduleCode += `    if (b && typeof props.onClick === 'function') b.addEventListener('click', props.onClick);\n`;
+      }
+      moduleCode += `    return props._hydrationNode;\n  }\n`;
       // REMOVED random scopeId generation
 
       moduleCode += `  const container = document.createElement('div');\n`;
@@ -462,7 +510,7 @@ export default function ${componentName}(props) {
             }
             if (isWord) {
               result += processedTemplate.slice(lastIndex, i);
-              result += '${props.' + prop + ' || ""}';
+              result += `\u0000PULSEPROP:${prop}\u0000`;
               i = close;
               lastIndex = i + 1;
             }
@@ -472,7 +520,11 @@ export default function ${componentName}(props) {
       result += processedTemplate.slice(lastIndex);
       processedTemplate = result;
 
-      moduleCode += `  container.innerHTML = \`${this.escapeForTemplateLiteral((scopedStyles ? `<style>${scopedStyles}</style>` : '') + processedTemplate)}\`;
+      // Escape the markup first, then splice in the ${props.x} interpolations (escaping
+      // afterwards would turn them into literal "${props.x}" text).
+      const staticHTML = this.escapeForTemplateLiteral((scopedStyles ? `<style>${scopedStyles}</style>` : '') + processedTemplate)
+        .replace(/\u0000PULSEPROP:(\w+)\u0000/g, (_m, name) => '${props.' + name + ' ?? ""}');
+      moduleCode += `  container.innerHTML = \`${staticHTML}\`;
 
 `;
 
@@ -485,7 +537,7 @@ export default function ${componentName}(props) {
       }
 
       // Slot handling
-      moduleCode += `  if (props.children && props.children.length > 0) {\n`;
+      moduleCode += `  if (!props._hydrationNode && props.children && props.children.length > 0) {\n`;
       moduleCode += `    const slotEl = container.querySelector('slot');\n`;
       moduleCode += `    if (slotEl) {\n`;
       moduleCode += `      const fragment = document.createDocumentFragment();\n`;

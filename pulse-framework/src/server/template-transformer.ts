@@ -91,6 +91,32 @@ export class TemplateTransformer {
       setterMap.set(v.name, v.setter || ('set' + v.name.charAt(0).toUpperCase() + v.name.slice(1)));
     });
 
+    // Serialize a child list, tracking real DOM childNodes indices. Adjacent text
+    // runs (e.g. "Count: " + a {count} placeholder) would merge into ONE text node
+    // when the HTML is parsed (innerHTML or SSR HTML), breaking walk() paths, so an
+    // empty comment separator is emitted between them and counted in the index.
+    const serializeChildren = (
+      children: ParsedNode[], scope: any, isInScope: boolean, isRaw: boolean, basePath: number[]
+    ): string => {
+      let out = '';
+      let domIndex = 0;
+      let prevText = false;
+      for (const c of children) {
+        const isTextish = c.type === 'text' || c.type === 'expression';
+        if (c.type === 'text' && !(c.content || '')) continue;
+        if (isTextish && prevText) {
+          out += '<!---->';
+          domIndex++;
+        }
+        const str = serialize(c, scope, isInScope, isRaw, [...basePath, domIndex]);
+        if (str === '') continue;
+        out += str;
+        domIndex++;
+        prevText = isTextish;
+      }
+      return out;
+    };
+
     // Helper: Serialize Node with Path Tracking
     const serialize = (node: ParsedNode, scope: any = {}, isInScope = false, isRaw = false, path: number[] = []): string => {
 
@@ -118,18 +144,12 @@ export class TemplateTransformer {
           }
         }
 
-        // For Computed/Declarations?
+        // Non-reactive expressions over script declarations (`let title = "…"`,
+        // `const code = \`…\``) or props are evaluated once through a text binding
+        // (the effect has no signal deps) so SSR renders the value instead of "{title}".
         if (!isDependent) {
-          for (const dName of declarations.map(d => d.name)) {
-            if (content.includes(dName)) {
-              // Declarations might be reactive (computed) or static.
-              // Assuming static for now unless we know better.
-              // But computed are passed as computedVars?
-              // ComponentCompiler passes `[...stateVars, ...computedVars]`.
-              // So stateNames INCLUDES computed.
-              // So isDependent check is correct.
-            }
-          }
+          const refsDecl = declarations.some(d => new RegExp(`(^|[^\\w$.])${d.name.replace(/\$/g, '\\$')}([^\\w$]|$)`).test(content));
+          if (refsDecl || /^\s*props\./.test(content)) isDependent = true;
         }
 
         if (isInScope) {
@@ -137,7 +157,7 @@ export class TemplateTransformer {
           scope._listBindings.push({
             type: 'text',
             path: [...path],
-            expr: content
+            expr: this.transformExpression(content, stateNames)
           });
           // Placeholder for text node
           return ` `;
@@ -204,7 +224,7 @@ export class TemplateTransformer {
           const listScope = { ...scope, _listBindings: [], _listBindingCount: 0, _asVar: asVar };
 
           // Reset path for children of List Item
-          const rawTemplate = children.map((c, i) => serialize(c, listScope, true, isRaw, [i])).join('');
+          const rawTemplate = serializeChildren(children, listScope, true, isRaw, []);
 
           const templateId = `tmpl_${templates.size}`;
           templates.set(templateId, rawTemplate);
@@ -229,7 +249,7 @@ export class TemplateTransformer {
           if (fallbackExpr) attrs += ` fallback="{${fallbackExpr}}"`;
 
           // Show children need to be templates usually
-          const childrenStr = children.map((c, i) => serialize(c, scope, isInScope, isRaw, [...path, i])).join('');
+          const childrenStr = serializeChildren(children, scope, isInScope, isRaw, path);
 
           return `<pulse-show${attrs} style="display:contents"><template data-pulse-template>${childrenStr}</template></pulse-show>`;
         }
@@ -245,7 +265,7 @@ export class TemplateTransformer {
               attrsStr += ` ${key}="${valStr.replaceAll('"', '&quot;')}"`;
             });
           }
-          const childrenStr = children.map((c, i) => serialize(c, scope, isInScope, isRaw, [...path, i])).join('');
+          const childrenStr = serializeChildren(children, scope, isInScope, isRaw, path);
           return `<div data-pulse-component="${originalTagName}"${attrsStr} style="display:contents"><template data-pulse-template>${childrenStr}</template></div>`;
         }
 
@@ -293,7 +313,11 @@ export class TemplateTransformer {
             }
 
             if (key.startsWith('on')) {
-              attrsStr += ` data-on-${key.slice(2).toLowerCase()}="${valStr.replaceAll('"', '&quot;')}"`;
+              // Same accessor convention as bindings: state reads become count().
+              const handlerStr = typeof val !== 'string' || (valStr.startsWith('{') && valStr.endsWith('}'))
+                ? `{${this.transformExpression(typeof val === 'string' ? valStr.slice(1, -1) : val.code, stateNames)}}`
+                : valStr;
+              attrsStr += ` data-on-${key.slice(2).toLowerCase()}="${handlerStr.replaceAll('"', '&quot;')}"`;
               return;
             }
 
@@ -347,7 +371,7 @@ export class TemplateTransformer {
           });
         }
 
-        const childrenStr = children.map((c, i) => serialize(c, scope, isInScope, isRaw, [...path, i])).join('');
+        const childrenStr = serializeChildren(children, scope, isInScope, isRaw, path);
 
         const voidElements = new Set(['area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input', 'link', 'meta', 'param', 'source', 'track', 'wbr']);
         if (voidElements.has(tagName) && children.length === 0) {
@@ -359,7 +383,7 @@ export class TemplateTransformer {
     };
 
     // Start with empty path [] for root children
-    const html = (root.children || []).map((node, i) => serialize(node, { _componentNames: componentNames }, false, false, [i])).join('');
+    const html = serializeChildren(root.children || [], { _componentNames: componentNames }, false, false, []);
 
     return { html, bindings, templates };
   }

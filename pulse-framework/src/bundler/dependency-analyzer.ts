@@ -118,18 +118,29 @@ export class DependencyAnalyzer {
       children: undefined,
     };
 
-    // Extract styles
-    const styleMatch = content.match(/<style[^>]*>([\s\S]*?)<\/style>/);
+    let logic = '';
+    let template = '';
+    const scriptBlock = content.match(/<script[^>]*>([\s\S]*?)<\/script>/);
+    const withoutScript = scriptBlock ? content.replace(scriptBlock[0], '') : content;
+
+    // Extract styles (outside the script block, so "<style>" inside a script string is ignored)
+    const styleMatch = withoutScript.match(/<style[^>]*>([\s\S]*?)<\/style>/);
     if (styleMatch && styleMatch[1]) {
       node.styles = styleMatch[1].trim();
-      content = content.replace(styleMatch[0], '');
     }
+    const markup = styleMatch ? withoutScript.replace(styleMatch[0], '') : withoutScript;
 
-    const templateStart = content.search(/^\s*<[a-zA-Z>/]/m);
-    const logic =
-      templateStart !== -1 ? content.substring(0, templateStart).trim() : '';
-    const template =
-      templateStart !== -1 ? content.substring(templateStart).trim() : '';
+    if (scriptBlock) {
+      // <script> SFC: logic is the script body, template is everything else.
+      logic = (scriptBlock[1] || '').trim();
+      template = markup.trim();
+    } else {
+      content = markup;
+      // Bare leading script (logic before the first markup tag)
+      const templateStart = content.search(/^\s*<[a-zA-Z>/]/m);
+      logic = templateStart !== -1 ? content.substring(0, templateStart).trim() : '';
+      template = templateStart !== -1 ? content.substring(templateStart).trim() : '';
+    }
 
     if (logic) {
       node.imports = this.extractImports(logic);
