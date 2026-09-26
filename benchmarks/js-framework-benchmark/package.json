@@ -13,7 +13,7 @@
   "scripts": {
     "dev": "bun build ./src/main.js --outdir ./dist --target browser --format esm --watch",
     "build-prod": "bun build ./src/main.js --outdir ./dist --target browser --format esm --minify",
-    "try-compile-sfc": "bun ./scripts/try-compile-sfc.ts"
+    "sync-runtime": "bash ./sync-runtime.sh"
   },
   "author": "Pulse Team",
   "license": "MIT",

@@ -1,9 +1,6 @@
-// ============================================================================
-// FILE: ~/Desktop/my-pulse-app/pulse.config.ts
-// ============================================================================
-
-import type { PulseConfig } from 'pulse-framework';
-import { createDefaultConfig } from 'pulse-framework';
+// Pulse config for the docs site (apps/docs).
+import type { PulseConfig } from 'pulse';
+import { createDefaultConfig } from 'pulse';
 
 const config: PulseConfig = createDefaultConfig({
   root: process.cwd(),

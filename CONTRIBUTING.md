@@ -4,58 +4,61 @@ Thanks for helping improve Pulse. This guide covers local setup, repo layout, te
 
 ## Requirements
 
-- [Bun](https://bun.sh) ≥ 1.0
+- [Bun](https://bun.sh) ≥ 1.1 (workspaces)
 - Git
-- (Optional, for `bench/`) Google Chrome / Chromium + Puppeteer
+- (Optional, for `benchmarks/`) Google Chrome / Chromium
+- (Optional, for packaging `packages/vscode-extension`) Node.js (vsce)
 
 ## Setup
 
 ```bash
 git clone https://github.com/iam-mrkeyboard/pulse-js.git
 cd pulse-js
-
-# Framework package
-cd pulse-framework
-bun install
-bun run build
-
-# Optional: link for local pulse-app development
-bun link
-cd ../pulse-app
-bun install
-# pulse-app depends on pulse-framework via link:pulse-framework
+bun install            # one install for every workspace (root bun.lock)
+bun run build:pulse    # build packages/pulse (apps use its dist/ CLI and types)
 ```
 
 ## Repo layout
 
 ```text
-├── pulse-framework/   # Core compiler, runtime, CLI, server, tests
-├── pulse-app/         # Docs / example site (.pulse pages, blog)
-├── extension/         # VS Code extension (separate versioning)
-├── bench/             # Headless Chromium microbenchmarks
-└── .github/           # CI, issue & PR templates
+├── packages/
+│   ├── pulse/               # framework: runtime, compiler, SSR, dev server, build, CLI, tests
+│   └── vscode-extension/    # VS Code extension (own bun.lock + vsce; not a root workspace)
+├── apps/docs/               # docs / showcase site (.pulse pages, blog)
+├── examples/counter/        # minimal example app
+├── benchmarks/
+│   ├── js-framework-benchmark/  # keyed Pulse implementation + results
+│   └── micro/               # headless-Chrome microbenchmarks
+├── tsconfig.base.json       # shared TypeScript options (packages extend it)
+└── .github/                 # CI (ci-workflow.yml), issue & PR templates
 ```
 
-## Running tests, bench, and build
+Workspaces: `packages/pulse`, `apps/*`, `examples/*`, `benchmarks/micro`. Apps depend on
+the framework with `"pulse": "workspace:*"`.
+
+## Running tests, typecheck, build, bench
+
+From the repository root:
 
 ```bash
-cd pulse-framework
-
-bun test              # unit + integration tests (happy-dom preload)
-bun run build         # emit dist/ (CLI + library)
-bun run type-check    # tsc --noEmit (optional)
-
-# Microbenchmarks (needs Chrome + puppeteer at repo root)
-cd ..
-bun install           # root puppeteer dep
-bun ./bench/run.mjs
+bun test               # framework test suite (happy-dom preload; see bunfig.toml)
+bun run typecheck      # tsc for packages/pulse, apps/docs and examples
+bun run build          # packages/pulse → apps/docs → examples
+bun run dev            # docs site dev server
+bun run bench          # microbenchmarks (needs Chrome)
 ```
 
-Smoke-compile the docs app after framework changes:
+Per package: `cd packages/pulse && bun test` / `bun run build`; `cd apps/docs && bun run dev`.
+
+After changing `packages/pulse/src/runtime`, refresh the vendored copy used by the
+js-framework-benchmark implementation: `cd benchmarks/js-framework-benchmark && bun run sync-runtime`.
+
+VS Code extension:
 
 ```bash
-cd pulse-app
-bun run build         # requires a built/linked `pulse` CLI
+cd packages/vscode-extension
+bun install            # own bun.lock; intentionally not a root workspace
+bun run compile        # tsc -b client server; package with `bun run package` (vsce)
 ```
 
 ## Commit message convention
@@ -67,7 +70,7 @@ feat: add adopt-and-bind hydration markers
 fix: restore state setters on the reactive façade
 docs: reconstruct CHANGELOG from blog posts
 bench: record hydrate vs remount local medians
-chore: bump pulse-framework to 0.16.0
+chore: bump pulse to 0.17.0
 test: cover List keyed adopt after hydrate
 ```
 
@@ -75,19 +78,20 @@ Scopes are optional (`fix(runtime): …`). Breaking changes: add `!` after the t
 
 ## Pull requests
 
-1. Branch from the current integration tip (today: stack on open work such as `fix/hydration` → `merge/restructure-with-fixes` → `master` when those land).
+1. Branch from `master`.
 2. Keep PRs focused; include a short “why” and how you verified (`bun test`, `bun run build`, bench if relevant).
 3. Do not force-push shared long-lived branches (`master`, integration branches) without maintainer agreement.
 4. Fill out the PR template. Link related issues when applicable.
-5. Wait for CI (`bun install` + `bun test` + `bun run build` in `pulse-framework`) to pass.
-   The workflow lives at `.github/workflows/ci.yml` and runs on pushes to `master` and all pull requests.
+5. Wait for CI to pass: `bun install`, build `packages/pulse`, `bun run typecheck`, `bun test`,
+   then build `apps/docs` and `examples/*`. The workflow is `.github/workflows/ci.yml`
+   (the v0.17 version is staged at `.github/ci-workflow.yml` until a maintainer moves it into place).
 
 ## How releases are cut
 
 1. Land the release PR into the integration branch / `master`.
 2. Ensure `CHANGELOG.md` has a dated `[x.y.z]` section and package versions match.
 3. Tag `vX.Y.Z` on the release commit and create a GitHub Release from that tag (notes from the changelog).
-4. Publish packages only when the maintainer is ready (`pulse` / framework package; extension has its own cadence).
+4. Publish packages only when the maintainer is ready (`packages/pulse` → npm `pulse`; the extension has its own cadence).
 
 Until you are asked otherwise: **do not** create tags or GitHub Releases from contributor PRs—only from the maintainer after merge.
 

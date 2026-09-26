@@ -43,7 +43,7 @@ export class SSRRenderer {
       entrypoints: [pagePath],
       target: 'bun',
       format: 'esm',
-      external: ['bun:test', 'lightningcss', 'ultrahtml', 'acorn', 'estree-walker'],
+      external: ['bun:test', 'lightningcss', 'acorn', 'estree-walker'],
       sourcemap: 'none',
       plugins: [pulsePlugin(this.compiler)],
     });

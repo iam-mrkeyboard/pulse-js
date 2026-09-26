@@ -167,7 +167,7 @@ describe('Nested template-literal class attributes', () => {
     const { minify } = await import('terser');
     const { readFileSync } = await import('fs');
     const path = require('path');
-    const file = path.resolve(import.meta.dir, '../../pulse-app/src/pages/docs/components.pulse');
+    const file = path.resolve(import.meta.dir, '../../../apps/docs/src/pages/docs/components.pulse');
     const src = readFileSync(file, 'utf8');
     const compiler = new ComponentCompiler(
       { root: process.cwd(), srcDir: 'src', outDir: 'dist' } as any,

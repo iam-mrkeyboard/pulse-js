@@ -33,6 +33,7 @@ function safeEvalExpr(code: string, keys: string[], values: any[]): any {
 }
 
 import { createEffect, type Accessor } from './core.js';
+import { P_LIST, P_SHOW, P_KEY, P_COMPONENT, P_PROPS, markKey, markRoot } from './ssr-markers.js';
 
 // ----------------------------------------------------------------------------
 // Template Management
@@ -55,6 +56,20 @@ export function template(html: string): () => Node {
 // ----------------------------------------------------------------------------
 // Path Traversal
 // ----------------------------------------------------------------------------
+
+/**
+ * Names/values for evaluating compiled template expressions against a component
+ * scope. The compiler rewrites state reads to accessor calls (`count()`), so state
+ * and computed entries resolve to their accessor (from the non-enumerable
+ * `scope.__accessors`); everything else (functions, setters, declarations, props)
+ * resolves to its value. Scopes without `__accessors` keep plain value semantics.
+ */
+function scopeEntries(scope: any): { keys: string[]; values: any[] } {
+  const keys = Object.keys(scope || {});
+  const acc = (scope && scope.__accessors) || null;
+  const values = keys.map((k) => (acc && Object.prototype.hasOwnProperty.call(acc, k) ? acc[k] : scope[k]));
+  return { keys, values };
+}
 
 export function walk(root: Node, path: number[]): Node {
   let el = root;
@@ -147,6 +162,88 @@ export function on(node: Node, eventName: string, handler: (e: Event) => void) {
 // Primitives Mounting (List, Show)
 // ----------------------------------------------------------------------------
 
+/** walk() that returns null instead of throwing; descends into <template> / <pulse-show> template content. */
+function safeWalk(root: Node, path: number[]): Node | null {
+  let el: Node | null = root;
+  for (const index of path) {
+    if (!el) return null;
+    // Compiled paths index a <pulse-show>'s children as its template's content.
+    const tag = (el as any).tagName;
+    let holder: Node = el;
+    if (tag === 'TEMPLATE') holder = (el as HTMLTemplateElement).content;
+    else if (tag === 'PULSE-SHOW') {
+      const tpl = Array.from((el as Element).children).find((c) => c.tagName === 'TEMPLATE') as HTMLTemplateElement | undefined;
+      if (tpl) holder = tpl.content;
+    }
+    el = holder.childNodes[index] || null;
+  }
+  return el;
+}
+
+/** True when `el` is not nested inside another List/Show owned by `container`. */
+function ownedByContainer(el: Element, container: Element | DocumentFragment): boolean {
+  let p = el.parentElement;
+  while (p && p !== container) {
+    const tag = p.tagName;
+    if (tag === 'PULSE-LIST') return false;
+    p = p.parentElement;
+  }
+  return true;
+}
+
+/**
+ * Replace `[data-pulse-component]` placeholders under `root` with freshly rendered
+ * component roots (fresh render, or content a Show/List creates later).
+ */
+function mountFreshComponents(root: ParentNode, components: Record<string, any> | undefined) {
+  if (!components || !root || !(root as any).querySelectorAll) return;
+  const componentEls = root.querySelectorAll('[data-pulse-component]');
+  componentEls.forEach(el => {
+    const componentName = el.getAttribute('data-pulse-component');
+    if (!componentName) return;
+
+    const Component = components[componentName];
+    if (Component && typeof Component === 'function') {
+      // Collect Props
+      const props: any = {};
+      Array.from(el.attributes).forEach(attr => {
+        if (attr.name.startsWith('data-pulse-')) return;
+        if (attr.name === 'style') return;
+        props[attr.name] = attr.value;
+      });
+
+      // Handle Children
+      const templateEl = el.querySelector('template[data-pulse-template]');
+      if (templateEl) {
+        const t = document.createElement('template');
+        t.innerHTML = templateEl.innerHTML;
+        props.children = Array.from(t.content.cloneNode(true).childNodes);
+      }
+
+      try {
+        // Instantiate Component
+        // Component returns a DOM Node (wrapper div usually)
+        const componentNode = Component(props);
+        if (componentNode) {
+          // Remember which component rendered here so hydration can adopt it later
+          // (SSR serializes this attribute; the placeholder itself is gone).
+          if (componentNode instanceof Element) {
+            (componentNode as any).__pulseAdopted = true;
+            componentNode.setAttribute(P_COMPONENT, componentName);
+            if (Object.keys(props).some((k) => k !== 'children')) {
+              const { children: _c, ...plain } = props;
+              componentNode.setAttribute(P_PROPS, JSON.stringify(plain));
+            }
+          }
+          el.replaceWith(componentNode);
+        }
+      } catch (e) {
+        console.error(`Pulse: Failed to mount component ${componentName}:`, e);
+      }
+    }
+  });
+}
+
 export function mountPrimitives(
   container: HTMLElement,
   scope: any,
@@ -160,6 +257,7 @@ export function mountPrimitives(
   if (primitives.List) {
     const lists = container.querySelectorAll('pulse-list');
     lists.forEach(el => {
+      if (!ownedByContainer(el, container)) return;
       const eachExpr = el.getAttribute('each');
         const keyAttr = el.getAttribute('key');
       const asVar = el.getAttribute('as') || 'item';
@@ -179,8 +277,7 @@ export function mountPrimitives(
         const getEach = () => {
           try {
             // Create a function that returns the expression value using scope
-            const scopeKeys = Object.keys(scope);
-            const scopeValues = scopeKeys.map(k => scope[k]);
+            const { keys: scopeKeys, values: scopeValues } = scopeEntries(scope);
             let result = safeEvalExpr(eachExpr.replace(/^{(.*)}$/, '$1'), scopeKeys, scopeValues);
             // Unwrap signal accessors: each="{items}" where items is () => T[]
             if (typeof result === 'function') result = result();
@@ -193,8 +290,7 @@ export function mountPrimitives(
 
         const keyFn = keyAttr
           ? (item: any, index: number) => {
-              const scopeKeys = Object.keys(scope);
-              const scopeValues = scopeKeys.map(k => scope[k]);
+              const { keys: scopeKeys, values: scopeValues } = scopeEntries(scope);
               const asName = asVar;
               const keys = [...scopeKeys, asName, 'index'];
               const values = [...scopeValues, item, index];
@@ -205,57 +301,110 @@ export function mountPrimitives(
             }
           : undefined;
 
-        const listNode = primitives.List({
-          each: getEach,
-          key: keyFn,
-          children: (item: any, index: number) => {
-            // Clone template
-            // We can use the exported template function if we want, or just manual
-            const t = document.createElement('template');
-            t.innerHTML = templateHtml;
-            const clone = t.content.cloneNode(true);
+        // Adopt existing SSR rows (skip <template>)
+        const initialNodes = Array.from(el.childNodes).filter(
+          (n) => n.nodeType === Node.ELEMENT_NODE && (n as HTMLElement).tagName !== 'TEMPLATE'
+        );
 
-            // Apply bindings
-            // bindings is array of { type: 'text'|'attribute', path: number[], expr: string, name?: string }
-            bindings.forEach((b: any) => {
-              const target = walk(clone, b.path);
-              if (!target) return;
+        el.setAttribute('data-p-list', '1');
 
-              // Eval expression with item and index
-              const run = () => {
-                try {
-                  const scopeKeys = Object.keys(scope);
-                  const scopeValues = scopeKeys.map(k => scope[k]);
-                  // Add item and index to scope
-                  const keys = [...scopeKeys, asVar, 'index'];
-                  const values = [...scopeValues, item, index];
+        // Row scope: page scope (getters + accessors preserved) plus the item/index.
+        const rowScopeFor = (item: any, index: number) => {
+          const rowScope: any = Object.defineProperties({}, Object.getOwnPropertyDescriptors(scope || {}));
+          rowScope[asVar] = item;
+          rowScope.index = index;
+          return rowScope;
+        };
 
-                  return safeEvalExpr(b.expr, keys, values);
-                } catch (e) {
-                  return '';
+        const bindRow = (resolve: (path: number[]) => Node | null, rowRoot: Element | DocumentFragment, item: any, index: number) => {
+          bindings.forEach((b: any) => {
+            const target = resolve(b.path);
+            if (!target) return;
+
+            const run = () => {
+              try {
+                const { keys: scopeKeys, values: scopeValues } = scopeEntries(scope);
+                const keys = [...scopeKeys, asVar, 'index'];
+                const values = [...scopeValues, item, index];
+                return safeEvalExpr(b.expr, keys, values);
+              } catch (e) {
+                return '';
+              }
+            };
+
+            primitives.createEffect(() => {
+              const value = run();
+              if (b.type === 'text') {
+                target.textContent = String(value);
+              } else if (b.type === 'attribute') {
+                if (b.name === 'value' || b.name === 'checked') {
+                  (target as any)[b.name] = value;
+                } else {
+                  (target as Element).setAttribute(b.name, String(value));
                 }
-              };
+              }
+            });
+          });
 
-              primitives.createEffect(() => {
-                const value = run();
-                if (b.type === 'text') {
-                  target.textContent = String(value);
-                } else if (b.type === 'attribute') {
-                  if (b.name === 'value' || b.name === 'checked') {
-                    (target as any)[b.name] = value;
-                  } else {
-                    (target as Element).setAttribute(b.name, String(value));
-                  }
+          const eventEls: Element[] = [];
+          if (rowRoot instanceof Element) eventEls.push(rowRoot);
+          if ((rowRoot as ParentNode).querySelectorAll) {
+            eventEls.push(...Array.from((rowRoot as ParentNode).querySelectorAll('[data-on-click],[data-on-input],[data-on-change]')));
+          }
+          const seen = new Set<Element>();
+          for (const evEl of eventEls) {
+            if (seen.has(evEl) || evEl.closest('template')) continue;
+            seen.add(evEl);
+            for (const attr of Array.from(evEl.attributes || [])) {
+              if (!attr.name.startsWith('data-on-')) continue;
+              const evt = attr.name.slice('data-on-'.length);
+              const expr = attr.value.replace(/^\{|\}$/g, '');
+              (evEl as any).__pulseDirect = true; // bound here; skip root delegation
+              evEl.addEventListener(evt, (event) => {
+                try {
+                  const { keys: scopeKeys, values: scopeValues } = scopeEntries(scope);
+                  const keys = [...scopeKeys, asVar, 'row', 'index', 'e'];
+                  const values = [...scopeValues, item, item, index, event];
+                  const result = safeEvalExpr(expr, keys, values);
+                  if (typeof result === 'function') result(event);
+                } catch (err) {
+                  console.error('Pulse list event error:', expr, err);
                 }
               });
-            });
-
-            // console.log('Pulse [dom] Clone created:', clone);
-            return (clone as DocumentFragment).firstElementChild || clone;
+            }
           }
-        });
 
-        el.replaceWith(listNode);
+          // Nested primitives (e.g. <Show> inside a <List> row) see the row item.
+          const host = rowRoot as any;
+          if (host.querySelector && host.querySelector('pulse-show, pulse-list')) {
+            mountPrimitives(host, rowScopeFor(item, index), primitives, templates);
+          }
+        };
+
+        primitives.List({
+          each: getEach,
+          key: keyFn,
+          host: el,
+          initialNodes,
+          children: (item: any, index: number) => {
+            const t = document.createElement('template');
+            t.innerHTML = templateHtml;
+            const clone = t.content.cloneNode(true) as DocumentFragment;
+            mountFreshComponents(clone, primitives.components);
+            bindRow((p) => safeWalk(clone, p), clone, item, index);
+            const node = clone.firstElementChild || clone;
+            if (keyFn && node instanceof Element) {
+              try { markKey(node, keyFn(item, index)); } catch {}
+            }
+            return node;
+          },
+          // Hydration: SSR rows are adopted in place; bind them instead of re-rendering.
+          // Row binding paths start at the row root (path[0] is the root's index).
+          adopt: (node: Node, item: any, index: number) => {
+            bindRow((p) => (p[0] === 0 ? safeWalk(node, p.slice(1)) : null), node as Element, item, index);
+          },
+        });
+        // Keep pulse-list host in the tree (SSR/hydration identity)
       }
     });
   }
@@ -264,6 +413,7 @@ export function mountPrimitives(
   if (primitives.Show) {
     const shows = container.querySelectorAll('pulse-show');
     shows.forEach(el => {
+      if (!ownedByContainer(el, container)) return;
       const whenExpr = el.getAttribute('when');
       const fallbackExpr = el.getAttribute('fallback');
       const templateEl = el.querySelector('template[data-pulse-template]');
@@ -273,69 +423,66 @@ export function mountPrimitives(
 
         const getWhen = () => {
           try {
-            const scopeKeys = Object.keys(scope);
-            const scopeValues = scopeKeys.map(k => scope[k]);
+            const { keys: scopeKeys, values: scopeValues } = scopeEntries(scope);
             let result = safeEvalExpr(whenExpr.replace(/^{(.*)}$/, '$1'), scopeKeys, scopeValues);
             if (typeof result === 'function') result = result();
             return result;
           } catch (e) { return false; }
         };
 
-        const showNode = primitives.Show({
+        const initialNodes = Array.from(el.childNodes).filter(
+          (n) => n.nodeType === Node.ELEMENT_NODE && (n as HTMLElement).tagName !== 'TEMPLATE'
+        );
+
+        el.setAttribute('data-p-show', '1');
+
+        primitives.Show({
           when: getWhen,
-          fallback: fallbackExpr ? () => document.createTextNode(fallbackExpr || '') : undefined, // Todo: support element fallback
+          host: el,
+          initialNodes,
+          fallback: fallbackExpr ? () => document.createTextNode(fallbackExpr || '') : undefined,
           children: () => {
             const t = document.createElement('template');
             t.innerHTML = content;
-            const clone = t.content.cloneNode(true);
-            return (clone as DocumentFragment).firstElementChild || clone;
-            // Note: Bindings inside Show are not fully handled here recursively yet.
-            // This assumes strict separation or verifying children bindings.
-            // For now, this mounts the static content of Show.
+            const clone = t.content.cloneNode(true) as DocumentFragment;
+            mountFreshComponents(clone, primitives.components);
+            return clone.firstElementChild || clone;
           }
         });
-
-
-        el.replaceWith(showNode);
+        // Keep pulse-show host (adopt SSR branch)
       }
     });
   }
 
   // Mount Components (e.g. Navbar)
   if (primitives.components) {
-    const componentEls = container.querySelectorAll('[data-pulse-component]');
-    componentEls.forEach(el => {
-      const componentName = el.getAttribute('data-pulse-component');
-      if (!componentName) return;
+    // Fresh render: replace [data-pulse-component] placeholders with component roots.
+    mountFreshComponents(container, primitives.components);
 
-      const Component = primitives.components[componentName];
-      if (Component && typeof Component === 'function') {
-        // Collect Props
-        const props: any = {};
-        Array.from(el.attributes).forEach(attr => {
-          if (attr.name.startsWith('data-pulse-')) return;
-          if (attr.name === 'style') return;
-          props[attr.name] = attr.value;
-        });
-
-        // Handle Children
-        const templateEl = el.querySelector('template[data-pulse-template]');
-        if (templateEl) {
-          const t = document.createElement('template');
-          t.innerHTML = templateEl.innerHTML;
-          props.children = Array.from(t.content.cloneNode(true).childNodes);
+    // Hydration: component roots rendered on the server carry data-p-c. Adopt the
+    // ones owned directly by this container (nested ones are adopted by their parent).
+    const ssrComponents = container.querySelectorAll(`[${P_COMPONENT}]`);
+    ssrComponents.forEach((el) => {
+      if ((el as any).__pulseAdopted) return;
+      const owner = el.parentElement ? el.parentElement.closest(`[${P_COMPONENT}]`) : null;
+      if (owner && owner !== container && container.contains(owner)) return;
+      const componentName = el.getAttribute(P_COMPONENT);
+      const Component = componentName ? primitives.components[componentName] : undefined;
+      if (!Component || typeof Component !== 'function') return;
+      let props: any = {};
+      const raw = el.getAttribute(P_PROPS);
+      if (raw) {
+        try { props = JSON.parse(raw); } catch { props = {}; }
+      }
+      (el as any).__pulseAdopted = true;
+      try {
+        const result = Component({ ...props, _hydrationNode: el });
+        if (result && result !== el && result instanceof Node) {
+          console.warn(`[Pulse] Hydration mismatch in <${componentName}>: component returned a new tree.`);
+          el.replaceWith(result);
         }
-
-        try {
-          // Instantiate Component
-          // Component returns a DOM Node (wrapper div usually)
-          const componentNode = Component(props);
-          if (componentNode) {
-            el.replaceWith(componentNode);
-          }
-        } catch (e) {
-          console.error(`Pulse: Failed to mount component ${componentName}:`, e);
-        }
+      } catch (e) {
+        console.error(`Pulse: Failed to hydrate component ${componentName}:`, e);
       }
     });
   }
@@ -357,8 +504,8 @@ function handleEvent(event: Event) {
 
   // Bubble up
   while (target && target !== document.body) {
-    if (target.hasAttribute(dataAttr)) {
-      const handlerName = target.getAttribute(dataAttr);
+    if (target.hasAttribute(dataAttr) && !(target as any).__pulseDirect) {
+      const handlerName = target.getAttribute(dataAttr) || '';
       // Find component root with handlers
       let root = target;
       while (root && !(root as any).__pulseHandlers) {
@@ -368,12 +515,21 @@ function handleEvent(event: Event) {
 
       if (root && (root as any).__pulseHandlers) {
         const handlers = (root as any).__pulseHandlers;
-        const handler = handlers[handlerName!];
+        const scope = (root as any).__pulseScope;
+        // "{increment}" and "increment" both name a handler.
+        const name = handlerName.replace(/^\{\s*([\w$]+)\s*\}$/, '$1');
+        const handler = handlers[name] ?? (scope && typeof scope[name] === 'function' ? scope[name] : undefined);
 
         if (handler && typeof handler === 'function') {
           handler(event);
-          // Stop propagation if strict? Maybe not, usually allow unless handler stops it.
-          // But since we delegated, we found our handler.
+          return;
+        }
+        // Inline handler expression, e.g. data-on-click="{() => setOpen(!open())}"
+        if (scope && /[(=!?:]/.test(handlerName)) {
+          const expr = handlerName.replace(/^\{([\s\S]*)\}$/, '$1');
+          const { keys, values } = scopeEntries(scope);
+          const result = safeEvalExpr(expr, [...keys, 'event', 'e'], [...values, event, event]);
+          if (typeof result === 'function') result(event);
           return;
         } else {
           console.warn(`Pulse: Handler '${handlerName}' not found on component`, root);
@@ -384,12 +540,10 @@ function handleEvent(event: Event) {
   }
 }
 
-// Hydration Helper
-export function hydrate(Component: any, container: HTMLElement) {
-  // We assume the SSR output rendered the component as the first child of the container
-  const hydrationRoot = container.firstElementChild;
+// Hydration Helper (prefer runtime/hydration.ts for full adopt-and-bind API)
+export function hydrateDOM(Component: any, container: HTMLElement) {
+  const hydrationRoot = container.firstElementChild as HTMLElement | null;
   if (hydrationRoot) {
-    // Pass the existing root as _hydrationNode to the component
     Component({ _hydrationNode: hydrationRoot });
   } else {
     console.warn('Pulse Hydration: No SSR root found, falling back to mount.');
@@ -398,10 +552,19 @@ export function hydrate(Component: any, container: HTMLElement) {
   }
 }
 
-// Initialize Delegation
-if (typeof window !== 'undefined') {
+// Initialize Delegation (once per document, even if several runtime copies load;
+// never while server-rendering, where `document` is the SSR DOM).
+if (
+  typeof window !== 'undefined' &&
+  typeof document !== 'undefined' &&
+  !(globalThis as any).__PULSE_SSR__ &&
+  !(document as any).__pulseDelegation
+) {
+  (document as any).__pulseDelegation = true;
   DELEGATED_EVENTS.forEach(evt => {
     document.addEventListener(evt, handleEvent, { capture: false, passive: false });
   });
 }
 
+// Re-export adopt-and-bind API (dev-server historically imported hydrate from dom.js).
+export { hydrate, hydrateAll, renderToString } from './hydration.js';

@@ -1,14 +1,14 @@
 # Pulse microbenchmark results
 
 **Environment:** real headless Chromium via Puppeteer (`/usr/bin/google-chrome-stable`, HeadlessChrome/151), not happy-dom.
-**Method:** `bench/run.mjs` → `bench/bench.html`; each case warmed then repeated; **median ms** reported.
+**Method:** `benchmarks/micro/run.mjs` → `benchmarks/micro/bench.html`; each case warmed then repeated; **median ms** reported.
 **Label:** local measurements on this machine only — do not treat as js-framework-benchmark scores.
 
 Reproduce:
 ```bash
 cd pulse-js-work   # repo root
 bun install        # needs puppeteer + chrome
-bun ./bench/run.mjs
+bun run bench   # from the repository root
 ```
 
 ---
@@ -85,7 +85,7 @@ Create 10k rows: createElement=27.100000000558794, cloneNode=31.799999999813735,
 
 ## Hydrate vs remount (1,000 keyed rows) — local measurement
 
-Measured in the same HeadlessChrome harness (`bench/run.mjs`). SSR HTML is already in the document (as after page load). **hydrate** = walk existing nodes + Map adopt + bind text; **remount** = `replaceChildren` + recreate 1k elements.
+Measured in the same HeadlessChrome harness (`benchmarks/micro/run.mjs`). SSR HTML is already in the document (as after page load). **hydrate** = walk existing nodes + Map adopt + bind text; **remount** = `replaceChildren` + recreate 1k elements.
 
 | Path | Median (ms) |
 |------|-------------|

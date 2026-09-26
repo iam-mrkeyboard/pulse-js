@@ -1,6 +1,8 @@
 {
-  "name": "my-pulse-app",
+  "name": "@pulse/docs",
   "version": "0.16.0",
+  "private": true,
+  "description": "Pulse documentation and example site (built with Pulse).",
   "type": "module",
   "scripts": {
     "dev": "pulse dev",
@@ -10,7 +12,7 @@
     "clean": "pulse clean"
   },
   "dependencies": {
-    "pulse-framework": "file:../pulse-framework"
+    "pulse": "workspace:*"
   },
   "devDependencies": {
     "@types/bun": "latest",

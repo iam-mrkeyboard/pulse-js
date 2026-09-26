@@ -6,7 +6,7 @@ import { ScriptParser } from '../src/server/script-parser';
 import { TemplateTransformer } from '../src/server/template-transformer';
 import { createDefaultConfig } from '../src/bundler/types';
 
-const appRoot = path.resolve(import.meta.dir, '../../pulse-app');
+const appRoot = path.resolve(import.meta.dir, '../../../apps/docs');
 
 async function compileComponent(rel: string) {
   const filePath = path.join(appRoot, rel);

@@ -1,6 +1,33 @@
 {
-  "dependencies": {},
+  "name": "pulse-monorepo",
+  "version": "0.16.0",
+  "private": true,
+  "description": "Pulse: a compile-to-DOM signals UI framework (monorepo).",
+  "type": "module",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/iam-mrkeyboard/pulse-js.git"
+  },
+  "workspaces": [
+    "packages/pulse",
+    "apps/*",
+    "examples/*",
+    "benchmarks/micro"
+  ],
+  "scripts": {
+    "build": "bun run build:pulse && bun run build:docs && bun run build:examples",
+    "build:pulse": "bun run --cwd packages/pulse build",
+    "build:docs": "bun run --cwd apps/docs build",
+    "build:examples": "bun run --cwd examples/counter build",
+    "dev": "bun run --cwd apps/docs dev",
+    "test": "bun test",
+    "typecheck": "bun run --cwd packages/pulse typecheck && tsc -p apps/docs/tsconfig.json && tsc -p examples/counter/tsconfig.json",
+    "bench": "bun run --cwd benchmarks/micro bench",
+    "clean": "rm -rf packages/pulse/dist apps/docs/dist apps/docs/.pulse examples/*/dist examples/*/.pulse"
+  },
   "devDependencies": {
-    "puppeteer": "^25.12.0"
+    "@types/bun": "latest",
+    "typescript": "^5.3.3"
   }
 }

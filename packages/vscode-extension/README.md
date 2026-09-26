@@ -68,11 +68,12 @@ Unlike basic regex-based plugins, Pulse uses a dedicated **Language Server** pow
 **From Source:**
 
 ```bash
-git clone https://github.com/pulse-framework/vscode-extension
-cd pulse-vscode-extension
-npm install
-npm run compile
-code --install-extension pulse-*.vsix
+git clone https://github.com/iam-mrkeyboard/pulse-js
+cd pulse-js/packages/vscode-extension
+bun install            # this folder has its own bun.lock (not a root workspace)
+bun run compile
+bunx @vscode/vsce package
+code --install-extension pulse-framework-*.vsix
 ```
 
 ### First Steps
@@ -228,15 +229,15 @@ Access these commands via the Command Palette (`Ctrl+Shift+P` / `Cmd+Shift+P`):
 
 ## 🤝 Contributing
 
-We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md) for details.
+We welcome contributions! Please see our [Contributing Guide](../../CONTRIBUTING.md) for details.
 
 ### Development Setup
 
 ```bash
-git clone https://github.com/pulse-framework/vscode-extension
-cd pulse-vscode-extension
-npm install
-npm run watch  # Compiles on file changes
+git clone https://github.com/iam-mrkeyboard/pulse-js
+cd pulse-js/packages/vscode-extension
+bun install
+bun run watch  # Compiles on file changes
 ```
 
 Press `F5` in VS Code to launch the extension in debug mode.
