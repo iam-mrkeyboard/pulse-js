@@ -4,6 +4,8 @@ export const P_KEY = 'data-p-key';         // keyed list row
 export const P_LIST = 'data-p-list';        // list host (pulse-list)
 export const P_SHOW = 'data-p-show';        // show host (pulse-show)
 export const P_TEXT = 'data-p-t';          // optional: element whose textContent is bound (rare)
+export const P_COMPONENT = 'data-p-c';     // child component root (name) rendered by a parent
+export const P_PROPS = 'data-p-props';     // JSON props for a child component root (only when present)
 
 /** Bookend comments for a bare text binding when a dedicated element isn't available. */
 export const TEXT_OPEN = 'p';

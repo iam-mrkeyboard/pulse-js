@@ -12,9 +12,11 @@ Pulse is **pre-1.0**. APIs may change. This file tracks near-term work; it is no
 
 ## Next
 
+- **CSP-safe runtime expressions**: compile `Show when`, `List each/key`, row bindings and inline handlers to closures so `dom.ts` no longer needs its `new Function` fallback (and pages no longer need `unsafe-eval`).
+- Publish a **`create-pulse`** scaffolder (the docs home page still shows `bun create pulse my-app`).
+
 - Documented List behavior: **duplicate keys** collapse in the Map (last wins); development warns once per update.
 - Consider **`createElement` emit** vs template `cloneNode` for tiny rows (local bench: createElement slightly faster on that shape; SFC emit still cloneNode — documented tradeoff).
-- Remove the **bundler fallback compile path** once the shared `src/compiler` covers all cases.
 - **Surgical hydration mismatch repair** (today: mismatch → client remount / fallback rather than patch).
 - Dev tools: **auto-fixer** (AST-based) polished and exposed in the DX loop.
 - **LLM introspector** event extraction improvements.
@@ -27,6 +29,14 @@ Pulse is **pre-1.0**. APIs may change. This file tracks near-term work; it is no
 - Ecosystem growth beyond the core compiler/runtime.
 
 ---
+
+## Done in v0.17.0
+
+- Pages without reactive code ship zero JS (docs site: 23 → 13 pages with JS).
+- `{expr}` works in `<pre>`/`<code>`; `is:raw` for literal code samples; comments never render; HTML-style whitespace.
+- Source maps emitted when `build.sourcemap` is on.
+- Old bundler fallback compile path and the entry-generator build path removed (~20 files).
+- Monorepo layout: `packages/pulse`, `packages/vscode-extension`, `apps/docs`, `examples/counter`, `benchmarks/`.
 
 ## From code audit
 

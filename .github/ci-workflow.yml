@@ -1,0 +1,45 @@
+# Updated CI for the v0.17 monorepo layout.
+#
+# This file is intentionally NOT under .github/workflows/ (the automation token that
+# opened the PR cannot push workflow files). To activate it, replace the old workflow:
+#
+#   git mv -f .github/ci-workflow.yml .github/workflows/ci.yml
+#
+# The old .github/workflows/ci.yml runs in `pulse-framework/`, which no longer exists
+# after the reorganization, so it fails until it is replaced.
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+jobs:
+  pulse:
+    name: install / typecheck / test / build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies (bun workspaces)
+        run: bun install --frozen-lockfile
+
+      - name: Build framework (packages/pulse)
+        run: bun run build:pulse
+
+      - name: Typecheck
+        run: bun run typecheck
+
+      - name: Test
+        run: bun test
+
+      - name: Build docs site (apps/docs) and examples
+        run: |
+          bun run build:docs
+          bun run build:examples

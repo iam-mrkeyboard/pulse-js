@@ -1,0 +1,106 @@
+{
+  "name": "pulse",
+  "version": "0.17.0",
+  "description": "Compile-to-DOM signals UI framework: .pulse single-file components, SSR + hydration, Bun-powered dev server and build.",
+  "type": "module",
+  "license": "MIT",
+  "author": "Pulse Team",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/iam-mrkeyboard/pulse-js.git",
+    "directory": "packages/pulse"
+  },
+  "homepage": "https://github.com/iam-mrkeyboard/pulse-js#readme",
+  "bugs": {
+    "url": "https://github.com/iam-mrkeyboard/pulse-js/issues"
+  },
+  "keywords": [
+    "framework",
+    "web",
+    "islands",
+    "ssr",
+    "signals",
+    "reactive",
+    "fast",
+    "lightweight",
+    "compiler"
+  ],
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "bin": {
+    "pulse": "./dist/cli/index.js"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./compiler": {
+      "types": "./dist/compiler/index.d.ts",
+      "import": "./dist/compiler/index.js"
+    },
+    "./runtime": {
+      "types": "./dist/runtime/core.d.ts",
+      "import": "./dist/runtime/core.js"
+    },
+    "./runtime/dom": {
+      "types": "./dist/runtime/dom.d.ts",
+      "import": "./dist/runtime/dom.js"
+    },
+    "./runtime/list": {
+      "types": "./dist/runtime/primitives/list.d.ts",
+      "import": "./dist/runtime/primitives/list.js"
+    },
+    "./runtime/show": {
+      "types": "./dist/runtime/primitives/show.d.ts",
+      "import": "./dist/runtime/primitives/show.js"
+    },
+    "./runtime/hydration": {
+      "types": "./dist/runtime/hydration.d.ts",
+      "import": "./dist/runtime/hydration.js"
+    },
+    "./cli": {
+      "types": "./dist/cli/index.d.ts",
+      "import": "./dist/cli/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "src",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "bun run clean && bun run build:lib && bun run build:runtime && bun run build:dts",
+    "build:lib": "bun build ./src/index.ts --outdir ./dist --target bun --format esm --sourcemap=none --external lightningcss && bun build ./src/compiler/index.ts --outdir ./dist/compiler --target bun --format esm --sourcemap=none --external lightningcss && bun build ./src/cli/index.ts --outdir ./dist/cli --target bun --format esm --sourcemap=none --external lightningcss",
+    "build:runtime": "bun ./scripts/build-runtime.ts",
+    "build:dts": "tsc -p tsconfig.dts.json",
+    "test": "bun test",
+    "typecheck": "tsc -p tsconfig.json",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "@types/acorn": "^6.0.4",
+    "acorn": "^8.15.0",
+    "estree-walker": "^3.0.3",
+    "lightningcss": "^1.31.1",
+    "picocolors": "^1.0.0"
+  },
+  "devDependencies": {
+    "@happy-dom/global-registrator": "^20.14.5",
+    "@types/bun": "latest",
+    "@types/node": "^20.11.5",
+    "happy-dom": "^20.14.5",
+    "typescript": "^5.3.3",
+    "terser": "^5.27.0"
+  },
+  "peerDependencies": {
+    "bun": ">=1.0.0"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "bun": ">=1.0.0"
+  }
+}

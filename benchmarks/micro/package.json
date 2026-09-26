@@ -1,0 +1,13 @@
+{
+  "name": "@pulse/bench-micro",
+  "version": "0.17.0",
+  "private": true,
+  "description": "Headless Chrome microbenchmarks for the Pulse runtime (signals, List, hydrate vs remount).",
+  "type": "module",
+  "scripts": {
+    "bench": "node ./run.mjs"
+  },
+  "devDependencies": {
+    "puppeteer": "^25.12.0"
+  }
+}

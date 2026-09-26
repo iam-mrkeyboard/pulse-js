@@ -6,9 +6,41 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 Historical entries for **v0.6.0–v0.15.0** are reconstructed from the project's own blog posts
-(`pulse-app/src/pages/blog/`). Those versions were never tagged on GitHub.
+(`apps/docs/src/pages/blog/`, formerly `pulse-app/`). Those versions were never tagged on GitHub.
 
 ## [Unreleased]
+
+---
+
+## [0.17.0] - 2026-09-26
+
+### Fixed
+
+- **Static pages ship zero JavaScript.** The page classifier treated any `let` in a component script as interactive, so data-only pages (blog posts v0.11+, most docs pages) loaded ~20 KB of JS each. A component now needs client JS only if its script uses signals/effects/lifecycle, the `state` façade or browser APIs, or its markup has `on*={…}` / `bind:` / `on:`. docs site: 23 → 13 pages with JS; total per-page JS 472,513 → 261,710 B.
+- **`{expr}` inside `<pre>` / `<code>` / `<textarea>` / `<title>`** now interpolates (`CodeSnippet` rendered the text `{code}`). Two causes: those tags were parsed as raw text, and the script parser classified any declaration whose value *contains* `=>` (here, sample code in a string) as a function, so it never became a template binding.
+- **Literal braces in code samples** use the new `is:raw` attribute (children emitted verbatim, attribute stripped); `&#123;`/`&#125;` still work for single braces.
+- **Source maps:** `build.sourcemap: true` now emits an external `.map` per JS asset plus a `sourceMappingURL`; `false` emits none (before, no maps were written either way).
+- **Comments no longer leak into pages:** a `// …` header before `<script>` (counter.pulse) and `<!-- … -->` comments are dropped by the parser.
+- **Missing spaces after inline elements** (`2remaining`, `0items left`, `</strong>— a`): the parser deleted every whitespace-only text node; it now collapses whitespace HTML-style and keeps a space next to inline content. `<pre>`/`<textarea>` keep whitespace verbatim.
+- docs site lists with stable ids are keyed (`blog`, `list`, `examples/todo`, `features/list`, `features/show`).
+- Stray `console.log`s removed from the CLI startup banner, HTML parser, validator and form compilation.
+
+### Removed
+
+- Old build path superseded by SSR + `Bun.build` in v0.16: `bundler/entry-generator`, `code-splitter`, `minifier`, `runtime/runtime-builder` (+ test).
+- Old islands compiler cascade: `bundler/compiler/component-compiler`, `code-generator`, `template-compiler`, `slots-compiler`, `component-resolver`, `template-optimizer`, `prop-inferencer`, `reactivity-transformer`, and `runtime/error-boundary` (only emitted by that codegen).
+- Orphans: `bundler/reactivity-analyzer`, `bundler/usage-detector`; dev-server members that were constructed but never used (`server/page-compiler`, `mount-script-generator`, `hot-reload`, `module-graph`); unused types and error classes.
+- Public exports of the removed classes (`RuntimeBuilder`, `CodeSplitter`, `EntryGenerator`, `Minifier`, `CodeGenerator`, `TemplateOptimizer`, `ReactivityAnalyzer`, bundler `ComponentCompiler`). `ComponentCompiler` / `TemplateTransformer` exported from `pulse` and `pulse/compiler` are the real compiler.
+- Scratch scripts (`test_*.ts` at the root and in the framework, `test-parser.ts`, `inspect_ultrahtml.ts`, extension `debug-tree.js`, `scripts/*`, `test-fixtures/`), stale configs (`pulse-framework/pulse.config.ts`, `pulse-app/index.ts`), the stale extension `package-lock.json`, and unused `ultrahtml` / `puppeteer` dependencies of the framework package.
+
+### Changed
+
+- **Monorepo layout** (Bun workspaces): `packages/pulse` (was `pulse-framework/`), `packages/vscode-extension` (was `extension/`), `apps/docs` (was `pulse-app/`), `examples/counter` (new), `benchmarks/micro` (was `bench/`), `benchmarks/js-framework-benchmark`. Root `package.json` scripts: `build`, `test`, `typecheck`, `dev`, `bench`; shared `tsconfig.base.json`; one root `bun.lock`.
+- Package name stays `pulse`; import specifiers unchanged (`pulse`, `pulse/runtime`, `pulse/runtime/dom|list|show`, `pulse/cli`). New: `pulse/compiler`, `pulse/runtime/hydration`, and `types` for every subpath export. The docs app package is now `@pulse/docs` and imports from `pulse` (legacy `pulse-framework/runtime*` specifiers still resolve).
+- Framework version lives in one place (`src/version.ts`, asserted equal to `package.json` by a test) instead of seven hard-coded strings.
+- Static components are serialized from the parsed template instead of a regex over the source.
+- `benchmarks/js-framework-benchmark/pulse-runtime` re-synced to the current runtime; `sync-runtime.sh` added.
+- CI for the new layout staged at `.github/ci-workflow.yml` (move it to `.github/workflows/ci.yml`).
 
 ---
 
@@ -262,5 +294,6 @@ Reconstructed from blog post *Pulse v0.6 Initial*.
 Only **v0.16.0** is expected to receive a Git tag when this release is cut.
 Older versions (**v0.6.0–v0.15.0**) were never tagged on this repository; compare links for them are omitted.
 
-[Unreleased]: https://github.com/iam-mrkeyboard/pulse-js/compare/v0.16.0...HEAD
+[Unreleased]: https://github.com/iam-mrkeyboard/pulse-js/compare/v0.17.0...HEAD
+[0.17.0]: https://github.com/iam-mrkeyboard/pulse-js/compare/v0.16.0...v0.17.0
 [0.16.0]: https://github.com/iam-mrkeyboard/pulse-js/releases/tag/v0.16.0

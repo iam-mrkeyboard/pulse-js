@@ -1,11 +1,11 @@
 {
   "name": "js-framework-benchmark-pulse",
-  "version": "0.16.0",
+  "version": "0.17.0",
   "description": "Pulse keyed implementation for js-framework-benchmark",
   "type": "module",
   "main": "dist/main.js",
   "js-framework-benchmark": {
-    "frameworkVersion": "0.16.0",
+    "frameworkVersion": "0.17.0",
     "frameworkHomeURL": "https://github.com/iam-mrkeyboard/pulse-js",
     "language": "JavaScript",
     "repoURL": "https://github.com/iam-mrkeyboard/pulse-js"
@@ -13,7 +13,7 @@
   "scripts": {
     "dev": "bun build ./src/main.js --outdir ./dist --target browser --format esm --watch",
     "build-prod": "bun build ./src/main.js --outdir ./dist --target browser --format esm --minify",
-    "try-compile-sfc": "bun ./scripts/try-compile-sfc.ts"
+    "sync-runtime": "bash ./sync-runtime.sh"
   },
   "author": "Pulse Team",
   "license": "MIT",
