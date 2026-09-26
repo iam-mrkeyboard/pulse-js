@@ -224,10 +224,28 @@ export class DevServer {
         </script>
       `;
 
+      // Compiled modules import 'pulse/runtime*' (package specifiers); map them to
+      // the dev server's /runtime/ routes so the browser can resolve them.
+      const importMap = {
+        imports: {
+          'pulse/runtime': '/runtime/core.js',
+          'pulse/runtime/dom': '/runtime/dom.js',
+          'pulse/runtime/list': '/runtime/primitives/list.js',
+          'pulse/runtime/show': '/runtime/primitives/show.js',
+          'pulse/runtime/hydration': '/runtime/hydration.js',
+          'pulse-framework/runtime': '/runtime/core.js',
+          'pulse-framework/runtime/dom': '/runtime/dom.js',
+          'pulse-framework/runtime/list': '/runtime/primitives/list.js',
+          'pulse-framework/runtime/show': '/runtime/primitives/show.js',
+          'pulse-framework/runtime/hydration': '/runtime/hydration.js',
+        },
+      };
+      const head = `<script type="importmap">${JSON.stringify(importMap)}</script>\n  ${getHMRScript(this.config)}`;
+
       const fullHtml = this.ssr.wrapHTML(`
         <div id="app">${ssrHtml}</div>
         ${clientScript}
-      `);
+      `, 'Pulse App', head);
 
       return new Response(fullHtml, {
         headers: {
