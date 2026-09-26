@@ -59,6 +59,12 @@ Historical entries for **v0.6.0–v0.15.0** are reconstructed from the project's
 - Nested template-literal class attributes (``class={`btn btn-${x}`}``) emit valid JS; the docs site minifies with terser (PR #6).
 - `tsc --noEmit` is clean after import-path fixes (PR #6).
 - Hygiene: untracked extension `out/`, framework `dist/`, logs, duplicate wasm; `.gitignore` updated (PR #6).
+- **Production build shipped an empty `<body>`** on every page (minified and unminified): nothing ever set the page `staticHTML`, the minifier stripped the leftover comment, and page JS was never loaded (island imports used bare `pulse/runtime` specifiers the browser could not resolve). `pulse build` now server-renders each page into `<div id="app">` with the `data-p-h` / `data-p-c` / `data-p-list` / `data-p-show` (and, for keyed lists, `data-p-key`) hydration markers, and bundles one hydration entry per interactive page (`Bun.build`, shared chunks, `/assets/*`), which adopts that DOM instead of remounting. Pages with no interactive components ship no JS (PR #6).
+- Build output follows the route tree (`pages/blog/v0.16.pulse` → `dist/blog/v0.16/index.html`); basename collisions no longer drop pages (30/30 built instead of 28), and `outDir` resolves against the project root (PR #6).
+- Hydration adopts server-rendered child components (`data-p-c`) and binds adopted `<List>` rows (events, bindings, nested `<Show>`). Object items without a `key` adopt by position instead of all mapping to `"[object Object]"` (PR #6).
+- Compiler: adjacent text and `{expr}` interpolations get a `<!---->` separator so they no longer merge into one text node (`Count: {count}` rendered blank); `{decl}` / `{props.x}` interpolations render their value; static components no longer print literal `${props.x}`; explicit accessor calls (`count()`) and `createMemo` work in scripts; inline handlers (`onClick={() => setOpen(!open)}`) and `{handler}` names are resolved; a `<style>` inside a script string is no longer taken as the component stylesheet (PR #6).
+- Dev server: SSR resolves `pulse/runtime*` with a Bun plugin; happy-dom no longer replaces the native `Response` (Bun.serve failed with "Expected a Response object"); pages get an import map for `pulse/runtime*` and the real HMR client instead of a `/@vite/client` placeholder; SSR does not attach document event delegation (PR #6).
+- `pulse build --no-minify` (documented in `--help`) is accepted (PR #6).
 
 ### Security
 
