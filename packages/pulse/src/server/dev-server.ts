@@ -23,6 +23,7 @@ import { serveHMRClient, getHMRScript } from './hmr-client';
 import { wrapHTML, serve404, generateSuggestion } from './html-wrapper';
 import { TemplateTransformer } from './template-transformer';
 import { ComponentCompiler } from './component-compiler';
+import { VERSION } from '../version';
 
 export class DevServer {
   private hmr: HMRManager;
@@ -120,7 +121,7 @@ export class DevServer {
     // Start file watching
     this.startFileWatcher();
 
-    console.log(`\n⚡ Pulse v0.16.0 Dev Server running\n`);
+    console.log(`\n⚡ Pulse v${VERSION} Dev Server running\n`);
     console.log(`  Local:    http://localhost:${port}`);
     console.log(`  Network:  http://0.0.0.0:${port}`);
     console.log(

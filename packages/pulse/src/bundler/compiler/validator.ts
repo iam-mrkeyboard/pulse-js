@@ -85,11 +85,7 @@ export class ComponentValidator {
 
     const missing: string[] = [];
 
-    // DEBUG LOGGING
-    // console.log('[Validator] Defined:', Array.from(defined));
-
     if (ast.template.type === 'valid') {
-      console.log('[Validator] Bindings count:', ast.template.bindings.length);
       ast.template.bindings.forEach(b => {
         const exprSrc = typeof b.expression === 'string' ? b.expression : b.expression.raw;
         const ids = this.extractIdentifiers(exprSrc);

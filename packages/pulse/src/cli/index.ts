@@ -1,13 +1,13 @@
 #!/usr/bin/env bun
 //cli/index
-console.log("--- PULSE CLI DEBUG: Using source from src/cli/index.ts ---");
 import { parseArgs } from 'util';
 import path from 'node:path';
 import type { PulseConfig } from '../bundler/types';
 import { createDefaultConfig } from '../bundler/types';
 import pc from 'picocolors';
+import { VERSION } from '../version';
 
-const PULSE_VERSION = '0.16.0';
+const PULSE_VERSION = VERSION;
 
 async function main() {
   const { values, positionals } = parseArgs({

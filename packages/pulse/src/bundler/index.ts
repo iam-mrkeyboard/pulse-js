@@ -20,6 +20,7 @@ import type {
   PageManifest,
   IslandManifest,
 } from './types';
+import { VERSION } from '../version';
 
 export class PulseBundler {
   private ctx: CompilationContext;
@@ -74,7 +75,7 @@ export class PulseBundler {
     const warnings: any[] = [];
 
     try {
-      console.log('⚡ Pulse v0.16.0 Build Started\n');
+      console.log(`⚡ Pulse v${VERSION} Build Started\n`);
 
       // Phase 1: Analyze dependency graph
       console.log('📊 Phase 1: Analyzing dependencies...');
@@ -392,7 +393,7 @@ export class PulseBundler {
 
   private async writeManifest(): Promise<void> {
     const manifest = {
-      version: '0.16.0',
+      version: VERSION,
       buildTime: new Date().toISOString(),
       stats: this.ctx.output.stats,
       pages: Array.from(this.ctx.output.pages.values()).map((p) => ({

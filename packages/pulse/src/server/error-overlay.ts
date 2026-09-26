@@ -3,6 +3,8 @@
 // Beautiful error overlay for development
 // ============================================================================
 
+import { VERSION } from '../version';
+
 export interface DevError {
   type: 'parse' | 'compile' | 'runtime' | 'network';
   file?: string;
@@ -313,7 +315,7 @@ export class ErrorOverlay {
     </div>
 
     <div class="footer">
-      <div class="badge badge-pulse">Pulse v0.16.0</div>
+      <div class="badge badge-pulse">Pulse v${VERSION}</div>
       <div class="reload-hint">
         Edit file to reload automatically
       </div>

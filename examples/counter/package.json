@@ -1,6 +1,6 @@
 {
   "name": "@pulse/example-counter",
-  "version": "0.16.0",
+  "version": "0.17.0",
   "private": true,
   "description": "Minimal Pulse app: one static page and one interactive counter page.",
   "type": "module",

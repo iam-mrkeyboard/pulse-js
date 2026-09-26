@@ -1,6 +1,6 @@
 {
   "name": "pulse-monorepo",
-  "version": "0.16.0",
+  "version": "0.17.0",
   "private": true,
   "description": "Pulse: a compile-to-DOM signals UI framework (monorepo).",
   "type": "module",

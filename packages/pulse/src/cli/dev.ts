@@ -7,7 +7,6 @@ import type { PulseConfig } from '../bundler/types';
 import { DevServer } from '../server/dev-server';
 
 export async function devCommand(config: PulseConfig): Promise<void> {
-  // console.log(pc.bold(pc.magenta('\n⚡ Pulse v0.13.0 Development Server\n'))); // Let dev-server handle logging
 
 
   const server = new DevServer(config);

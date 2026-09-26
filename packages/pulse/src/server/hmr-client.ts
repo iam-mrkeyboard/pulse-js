@@ -4,13 +4,14 @@
 // ============================================================================
 
 import type { PulseConfig } from '../bundler/types';
+import { VERSION } from '../version';
 
 /**
  * Generates the HMR client JavaScript that runs in the browser
  */
 export function generateHMRClientScript(): string {
   return [
-    '// Pulse HMR Client v0.16.0',
+    `// Pulse HMR Client v${VERSION}`,
     '(function() {',
     '  const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";',
     '  const ws = new WebSocket(protocol + "//" + window.location.host + "/__pulse_hmr");',

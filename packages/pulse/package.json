@@ -1,6 +1,6 @@
 {
   "name": "pulse",
-  "version": "0.16.0",
+  "version": "0.17.0",
   "description": "Compile-to-DOM signals UI framework: .pulse single-file components, SSR + hydration, Bun-powered dev server and build.",
   "type": "module",
   "license": "MIT",

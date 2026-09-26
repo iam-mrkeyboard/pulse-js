@@ -10,7 +10,7 @@
     },
     "apps/docs": {
       "name": "@pulse/docs",
-      "version": "0.16.0",
+      "version": "0.17.0",
       "dependencies": {
         "pulse": "workspace:*",
       },
@@ -21,21 +21,21 @@
     },
     "benchmarks/micro": {
       "name": "@pulse/bench-micro",
-      "version": "0.16.0",
+      "version": "0.17.0",
       "devDependencies": {
         "puppeteer": "^25.12.0",
       },
     },
     "examples/counter": {
       "name": "@pulse/example-counter",
-      "version": "0.16.0",
+      "version": "0.17.0",
       "dependencies": {
         "pulse": "workspace:*",
       },
     },
     "packages/pulse": {
       "name": "pulse",
-      "version": "0.16.0",
+      "version": "0.17.0",
       "bin": {
         "pulse": "./dist/cli/index.js",
       },

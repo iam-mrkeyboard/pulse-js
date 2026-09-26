@@ -52,4 +52,4 @@ export { SSRRenderer } from './server/ssr';
 export { HMRManager } from './server/hmr';
 
 // Version
-export const VERSION = '0.16.0';
+export { VERSION } from './version';

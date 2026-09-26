@@ -7,9 +7,10 @@ import type { PulseConfig } from '../bundler/types';
 import { build as runBuild } from '../bundler/index';
 import { Logger } from './logger';
 import { Spinner } from './spinner';
+import { VERSION } from '../version';
 
 export async function buildCommand(config: PulseConfig): Promise<void> {
-  Logger.header('⚡ Pulse v0.16.0 Production Build');
+  Logger.header(`⚡ Pulse v${VERSION} Production Build`);
 
   const spinner = new Spinner('Building...');
   spinner.start();

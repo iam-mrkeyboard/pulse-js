@@ -17,7 +17,7 @@
     <div class="hero-content">
       <div class="badge">
         <span class="pulse-dot"></span>
-        v0.16.0 • Built with Bun
+        v0.17.0 • Built with Bun
       </div>
       <h1>Build <span class="gradient">Blazing Fast</span> Web Apps</h1>
       <p class="tagline">The modern web framework with fine-grained reactivity, islands architecture, and a runtime so small it's practically invisible.</p>
