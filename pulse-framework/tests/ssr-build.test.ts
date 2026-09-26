@@ -94,6 +94,29 @@ const files: Record<string, string> = {
 `,
   'src/pages/about.pulse': `<section class="about"><h1>About</h1><p>Plain static page.</p></section>
 `,
+  // v0.17: plain data + List/<pre>/is:raw and a leading header comment -> static, zero JS
+  'src/pages/blog/data.pulse': `// ==========================
+// header comment: must not leak into the page
+// ==========================
+<script>
+  let posts = [
+    { id: 1, title: 'First post' },
+    { id: 2, title: 'Second post' },
+  ];
+  const snippet = 'const x = () => 1;';
+</script>
+
+<!-- an HTML comment that must not render -->
+<section class="data">
+  <ul class="posts">
+    <List each={posts} as="post" key={post.id}>
+      <li class="post-row"><strong>{post.title}</strong> by Pulse</li>
+    </List>
+  </ul>
+  <pre class="interp"><code>{snippet}</code></pre>
+  <pre class="raw"><code is:raw>{notInterpolated}</code></pre>
+</section>
+`,
 };
 
 function appHTML(html: string): string {
@@ -169,6 +192,61 @@ describe('production build: server-rendered body', () => {
     expect(appHTML(about)).toContain('Plain static page.');
     expect(about).not.toContain('<script type="module"');
   });
+
+  test('page with only plain data (let + List + <pre>) is static and ships no JS', () => {
+    const html = fs.readFileSync(path.join(dist, 'blog/data/index.html'), 'utf8');
+    const app = appHTML(html);
+    expect(html).not.toContain('<script type="module"');
+    expect(app).toContain('<strong>First post</strong> by Pulse');
+    expect(app).toContain('<strong>Second post</strong> by Pulse');
+  });
+
+  test('{expr} interpolates inside <pre><code>; is:raw keeps braces literal', () => {
+    const app = appHTML(fs.readFileSync(path.join(dist, 'blog/data/index.html'), 'utf8'));
+    expect(app).toMatch(/<pre class="interp"><code>const x = \(\) =&gt; 1;<\/code><\/pre>/);
+    expect(app).not.toContain('{snippet}');
+    expect(app).toContain('{notInterpolated}');
+    expect(app).not.toContain('is:raw');
+  });
+
+  test('comments (leading // header and <!-- -->) are not emitted as page text', () => {
+    const app = appHTML(fs.readFileSync(path.join(dist, 'blog/data/index.html'), 'utf8'));
+    expect(app).not.toContain('header comment');
+    expect(app).not.toContain('====');
+    expect(app).not.toContain('must not render');
+  });
+
+  test('sourcemap: false emits no .map files', () => {
+    const assets = fs.readdirSync(path.join(dist, 'assets'));
+    expect(assets.some((f) => f.endsWith('.map'))).toBe(false);
+    for (const f of assets.filter((f) => f.endsWith('.js'))) {
+      expect(fs.readFileSync(path.join(dist, 'assets', f), 'utf8')).not.toContain('sourceMappingURL');
+    }
+  });
+});
+
+describe('production build: sourcemap: true', () => {
+  test('emits an external .map per JS asset, linked from the file', async () => {
+    const config = createDefaultConfig({
+      root,
+      srcDir: './src',
+      outDir: './dist-map',
+      publicDir: './public',
+      pages: { dir: './src/pages' },
+      build: { minify: true, sourcemap: true, target: 'es2022', splitting: true, treeshake: true, islands: true, ssr: true },
+    } as any);
+    await new PulseBundler(config).build();
+    const dir = path.join(root, 'dist-map', 'assets');
+    const js = fs.readdirSync(dir).filter((f) => f.endsWith('.js'));
+    expect(js.length).toBeGreaterThan(0);
+    for (const f of js) {
+      const code = fs.readFileSync(path.join(dir, f), 'utf8');
+      expect(code).toContain(`//# sourceMappingURL=${f}.map`);
+      const map = JSON.parse(fs.readFileSync(path.join(dir, `${f}.map`), 'utf8'));
+      expect(map.version).toBe(3);
+      expect(map.sources.length).toBeGreaterThan(0);
+    }
+  }, 60_000);
 });
 
 describe('production build: hydration adopts the SSR DOM', () => {

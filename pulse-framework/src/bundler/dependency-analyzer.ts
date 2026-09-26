@@ -16,6 +16,50 @@ import type {
 
 import { PropsAnalyzer } from './compiler/props-analyzer';
 
+/** Reactive / client-only APIs: calling any of them means the component must hydrate. */
+const REACTIVE_CALLS = new Set([
+  'createSignal', 'createMemo', 'createEffect', 'createStore', 'createSelector', 'createResource',
+  'createRoot', 'createDerived', 'onMount', 'onCleanup', 'batch', 'untrack',
+]);
+/** Browser globals whose use in a component script is a client-side side effect. */
+const CLIENT_GLOBALS = new Set([
+  'window', 'document', 'localStorage', 'sessionStorage', 'navigator', 'location', 'history',
+  'setTimeout', 'setInterval', 'requestAnimationFrame', 'fetch', 'addEventListener',
+  'IntersectionObserver', 'ResizeObserver', 'MutationObserver',
+]);
+
+/**
+ * True when a component script uses reactivity or client side effects. Scans
+ * tokens (not raw text), so words inside strings/comments don't count.
+ */
+export function usesReactiveScript(code: string): boolean {
+  let tokens: any[];
+  try {
+    tokens = Array.from(acorn.tokenizer(code, { ecmaVersion: 'latest', sourceType: 'module' }) as any);
+  } catch {
+    return true; // unparsable: be safe and hydrate
+  }
+  for (let i = 0; i < tokens.length; i++) {
+    const t = tokens[i];
+    if (t.type.label !== 'name') continue;
+    const prev = tokens[i - 1];
+    const next = tokens[i + 1];
+    const isMember = prev && prev.type.label === '.';
+    if (isMember) continue;
+    // Imported names (import { createSignal } …) are declarations, not uses.
+    if (REACTIVE_CALLS.has(t.value) && next && next.type.label === '(') return true;
+    if (CLIENT_GLOBALS.has(t.value)) return true;
+    // state façade: state.x / state = …
+    if (t.value === 'state' && next && (next.type.label === '.' || next.type.label === '=')) return true;
+  }
+  return false;
+}
+
+/** Drop the contents of `is:raw` elements (literal code samples) before scanning markup. */
+function stripRawContent(template: string): string {
+  return template.replace(/<([A-Za-z][\w-]*)([^>]*\sis:raw\b[^>]*)>[\s\S]*?<\/\1>/g, '<$1$2></$1>');
+}
+
 export class DependencyAnalyzer {
   private graph: DependencyGraph;
   private visited = new Set<string>();
@@ -151,11 +195,11 @@ export class DependencyAnalyzer {
       node.slots = this.propsAnalyzer.analyzeSlots(template); // ADD THIS
     }
 
-    if (
-      logic.includes('state.') ||
-      logic.includes('let ') ||
-      logic.includes('const ')
-    ) {
+    // A component needs client JS only if something can change or react after
+    // load: signals/state/effects, browser side effects in the script, or event
+    // handlers / two-way bindings in the template. Plain `let`/`const` data, and
+    // List/Show over that data, render completely on the server.
+    if (logic && usesReactiveScript(logic)) {
       node.usesState = true;
       node.isStatic = false;
       node.reactivity = this.analyzeReactivity(logic);
@@ -165,14 +209,14 @@ export class DependencyAnalyzer {
       'List' | 'Show' | 'Portal' | 'Suspense' | 'ErrorBoundary'
     > = ['List', 'Show', 'Portal', 'Suspense', 'ErrorBoundary'];
 
+    const liveMarkup = stripRawContent(template);
     for (const prim of primitives) {
-      if (template.includes(`<${prim}`) || template.includes(`{${prim}(`)) {
+      if (liveMarkup.includes(`<${prim}`) || liveMarkup.includes(`{${prim}(`)) {
         node.primitives.add(prim);
-        node.isStatic = false;
       }
     }
 
-    if (template.match(/on[A-Z]\w+=/)) {
+    if (/\son[A-Z]\w*\s*=|\s(bind|on):[\w-]+\s*=/.test(liveMarkup)) {
       node.isStatic = false;
     }
 

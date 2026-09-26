@@ -260,7 +260,9 @@ export class PulseBundler {
       format: 'esm',
       splitting: true,
       minify: !!this.ctx.config.build.minify,
-      sourcemap: 'none',
+      // build.sourcemap: external .map files next to each asset, linked with a
+      // sourceMappingURL comment (DevTools loads them on demand; pages never do).
+      sourcemap: this.ctx.config.build.sourcemap ? 'linked' : 'none',
       naming: { entry: '[name]-[hash].[ext]', chunk: 'chunk-[hash].[ext]' },
       plugins: [pulsePlugin(compiler)],
     });
@@ -272,6 +274,7 @@ export class PulseBundler {
     }
 
     for (const output of result.outputs) {
+      if (output.kind === 'sourcemap') continue; // written by Bun.build; not compressed or counted
       const code = await output.text();
       const size = Buffer.byteLength(code);
       this.ctx.output.runtime.size += output.kind === 'chunk' ? size : 0;
