@@ -25,7 +25,7 @@
   </div>
   
   <div class="grid">
-    <List each={posts} as="post">
+    <List each={posts} as="post" key={post.id}>
       <article class="card">
         <h2>{post.title}</h2>
         <span class="date">{post.date}</span>

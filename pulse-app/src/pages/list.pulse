@@ -226,7 +226,7 @@ state.activeCount = () => state.todos.filter(t => !t.completed).length;
     </div>
     
     <div class="todos" id="todo-list">
-      <List each={state.filteredTodos} as="todo">
+      <List each={state.filteredTodos} as="todo" key={todo.id}>
         <div class={`todo-item ${todo.completed ? 'completed' : ''}`}>
           <input 
             type="checkbox" 

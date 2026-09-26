@@ -58,7 +58,7 @@
   </div>
   
   <ul class="list">
-    <List each={items} as="item">
+    <List each={items} as="item" key={item.id}>
       <li>
         <span class="name">{item.name}</span>
         <span class="price">${item.price.toFixed(2)}</span>

@@ -28,7 +28,7 @@
     </div>
     
     <div class="accordion">
-      <List each={benefits} as="benefit">
+      <List each={benefits} as="benefit" key={benefit.id}>
         <div class="item">
           <button 
             class={activeId() === benefit.id ? 'trigger active' : 'trigger'} 
