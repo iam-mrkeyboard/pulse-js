@@ -17,6 +17,7 @@ async function main() {
       port: { type: 'string', short: 'p' },
       debug: { type: 'boolean', short: 'd' },
       minify: { type: 'boolean', short: 'm' },
+      'no-minify': { type: 'boolean' },
       help: { type: 'boolean', short: 'h' },
       version: { type: 'boolean', short: 'v' },
     },
@@ -47,7 +48,9 @@ async function main() {
     config.debug = values.debug;
   }
 
-  if (values.minify !== undefined) {
+  if (values['no-minify']) {
+    config.build.minify = false;
+  } else if (values.minify !== undefined) {
     config.build.minify = values.minify;
   }
 
