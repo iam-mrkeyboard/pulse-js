@@ -37,7 +37,7 @@
       "name": "pulse",
       "version": "0.17.0",
       "bin": {
-        "pulse": "./dist/cli/index.js",
+        "pulse": "./bin/pulse.js",
       },
       "dependencies": {
         "@types/acorn": "^6.0.4",
