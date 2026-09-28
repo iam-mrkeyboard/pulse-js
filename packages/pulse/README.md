@@ -52,6 +52,22 @@ The build and dev server also resolve the legacy `pulse-framework/runtime*` spec
   block elements is dropped, a space next to inline content is kept, `<pre>` and
   `<textarea>` keep whitespace verbatim.
 
+## Content Security Policy
+
+The compiler turns every template expression into a closure: `<List each>` /
+`key`, row bindings, `<Show when>`, and `on*` / `bind:` handlers. The markup only
+references a closure by id (`each="<tag>:3"`). The runtime never evaluates
+strings (no `eval` / `new Function`), and production pages load their JS from
+external files, so this policy is enough for scripts:
+
+```
+Content-Security-Policy: script-src 'self'; object-src 'none'; base-uri 'self'
+```
+
+Styles are not covered yet. Scoped component CSS is an inline `<style>` and List/Show
+hosts use `style="display:contents"`, so a policy without `style-src 'unsafe-inline'`
+blocks them. An expression that is not valid JavaScript fails the build.
+
 ## When does a page ship JavaScript?
 
 A component is interactive when its script uses signals / effects / lifecycle

@@ -12,7 +12,7 @@ Pulse is **pre-1.0**. APIs may change. This file tracks near-term work; it is no
 
 ## Next
 
-- **CSP-safe runtime expressions**: compile `Show when`, `List each/key`, row bindings and inline handlers to closures so `dom.ts` no longer needs its `new Function` fallback (and pages no longer need `unsafe-eval`).
+- **Strict `style-src`**: pages are script-CSP clean (no `unsafe-eval`, no inline scripts), but scoped component CSS is an inline `<style>` and `pulse-list`/`pulse-show` hosts carry `style="display:contents"`, so `default-src 'self'` without `style-src 'unsafe-inline'` still blocks styles (move to an emitted stylesheet + a class).
 - Publish a **`create-pulse`** scaffolder (the docs home page still shows `bun create pulse my-app`).
 
 - Documented List behavior: **duplicate keys** collapse in the Map (last wins); development warns once per update.
@@ -29,6 +29,10 @@ Pulse is **pre-1.0**. APIs may change. This file tracks near-term work; it is no
 - Ecosystem growth beyond the core compiler/runtime.
 
 ---
+
+## Done (unreleased)
+
+- CSP-safe runtime: `Show when`, `List each/key`, row bindings and all handlers compile to closures; `eval` / `new Function` removed from the runtime (pages work under `script-src 'self'`).
 
 ## Done in v0.17.0
 

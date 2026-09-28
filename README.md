@@ -23,7 +23,7 @@ Pulse is **pre-1.0**. Public APIs may change between minor versions. See [CHANGE
 - 🎨 **Scoped Styling** — Component-level CSS scoping built in.
 - 💧 **Adopt-and-bind hydration** — Reuse SSR DOM with `data-p-*` markers (v0.16).
 - 🪶 **Zero JS for static pages** — Pages without signals, effects or handlers ship no client JavaScript (v0.17).
-- 🔒 **Hardened bindings** — Expression eval via `safeEvalExpr`; error UI uses `textContent` (not `innerHTML`).
+- 🔒 **CSP-safe** — Template expressions compile to closures; no `eval` / `new Function`, so pages run under `script-src 'self'` without `'unsafe-eval'`. Error UI uses `textContent` (not `innerHTML`).
 
 ---
 

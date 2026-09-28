@@ -10,6 +10,33 @@ Historical entries for **v0.6.0–v0.15.0** are reconstructed from the project's
 
 ## [Unreleased]
 
+### Security
+
+- **No `eval` / `new Function` anywhere in the browser.** Pulse pages now run under a strict Content Security Policy (`script-src 'self'`, no `'unsafe-eval'`). The SFC compiler emits every runtime expression as a real closure: `<List each>` / `key`, List row text and attribute bindings, `<Show when>`, and `on*` / `bind:` handlers (top level and inside List rows, including nested Lists). The markup only references a closure (`each="<tag>:3"`, `data-on-click="<tag>:7"`). The runtime's string evaluator (`safeEvalExpr`, its expression cache and the scope/accessor tables built for it) is deleted. On v0.17.0, 8 of the 30 docs pages broke under that policy (27 CSP violations). Now all 30 pages and `examples/counter` hydrate and stay interactive with 0 violations. The production HTML has no inline scripts, so no nonce or hash is needed.
+
+### Changed
+
+- A template expression that is not valid JavaScript now **fails the build** with `Pulse Error: cannot compile template expression {…}`. It used to fail at runtime in the browser.
+- `mountPrimitives(container, exprs, primitives, templates)`: the second argument is now the compiler-generated expression table (`{ t, x }`) instead of a scope object. Compiled output is updated. Hand-written markup must reference closures (`each="t:0"`) instead of carrying code. Named delegated handlers on hand-written roots (`data-on-click="increment"` + `__pulseHandlers`) still work.
+- Compiled components no longer build the runtime `scope` object and its `__accessors` table, and no longer set `container.__pulseScope`. The expression table is set as `container.__px`.
+- List rows and Show branches parse their template once per List/Show and clone it for each row. They used to run `innerHTML` for every row.
+
+### Fixed
+
+- Handlers inside a nested List's rows no longer also get bound by the outer row, which used to run them with the wrong item. Expressions in inner rows can read the outer row's item (`group.name` inside `<List each={group.tags} as="tag">`).
+- `key="id"` (a plain identifier) now means `key={item.id}` as documented. Before, it became `key="{id}"` and failed.
+
+### Removed
+
+- `runtime/safe-eval.ts` and the `evalSSR` / `interpolateSSR` / `safeEvalSSR` exports of `server/template-transformer`. These were an unused string-expression interpreter (only their own test imported them).
+- The unused `wrapHTML()` in `server/html-wrapper.ts`, which carried a `'unsafe-eval'` CSP meta tag (the dev server uses `SSRRenderer.wrapHTML`).
+
+### Performance (same machine, v0.17.0 → this change)
+
+- Compiled-SFC version of the js-framework-benchmark app (`benchmarks/js-framework-benchmark/src/App.pulse`, which exercises List/row bindings/row handlers), in-page median over 8 interleaved rounds: geomean **22.87 → 14.40 ms (−37%)**. select −78%, remove −36%, swap −35%, create 10k −34%, append 1k −29%, create 1k −28%, replace 1k −28%, update every 10th −21%, clear −11%.
+- Runtime chunk in the docs build: 9,929 → 9,019 B (gzip 4,090 → 3,683 B, −10%). Per-page JS over the 30 docs pages: 261,710 → 246,683 B (gzip 107,206 → 101,042 B). HTML: 132,079 → 130,733 B. Static pages still ship 0 JS (17 of 30).
+- js-framework-benchmark keyed Pulse entry (`src/main.js`, which uses the runtime API directly): its bundle is byte-identical before and after. Three runs of those same bytes (count 12, 01–09) gave a Pulse/vanilla geomean of 1.140, 1.145 and 1.163, so that spread is this machine's run-to-run noise.
+
 ---
 
 ## [0.17.0] - 2026-09-26
