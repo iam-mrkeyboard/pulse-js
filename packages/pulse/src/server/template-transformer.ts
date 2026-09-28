@@ -6,7 +6,6 @@
 import { HTMLParser, type ParsedNode, type ParsedExpression } from '../bundler/compiler/html-parser';
 import * as acorn from 'acorn';
 import { walk } from 'estree-walker';
-import { safeEval as safeEvalSSR } from '../runtime/safe-eval.js';
 
 export class TemplateTransformer {
   constructor() {
@@ -74,12 +73,25 @@ export class TemplateTransformer {
     templateNode: ParsedNode,
     stateVars: Array<{ name: string; value: string, setter?: string }>,
     componentNames: string[] = [],
-    declarations: Array<{ name: string; value: any }> = []
-  ): { html: string; bindings: Array<any>; templates: Map<string, string> } {
+    declarations: Array<{ name: string; value: any }> = [],
+    tag = 'p'
+  ): { html: string; bindings: Array<any>; templates: Map<string, string>; exprs: string[] } {
 
     const root = templateNode;
     const bindings: Array<any> = [];
     const templates = new Map<string, string>();
+    // Runtime expressions (List each/key, row bindings, Show when, event handlers)
+    // compiled to closures. The markup references them as "<tag>:<index>", so the
+    // runtime never evaluates code from strings (CSP without 'unsafe-eval').
+    const exprs: string[] = [];
+    const addExpr = (src: string): number => {
+      const i = exprs.indexOf(src);
+      if (i !== -1) return i;
+      exprs.push(src);
+      return exprs.length - 1;
+    };
+    const valueRef = (code: string, rowVars: string[]) => addExpr(compileClosure(code, rowVars, false));
+    const handlerRef = (code: string, rowVars: string[]) => `${tag}:${addExpr(compileClosure(code, rowVars, true))}`;
 
     // Sets for lookups
     const stateNames = new Set(stateVars.map(v => v.name));
@@ -157,7 +169,7 @@ export class TemplateTransformer {
           scope._listBindings.push({
             type: 'text',
             path: [...path],
-            expr: this.transformExpression(content, stateNames)
+            x: valueRef(this.transformExpression(content, stateNames), scope._rowVars),
           });
           // Placeholder for text node
           return ` `;
@@ -207,21 +219,29 @@ export class TemplateTransformer {
 
         // Handle List
         if (originalTagName === 'List') {
-          // ... (List logic remains similar, but using paths relative to list item) ...
+          const rowVars: string[] = scope._rowVars || [];
           const eachAttr = node.attributes?.get('each');
-          let eachExpr = typeof eachAttr === 'string' ? eachAttr : eachAttr?.code;
+          let eachExpr = attrCode(eachAttr);
           if (eachExpr) eachExpr = this.transformExpression(eachExpr, stateNames);
 
           const asAttr = node.attributes?.get('as');
           const asVar = (typeof asAttr === 'string' ? asAttr : asAttr?.code) || 'item';
+          if (!/^[A-Za-z_$][\w$]*$/.test(asVar)) {
+            throw new Error(`Pulse Error: <List as="${asVar}"> must be an identifier.`);
+          }
+          const itemVars = [...rowVars, asVar];
 
           const keyAttr = node.attributes?.get('key');
-          let keyExpr = typeof keyAttr === 'string' ? keyAttr : keyAttr?.code;
+          let keyExpr = attrCode(keyAttr);
+          // key="id" (plain identifier) is shorthand for key={item.id}.
+          if (keyExpr && typeof keyAttr === 'string' && !/^\{[\s\S]*\}$/.test(keyAttr.trim()) && /^[A-Za-z_$][\w$]*$/.test(keyExpr.trim())) {
+            keyExpr = `${asVar}.${keyExpr.trim()}`;
+          }
           if (keyExpr) keyExpr = this.transformExpression(keyExpr, stateNames);
 
-          let attrs = ` each="{${eachExpr}}" as="${asVar}"`;
-          if (keyExpr) attrs += ` key="{${keyExpr}}"`;
-          const listScope = { ...scope, _listBindings: [], _listBindingCount: 0, _asVar: asVar };
+          let attrs = eachExpr ? ` each="${tag}:${valueRef(eachExpr, rowVars)}"` : '';
+          if (keyExpr) attrs += ` key="${valueRef(keyExpr, itemVars)}"`;
+          const listScope = { ...scope, _listBindings: [], _listBindingCount: 0, _asVar: asVar, _rowVars: itemVars };
 
           // Reset path for children of List Item
           const rawTemplate = serializeChildren(children, listScope, true, isRaw, []);
@@ -238,14 +258,14 @@ export class TemplateTransformer {
         // Handle Show
         if (originalTagName === 'Show') {
           const whenAttr = node.attributes?.get('when');
-          let whenExpr = typeof whenAttr === 'string' ? whenAttr : whenAttr?.code;
+          let whenExpr = attrCode(whenAttr);
           if (whenExpr) whenExpr = this.transformExpression(whenExpr, stateNames);
 
           const fallbackAttr = node.attributes?.get('fallback');
           let fallbackExpr = typeof fallbackAttr === 'string' ? fallbackAttr : fallbackAttr?.code;
           if (fallbackExpr) fallbackExpr = this.transformExpression(fallbackExpr, stateNames);
 
-          let attrs = ` when="{${whenExpr}}"`;
+          let attrs = whenExpr ? ` when="${tag}:${valueRef(whenExpr, scope._rowVars || [])}"` : '';
           if (fallbackExpr) attrs += ` fallback="{${fallbackExpr}}"`;
 
           // Show children need to be templates usually
@@ -306,7 +326,7 @@ export class TemplateTransformer {
                   // Event handlers are usually static attributes in Pulse?
                   // "onclick={...}"
                   // here we synthesize one.
-                  attrsStr += ` data-on-${eventName}="{e => ${handlerCode}}"`;
+                  attrsStr += ` data-on-${eventName}="${handlerRef(`e => ${handlerCode}`, scope._rowVars || [])}"`;
                 }
               }
               return;
@@ -314,10 +334,10 @@ export class TemplateTransformer {
 
             if (key.startsWith('on')) {
               // Same accessor convention as bindings: state reads become count().
-              const handlerStr = typeof val !== 'string' || (valStr.startsWith('{') && valStr.endsWith('}'))
-                ? `{${this.transformExpression(typeof val === 'string' ? valStr.slice(1, -1) : val.code, stateNames)}}`
-                : valStr;
-              attrsStr += ` data-on-${key.slice(2).toLowerCase()}="${handlerStr.replaceAll('"', '&quot;')}"`;
+              // onClick={fn} / onClick={() => ...} / onclick="fn()" all compile to a closure.
+              const code = typeof val !== 'string' ? val.code
+                : (valStr.startsWith('{') && valStr.endsWith('}')) ? valStr.slice(1, -1) : valStr;
+              attrsStr += ` data-on-${key.slice(2).toLowerCase()}="${handlerRef(this.transformExpression(code, stateNames), scope._rowVars || [])}"`;
               return;
             }
 
@@ -337,7 +357,7 @@ export class TemplateTransformer {
                   type: 'attribute',
                   path: [...path],
                   name: key,
-                  expr: this.transformExpression(expr, stateNames),
+                  x: valueRef(this.transformExpression(expr, stateNames), scope._rowVars),
                 });
                 return;
               }
@@ -361,7 +381,7 @@ export class TemplateTransformer {
                 type: 'attribute',
                 path: [...path],
                 name: key,
-                expr: this.transformExpression(expr, stateNames),
+                x: valueRef(this.transformExpression(expr, stateNames), scope._rowVars),
               });
             } else if (expr !== null) {
               attrsStr += ` ${key}=""`;
@@ -385,21 +405,76 @@ export class TemplateTransformer {
     // Start with empty path [] for root children
     const html = serializeChildren(root.children || [], { _componentNames: componentNames }, false, false, []);
 
-    return { html, bindings, templates };
+    return { html, bindings, templates, exprs };
   }
 }
 
+/** Attribute value as expression source: {code} objects, "{code}" strings, or plain strings. */
+function attrCode(attr: string | { code: string } | undefined): string | undefined {
+  if (attr === undefined || attr === null) return undefined;
+  if (typeof attr !== 'string') return attr.code;
+  const t = attr.trim();
+  return /^\{[\s\S]*\}$/.test(t) ? t.slice(1, -1) : attr;
+}
 
-// Helper for SSR evaluation — delegates to shared Function-free evaluator.
-const evalSSR = (code: string, item: any, as: string, globalScope: Record<string, any>): any => {
-  return safeEvalSSR(code, { ...globalScope, [as]: item });
-};
+const IDENT_RE = (name: string) => new RegExp(`(^|[^\\w$.])${name.replace(/\$/g, '\\$')}([^\\w$]|$)`);
 
-const interpolateSSR = (tpl: string, item: any, as: string, globalScope: Record<string, any> = {}): string => {
-  return tpl.replace(/\{([^}]+)\}/g, (_match, code) => {
-    const val = evalSSR(code, item, as, globalScope);
-    return val !== undefined && val !== null ? String(val) : '';
-  });
-};
-
-export { evalSSR, interpolateSSR, safeEvalSSR };
+/**
+ * Compile a template expression to closure source.
+ *
+ * Values (List each/key, row bindings, Show when): `()` at the top level,
+ * `(item, index, $p)` inside a List row, where `item` is the innermost row
+ * variable and `$p` the enclosing rows' items (outermost first).
+ * Handlers: `(e)` at the top level (`event` aliases `e`), `(e, item, index, $p)`
+ * in a row (`row` aliases the row item). The handler closure returns the
+ * expression's value; the runtime calls it with the event when it is a function
+ * (so `onClick={save}` and `onClick={() => save(1)}` both work).
+ * Trailing parameters an expression does not reference are omitted.
+ * Throws for code that is not a valid JavaScript expression, so a bad expression
+ * fails the build instead of the page.
+ */
+export function compileClosure(code: string, rowVars: string[], isHandler: boolean): string {
+  let src = code.trim().replace(/;+\s*$/, '');
+  const isReturnBody = /^return\b/.test(src);
+  try {
+    if (isReturnBody) {
+      acorn.parse(`(function(){${src}})`, { ecmaVersion: 'latest' });
+    } else {
+      const node: any = acorn.parseExpressionAt(src, 0, { ecmaVersion: 'latest' });
+      if (src.slice(node.end).trim() !== '') throw new Error(`unexpected "${src.slice(node.end).trim().slice(0, 20)}"`);
+    }
+  } catch (e: any) {
+    throw new Error(`Pulse Error: cannot compile template expression {${code}}: ${e?.message || e}`);
+  }
+  const uses = (name: string) => IDENT_RE(name).test(src);
+  const cur = rowVars.length ? rowVars[rowVars.length - 1] : '';
+  const prelude: string[] = [];
+  let needP = false;
+  // Enclosing rows' variables (innermost binding of a repeated name wins).
+  for (let i = rowVars.length - 2; i >= 0; i--) {
+    const name = rowVars[i];
+    if (name === cur || rowVars.slice(i + 1, -1).includes(name) || !uses(name)) continue;
+    prelude.push(`const ${name} = $p[${i}];`);
+    needP = true;
+  }
+  let params: string[];
+  if (isHandler) {
+    if (!cur) {
+      if (uses('event')) prelude.push('const event = e;');
+      params = ['e'];
+    } else {
+      if (cur !== 'row' && uses('row')) prelude.push(`const row = ${cur};`);
+      params = ['e', cur, 'index', '$p'];
+    }
+  } else {
+    params = cur ? [cur, 'index', '$p'] : [];
+  }
+  // Drop trailing parameters the body never reads.
+  const pre = prelude.join(' ');
+  const needed = (p: string) => (p === '$p' ? needP : uses(p) || IDENT_RE(p).test(pre));
+  while (params.length && !needed(params[params.length - 1])) params.pop();
+  const head = `(${params.join(', ')}) =>`;
+  if (isReturnBody) return `${head} { ${prelude.join(' ')} ${src} }`;
+  if (prelude.length) return `${head} { ${prelude.join(' ')} return (${src}); }`;
+  return `${head} (${src})`;
+}

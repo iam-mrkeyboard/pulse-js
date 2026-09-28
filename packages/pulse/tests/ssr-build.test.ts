@@ -92,6 +92,32 @@ const files: Record<string, string> = {
   </List>
 </ul>
 `,
+  // CSP: nested List rows (outer item in inner row), index, bind:value, event arg
+  'src/pages/nested.pulse': `<script>
+  const [groups, setGroups] = createSignal([
+    { id: 1, name: 'fruit', tags: ['apple', 'pear'] },
+    { id: 2, name: 'veg', tags: ['kale'] },
+  ]);
+  const [picked, setPicked] = createSignal('none');
+  const [draft, setDraft] = createSignal('d');
+  function pick(g, t, ev) { setPicked(g.name + '/' + t + '@' + ev.type); }
+</script>
+
+<section class="nested">
+  <p class="picked">{picked}</p>
+  <input class="draft" bind:value={draft} />
+  <p class="echo">{draft}</p>
+  <List each={groups} as="group" key={group.id}>
+    <div class="group">
+      <h3 class="gname">{index}:{group.name}</h3>
+      <List each={group.tags} as="tag">
+        <button class="tag" data-tag={group.name + '-' + tag} onClick={(e) => pick(group, tag, e)}>{tag}</button>
+      </List>
+    </div>
+  </List>
+  <button class="add" onClick={() => setGroups([...groups(), { id: 3, name: 'nut', tags: ['pecan'] }])}>add</button>
+</section>
+`,
   'src/pages/about.pulse': `<section class="about"><h1>About</h1><p>Plain static page.</p></section>
 `,
   // v0.17: plain data + List/<pre>/is:raw and a leading header comment -> static, zero JS
@@ -337,6 +363,81 @@ describe('production build: List rows are adopted and bound', () => {
       expect(errors).toEqual([]);
     } finally {
       console.error = origError;
+      document.body.innerHTML = '';
+    }
+  });
+});
+
+/** Make any string-to-code attempt throw while `fn` runs (what a strict CSP would block). */
+async function withoutEval(fn: () => Promise<void>) {
+  const g = globalThis as any;
+  const OrigFunction = g.Function;
+  const origEval = g.eval;
+  const trap = () => { throw new EvalError('blocked by test CSP: string-to-code'); };
+  g.Function = new Proxy(OrigFunction, { construct: trap, apply: trap });
+  g.eval = trap;
+  try {
+    await fn();
+  } finally {
+    g.Function = OrigFunction;
+    g.eval = origEval;
+  }
+}
+
+describe('production build: CSP-safe output (no eval / new Function)', () => {
+  test('built JS assets contain no eval / new Function', () => {
+    const assets = fs.readdirSync(path.join(dist, 'assets')).filter((f) => f.endsWith('.js'));
+    expect(assets.length).toBeGreaterThan(0);
+    for (const f of assets) {
+      const code = fs.readFileSync(path.join(dist, 'assets', f), 'utf8');
+      expect(code).not.toMatch(/\bnew Function\b|(?<![\w$.])Function\(|(?<![\w$.])eval\(/);
+    }
+  });
+
+  test('HTML carries closure references, not expressions', () => {
+    for (const rel of ['index.html', 'items/index.html', 'nested/index.html']) {
+      const app = appHTML(fs.readFileSync(path.join(dist, rel), 'utf8'));
+      const refs = [...app.matchAll(/\s(?:data-on-[a-z]+|each|when)="([^"]*)"/g)].map((m) => m[1]);
+      expect(refs.length).toBeGreaterThan(0);
+      for (const r of refs) expect(r).toMatch(/^[\w$]+:\d+$/);
+    }
+  });
+
+  test('nested Lists, index, bind:value and event args work with eval blocked', async () => {
+    const html = fs.readFileSync(path.join(dist, 'nested/index.html'), 'utf8');
+    const app = appHTML(html);
+    expect(app).toContain('0<!---->:<!---->fruit');
+    expect(app).toContain('data-tag="fruit-pear"');
+    const src = html.match(/<script type="module" src="(\/assets\/[^"]+\.js)"><\/script>/)![1];
+    document.body.innerHTML = `<div id="app">${app}</div>`;
+    const errors: string[] = [];
+    const origError = console.error;
+    const origWarn = console.warn;
+    console.error = (...a: any[]) => { errors.push(a.map(String).join(' ')); };
+    console.warn = (...a: any[]) => { errors.push(a.map(String).join(' ')); };
+    try {
+      await withoutEval(async () => {
+        const pear = document.querySelector('[data-tag="fruit-pear"]') as HTMLElement;
+        await import(path.join(dist, src));
+        expect(document.querySelector('[data-tag="fruit-pear"]')).toBe(pear); // adopted
+        pear.click();
+        expect(document.querySelector('.picked')!.textContent).toBe('fruit/pear@click');
+
+        const input = document.querySelector('.draft') as HTMLInputElement;
+        input.value = 'hi';
+        input.dispatchEvent(new window.Event('input', { bubbles: true }));
+        expect(document.querySelector('.echo')!.textContent).toBe('hi');
+
+        (document.querySelector('.add') as HTMLElement).click();
+        const names = Array.from(document.querySelectorAll('.gname')).map((n) => n.textContent);
+        expect(names).toEqual(['0:fruit', '1:veg', '2:nut']);
+        (document.querySelector('[data-tag="nut-pecan"]') as HTMLElement).click();
+        expect(document.querySelector('.picked')!.textContent).toBe('nut/pecan@click');
+      });
+      expect(errors).toEqual([]);
+    } finally {
+      console.error = origError;
+      console.warn = origWarn;
       document.body.innerHTML = '';
     }
   });

@@ -237,7 +237,8 @@ ${imports.map(i => {
       // ---------------------------------------------------------
 
       // 1. Top Level Template (Use AST Node!)
-      const { html, bindings, templates } = this.templateTransformer.transform(templateNode, [...stateVars, ...computedVars], imports.flatMap(i => i.names).filter(n => /^[A-Z]/.test(n)), declarations);
+      const exprTag = scopeId.slice('data-v-'.length);
+      const { html, bindings, templates, exprs } = this.templateTransformer.transform(templateNode, [...stateVars, ...computedVars], imports.flatMap(i => i.names).filter(n => /^[A-Z]/.test(n)), declarations, exprTag);
       // We wrap the HTML in a container with the scope ID
       // This template is created ONCE at module level
       const fullTemplateHTML = `${scopedStyles ? `<style>${scopedStyles}</style>` : ''}<div class="${scopeId} pulse-component-${componentName.toLowerCase()}">${html}</div>`;
@@ -322,40 +323,11 @@ export default function ${componentName}(props) {
 
 
 
-      // Scope Construction for Runtime
-      moduleCode += `  const scope = { \n`;
-      // state getters
-      stateVars.forEach(({ name }) => {
-        moduleCode += `    get ${name}() { return get_${name} (); }, \n`;
-      });
-      // computed getters
-      computedVars.forEach(({ name }) => {
-        moduleCode += `    get ${name}() { return ${name}(); }, \n`;
-      });
-      // Add functions
-      functions.forEach(({ name }) => {
-        moduleCode += `    ${name}: ${name}, \n`;
-      });
-      // Add declarations
-      declarations.forEach(({ name }) => {
-        moduleCode += `    ${name}: ${name}, \n`;
-      });
-      // Add setters (inline handlers such as onClick={() => setOpen(!open)})
-      stateVars.forEach(({ name, setterName }) => {
-        const setter = setterName || `set_${name}`;
-        if (!declared.has(setter)) moduleCode += `    ${setter}: ${setter}, \n`;
-      });
-      // Add props
-      moduleCode += `    props: props, \n`; // Allow props access
-      moduleCode += `    state: state, \n`;
-      moduleCode += `  }; \n\n`;
-      // Accessors for runtime-evaluated expressions (Show when / List each / inline
-      // handlers), which the template transformer rewrites to \`count()\` form.
-      const accessorEntries = [
-        ...stateVars.map(({ name }) => `${name}: get_${name}`),
-        ...computedVars.map(({ name }) => `${name}: ${name}`),
-      ];
-      moduleCode += `  Object.defineProperty(scope, '__accessors', { value: { ${accessorEntries.join(', ')} }, enumerable: false });\n\n`;
+      // Compiled template expressions (List each/key/row bindings, Show when, event
+      // handlers) as closures over the component's locals. The markup refers to them
+      // as "<tag>:<index>"; nothing is evaluated from strings at runtime.
+      moduleCode += `  const __px = { t: '${exprTag}', x: [${exprs.map((e) => `\n    ${e}`).join(',')}${exprs.length ? '\n  ' : ''}] };\n`;
+      moduleCode += `  container.__px = __px;\n\n`;
 
       // Mount primitives helper using Runtime
       moduleCode += `  const mountPrimitives = (cont) => {
@@ -364,7 +336,7 @@ export default function ${componentName}(props) {
       // Serialize templates for runtime
       const serializedTemplates = JSON.stringify(Object.fromEntries(templates));
 
-      moduleCode += `    dom_mountPrimitives(cont, scope, { \n`; // Pass scope object
+      moduleCode += `    dom_mountPrimitives(cont, __px, { \n`;
       moduleCode += `       List: ${hasListPrimitive ? 'List' : 'undefined'}, \n`;
       moduleCode += `       Show: ${hasShowPrimitive ? 'Show' : 'undefined'}, \n`;
       moduleCode += `       createEffect: createEffect, \n`;
@@ -413,8 +385,7 @@ export default function ${componentName}(props) {
 
       // Event handlers - DELEGATION OPTIMIZATION
       moduleCode += `  const handlers = { ${functions.map((f) => `${f.name}: ${f.name}`).join(', ')} };\n`;
-      moduleCode += `  container.__pulseHandlers = handlers;\n`;
-      moduleCode += `  container.__pulseScope = scope;\n\n`;
+      moduleCode += `  container.__pulseHandlers = handlers;\n\n`;
 
 
       // Handle children/slots

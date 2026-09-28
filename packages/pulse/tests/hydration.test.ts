@@ -49,7 +49,7 @@ function ShowDemo(props: any = {}) {
   } else {
     const tpl = document.createElement('template');
     tpl.innerHTML = `<div class="show-demo" data-p-h="1">
-      <pulse-show when="{visible()}" data-p-show="1" style="display:contents">
+      <pulse-show when="sd:0" data-p-show="1" style="display:contents">
         <template data-pulse-template><span id="content">Visible</span></template>
         <span id="content">Visible</span>
       </pulse-show>
@@ -61,8 +61,8 @@ function ShowDemo(props: any = {}) {
   const [visible, setVisible] = createSignal(true);
   function toggle() { setVisible(!visible()); }
 
-  const scope = { visible, toggle };
-  mountPrimitives(container, scope, { List: undefined, Show, createEffect });
+  // Expression table as the compiler emits it (when={visible()} -> "sd:0").
+  mountPrimitives(container, { t: 'sd', x: [() => visible()] }, { List: undefined, Show, createEffect });
   (container as any).__pulseHandlers = { toggle };
   container.setAttribute(P_HYDRATED, '1');
   return container;
@@ -75,7 +75,7 @@ function ListDemo(props: any = {}) {
   } else {
     const tpl = document.createElement('template');
     tpl.innerHTML = `<div class="list-demo" data-p-h="1">
-      <pulse-list each="{items()}" as="item" key="{item.id}" data-p-list="1" data-template-id="t0" data-bindings="[]" style="display:contents">
+      <pulse-list each="ld:0" key="1" data-p-list="1" data-template-id="t0" data-bindings="[]" style="display:contents">
         <template data-pulse-template><div class="row"></div></template>
       </pulse-list>
       <button data-on-click="add">Add</button>
@@ -89,7 +89,7 @@ function ListDemo(props: any = {}) {
     setItems([...cur, { id: cur.length + 1, label: String.fromCharCode(97 + cur.length) }]);
   }
 
-  const scope = { items, add };
+  const exprs = { t: 'ld', x: [() => items(), (item: any) => item.id] };
   const templates = {
     t0: '<div class="row"></div>',
   };
@@ -100,7 +100,7 @@ function ListDemo(props: any = {}) {
     // Let mountPrimitives create rows
   }
 
-  mountPrimitives(container, scope, {
+  mountPrimitives(container, exprs, {
     List,
     Show: undefined,
     createEffect,

@@ -18,7 +18,7 @@ describe('Pulse DOM Runtime', () => {
 
   test('mountPrimitives should initialize Show component', async () => {
     container.innerHTML = `
-      <pulse-show when="{show()}">
+      <pulse-show when="t:0">
         <template data-pulse-template>
           <span id="content">Visible</span>
         </template>
@@ -26,9 +26,7 @@ describe('Pulse DOM Runtime', () => {
     `;
 
     const [show, setShow] = createSignal(true);
-    const scope = { show, setShow };
-
-    mountPrimitives(container, scope, {
+    mountPrimitives(container, { t: 't', x: [() => show()] }, {
       Show,
       createEffect,
       bindings: []
@@ -51,7 +49,7 @@ describe('Pulse DOM Runtime', () => {
 
   test('mountPrimitives should initialize List component', async () => {
     container.innerHTML = `
-      <pulse-list each="{items}">
+      <pulse-list each="t:0">
          <template data-pulse-template>
             <div class="item">Item</div>
          </template>
@@ -59,9 +57,7 @@ describe('Pulse DOM Runtime', () => {
     `;
 
     const [items, setItems] = createSignal([{ id: 1 }, { id: 2 }]);
-    const scope = { items, setItems };
-
-    mountPrimitives(container, scope, {
+    mountPrimitives(container, { t: 't', x: [() => items] }, {
       List,
       createEffect,
       bindings: []

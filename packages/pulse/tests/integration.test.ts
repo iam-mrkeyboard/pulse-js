@@ -48,7 +48,7 @@ describe('Pulse Integration Tests', () => {
       MockButton: (props: any) => MockButton(props) // Factory
     };
 
-    mountPrimitives(container, {}, {
+    mountPrimitives(container, null, {
       List, Show, createEffect, components
     });
 
@@ -82,7 +82,7 @@ describe('Pulse Integration Tests', () => {
 
   test('List should persist nodes (Fragment Exhaustion Verification)', async () => {
     container.innerHTML = `
-      <pulse-list each="{items()}" data-template-id="t1"></pulse-list>
+      <pulse-list each="c:0" data-template-id="t1"></pulse-list>
     `;
 
     const [items, setItems] = createSignal([1, 2]);
@@ -90,7 +90,7 @@ describe('Pulse Integration Tests', () => {
       t1: '<div class="item">Item</div>'
     };
 
-    mountPrimitives(container, { items }, { List, Show, createEffect }, templates);
+    mountPrimitives(container, { t: 'c', x: [() => items()] }, { List, Show, createEffect }, templates);
 
     await new Promise(r => setTimeout(r, 10));
     expect(container.querySelectorAll('.item').length).toBe(2);
