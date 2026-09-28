@@ -40,7 +40,7 @@ Historical entries for **v0.6.0–v0.15.0** are reconstructed from the project's
 - Framework version lives in one place (`src/version.ts`, asserted equal to `package.json` by a test) instead of seven hard-coded strings.
 - Static components are serialized from the parsed template instead of a regex over the source.
 - `benchmarks/js-framework-benchmark/pulse-runtime` re-synced to the current runtime; `sync-runtime.sh` added.
-- CI for the new layout staged at `.github/ci-workflow.yml` (move it to `.github/workflows/ci.yml`).
+- CI updated for the monorepo layout (`.github/workflows/ci.yml`: install, build, typecheck, test, docs and examples build).
 
 ---
 

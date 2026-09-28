@@ -95,7 +95,7 @@ subpath exports) with the tooling split out the way `solidjs/solid` and `vuejs/c
 ├── benchmarks/
 │   ├── js-framework-benchmark/  # Pulse keyed implementation for krausest/js-framework-benchmark
 │   └── micro/               # headless-Chrome microbenchmarks (signals, List, hydrate vs remount)
-├── .github/                 # CI (see .github/ci-workflow.yml), issue & PR templates
+├── .github/                 # CI (workflows/ci.yml), issue & PR templates
 ├── package.json             # workspaces + root scripts (build, test, typecheck, dev, bench)
 ├── tsconfig.base.json       # shared compiler options
 └── bunfig.toml              # `bun test` at the root runs the framework suite

@@ -30,7 +30,7 @@ bun run build:pulse    # build packages/pulse (apps use its dist/ CLI and types)
 │   ├── js-framework-benchmark/  # keyed Pulse implementation + results
 │   └── micro/               # headless-Chrome microbenchmarks
 ├── tsconfig.base.json       # shared TypeScript options (packages extend it)
-└── .github/                 # CI (ci-workflow.yml), issue & PR templates
+└── .github/                 # CI (workflows/ci.yml), issue & PR templates
 ```
 
 Workspaces: `packages/pulse`, `apps/*`, `examples/*`, `benchmarks/micro`. Apps depend on
@@ -83,8 +83,7 @@ Scopes are optional (`fix(runtime): …`). Breaking changes: add `!` after the t
 3. Do not force-push shared long-lived branches (`master`, integration branches) without maintainer agreement.
 4. Fill out the PR template. Link related issues when applicable.
 5. Wait for CI to pass: `bun install`, build `packages/pulse`, `bun run typecheck`, `bun test`,
-   then build `apps/docs` and `examples/*`. The workflow is `.github/workflows/ci.yml`
-   (the v0.17 version is staged at `.github/ci-workflow.yml` until a maintainer moves it into place).
+   then build `apps/docs` and `examples/*`. The workflow is `.github/workflows/ci.yml`.
 
 ## How releases are cut
 
