@@ -20,7 +20,7 @@ import { ScriptParser } from './script-parser';
 
 // Extracted modules
 import { serveHMRClient, getHMRScript } from './hmr-client';
-import { wrapHTML, serve404, generateSuggestion } from './html-wrapper';
+import { serve404, generateSuggestion } from './html-wrapper';
 import { TemplateTransformer } from './template-transformer';
 import { ComponentCompiler } from './component-compiler';
 import { VERSION } from '../version';
