@@ -280,6 +280,9 @@ export function mountPrimitives(
           }
         };
 
+        // Parse the row template once per list; each row is a deep clone.
+        const rowTemplate = template(templateHtml);
+
         const keyFn = keyX
           ? (item: any, index: number) => keyX(item, index, rowParents)
           : undefined;
@@ -355,9 +358,7 @@ export function mountPrimitives(
           host: el,
           initialNodes,
           children: (item: any, index: number) => {
-            const t = document.createElement('template');
-            t.innerHTML = templateHtml;
-            const clone = t.content.cloneNode(true) as DocumentFragment;
+            const clone = rowTemplate() as DocumentFragment;
             mountFreshComponents(clone, primitives.components);
             bindRow((p) => safeWalk(clone, p), clone, item, index);
             const node = clone.firstElementChild || clone;
@@ -388,7 +389,7 @@ export function mountPrimitives(
       const templateEl = el.querySelector('template[data-pulse-template]');
 
       if (templateEl) {
-        const content = templateEl.innerHTML;
+        const branchTemplate = template(templateEl.innerHTML);
 
         const getWhen = () => {
           try {
@@ -410,9 +411,7 @@ export function mountPrimitives(
           initialNodes,
           fallback: fallbackExpr ? () => document.createTextNode(fallbackExpr || '') : undefined,
           children: () => {
-            const t = document.createElement('template');
-            t.innerHTML = content;
-            const clone = t.content.cloneNode(true) as DocumentFragment;
+            const clone = branchTemplate() as DocumentFragment;
             mountFreshComponents(clone, primitives.components);
             return clone.firstElementChild || clone;
           }
