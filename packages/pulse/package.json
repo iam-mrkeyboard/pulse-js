@@ -29,7 +29,7 @@
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "bin": {
-    "pulse": "./dist/cli/index.js"
+    "pulse": "./bin/pulse.js"
   },
   "exports": {
     ".": {
@@ -67,6 +67,7 @@
     "./package.json": "./package.json"
   },
   "files": [
+    "bin",
     "dist",
     "src",
     "README.md",
