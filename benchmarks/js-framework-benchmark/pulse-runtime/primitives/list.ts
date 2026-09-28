@@ -10,6 +10,8 @@ export type ListProps = {
   each: () => any[];
   key?: (item: any, index: number) => any;
   children: (item: any, index: number) => Node;
+  /** Hydration: bind an adopted SSR row (events, bindings) without re-rendering it. */
+  adopt?: (node: Node, item: any, index: number) => void;
   initialNodes?: Node[];
   /** When set, reconcile inside this host (no replaceWith). Preferred for SSR/hydration. */
   host?: Element;
@@ -65,8 +67,13 @@ export function List(props: ListProps) {
     return rects;
   };
 
+  // Only primitive keys are serializable as data-p-key; object keys (the item
+  // itself when no key fn is given) would all become "[object Object]" and make
+  // hydration adopt the same row for every item. Those rows adopt by position.
+  const isPrimitiveKey = (k: any) => typeof k === 'string' || typeof k === 'number';
+
   const tagNode = (node: Node, k: any) => {
-    if (node instanceof Element) markKey(node, k);
+    if (node instanceof Element && isPrimitiveKey(k)) markKey(node, k);
     (node as any).__pulse_item = k;
     return node;
   };
@@ -134,13 +141,24 @@ export function List(props: ListProps) {
       const fallbackNodes = props.initialNodes || renderedNodes;
       for (let i = 0; i < workItems.length; i++) {
         const k = newKeys[i];
-        let node =
-          byKey.get(k) ??
-          byKey.get(String(k)) ??
-          fallbackNodes[i];
+        let node = (isPrimitiveKey(k) ? byKey.get(k) ?? byKey.get(String(k)) : undefined) ?? fallbackNodes[i];
         if (node) {
           tagNode(node, k);
-          cache.set(k, { key: k, node, item: workItems[i] });
+          let dispose: (() => void) | undefined;
+          if (props.adopt) {
+            const adoptedNode = node;
+            const item = workItems[i];
+            const index = startIndex + i;
+            createRoot((d) => {
+              dispose = d;
+              try {
+                props.adopt!(adoptedNode, item, index);
+              } catch (e) {
+                console.error('Pulse List adopt error:', e);
+              }
+            });
+          }
+          cache.set(k, { key: k, node, item: workItems[i], dispose });
         }
       }
       prevKeys = newKeys;

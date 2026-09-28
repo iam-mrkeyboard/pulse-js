@@ -1,0 +1,16 @@
+<script>
+  // Plain data only: this page is rendered on the server and ships no JavaScript.
+  const links = [
+    { id: 1, href: '/counter', label: 'Interactive counter' },
+  ];
+</script>
+
+<main>
+  <h1>Pulse example</h1>
+  <p>This page has no reactive code, so the build emits zero JS for it.</p>
+  <ul>
+    <List each={links} as="link" key={link.id}>
+      <li><a href={link.href}>{link.label}</a></li>
+    </List>
+  </ul>
+</main>

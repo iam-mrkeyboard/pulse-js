@@ -1,0 +1,248 @@
+<script>
+// Use state. prefix for reactivity
+state.todos = [];
+state.input = '';
+state.filter = 'all';
+
+function addTodo() {
+  if (state.input.trim()) {
+    state.todos = [...state.todos, {
+      id: Date.now(),
+      text: state.input,
+      completed: false
+    }];
+    state.input = '';
+  }
+}
+
+function toggleTodo(id) {
+  state.todos = state.todos.map(todo =>
+    todo.id === id ? { ...todo, completed: !todo.completed } : todo
+  );
+}
+
+function deleteTodo(id) {
+  state.todos = state.todos.filter(todo => todo.id !== id);
+}
+
+function handleInput(e) {
+  state.input = e.target.value;
+}
+
+function handleKeyPress(e) {
+  if (e.key === 'Enter') addTodo();
+}
+
+function clearCompleted() {
+  state.todos = state.todos.filter(todo => !todo.completed);
+}
+
+function setFilterAll() {
+  state.filter = 'all';
+}
+
+function setFilterActive() {
+  state.filter = 'active';
+}
+
+function setFilterCompleted() {
+  state.filter = 'completed';
+}
+
+// Computed values - call as functions
+state.filteredTodos = () => {
+  if (state.filter === 'active') return state.todos.filter(t => !t.completed);
+  if (state.filter === 'completed') return state.todos.filter(t => t.completed);
+  return state.todos;
+};
+
+state.activeCount = () => state.todos.filter(t => !t.completed).length;
+</script>
+
+<style>
+  .todo-app {
+    max-width: 600px;
+    margin: 40px auto;
+    font-family: system-ui, sans-serif;
+  }
+  
+  .todo-list {
+    background: white;
+    padding: 30px;
+    border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  }
+  
+  .todo-list h2 {
+    margin-top: 0;
+    color: #333;
+  }
+  
+  .input-group {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 20px;
+  }
+  
+  input[type="text"] {
+    flex: 1;
+    padding: 12px;
+    border: 2px solid #e5e7eb;
+    border-radius: 6px;
+    font-size: 16px;
+  }
+  
+  input[type="text"]:focus {
+    outline: none;
+    border-color: #6b46c1;
+  }
+  
+  button {
+    padding: 12px 24px;
+    background: #6b46c1;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 16px;
+    transition: background 0.2s;
+  }
+  
+  button:hover {
+    background: #553c9a;
+  }
+  
+  .filters {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 20px;
+  }
+  
+  .filter-btn {
+    padding: 8px 16px;
+    background: #f3f4f6;
+    color: #333;
+    font-size: 14px;
+  }
+  
+  .filter-btn.active {
+    background: #6b46c1;
+    color: white;
+  }
+  
+  .todos {
+    margin: 20px 0;
+  }
+  
+  .todo-item {
+    display: flex;
+    align-items: center;
+    padding: 12px;
+    border-bottom: 1px solid #e5e7eb;
+    gap: 12px;
+  }
+  
+  .todo-item:last-child {
+    border-bottom: none;
+  }
+  
+  .todo-item.completed {
+    opacity: 0.5;
+  }
+  
+  .todo-item.completed .todo-text {
+    text-decoration: line-through;
+  }
+  
+  input[type="checkbox"] {
+    width: 20px;
+    height: 20px;
+    cursor: pointer;
+  }
+  
+  .todo-text {
+    flex: 1;
+  }
+  
+  .delete-btn {
+    padding: 4px 12px;
+    background: #ef4444;
+    font-size: 14px;
+  }
+  
+  .footer {
+    margin-top: 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    color: #666;
+    font-size: 14px;
+  }
+  
+  .clear-btn {
+    padding: 8px 16px;
+    background: #6b7280;
+    font-size: 14px;
+  }
+  
+  .empty {
+    text-align: center;
+    color: #999;
+    padding: 20px;
+  }
+</style>
+
+<div class="todo-app">
+  <div class="todo-list">
+    <h2>✅ Todo List</h2>
+    
+    <div class="input-group">
+      <input 
+        type="text" 
+        value={state.input}
+        onInput={handleInput}
+        onKeyPress={handleKeyPress}
+        placeholder="What needs to be done?"
+      />
+      <button onClick={addTodo}>Add</button>
+    </div>
+    
+    <div class="filters">
+      <button 
+        class="filter-btn"
+        onClick={setFilterAll}>
+        All
+      </button>
+      <button 
+        class="filter-btn"
+        onClick={setFilterActive}>
+        Active
+      </button>
+      <button 
+        class="filter-btn"
+        onClick={setFilterCompleted}>
+        Completed
+      </button>
+    </div>
+    
+    <div class="todos" id="todo-list">
+      <List each={state.filteredTodos} as="todo" key={todo.id}>
+        <div class={`todo-item ${todo.completed ? 'completed' : ''}`}>
+          <input 
+            type="checkbox" 
+            checked={todo.completed} 
+            onChange={() => toggleTodo(todo.id)} 
+          />
+          <span class="todo-text">{todo.text}</span>
+          <button class="delete-btn" onClick={() => deleteTodo(todo.id)}>Delete</button>
+        </div>
+      </List>
+    </div>
+    
+    <div class="footer">
+      <span>{state.activeCount()} items left</span>
+      <button class="clear-btn" onClick={clearCompleted}>Clear Completed</button>
+    </div>
+  </div>
+</div>
+

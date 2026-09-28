@@ -6,8 +6,8 @@ Pulse is pre-1.0. Security fixes are applied to the latest published framework v
 
 | Version | Supported |
 |---------|-----------|
-| 0.16.x  | ✅ |
-| < 0.16  | ❌ |
+| 0.17.x  | ✅ |
+| < 0.17  | ❌ |
 
 ## Reporting a vulnerability
 

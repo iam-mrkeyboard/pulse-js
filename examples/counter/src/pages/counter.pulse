@@ -1,0 +1,10 @@
+<script>
+  import Counter from '../components/Counter.pulse';
+</script>
+
+<main>
+  <h1>Counter</h1>
+  <p>Server-rendered, then hydrated in place.</p>
+  <Counter />
+  <p><a href="/">← Home</a></p>
+</main>

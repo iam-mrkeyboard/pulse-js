@@ -1,0 +1,299 @@
+<script>
+  import Navbar from '../../components/Navbar.pulse';
+</script>
+
+<Navbar />
+
+<main class="docs-page">
+  <aside class="sidebar">
+    <h3>Components</h3>
+    <nav>
+      <a href="/docs/components" class="active">Overview</a>
+      <a href="/docs/components#creating">Creating</a>
+      <a href="/docs/components#props">Props</a>
+      <a href="/docs/components#composition">Composition</a>
+      <a href="/docs/components#braces">Literal Braces</a>
+    </nav>
+    <a href="/docs" class="back">← All Docs</a>
+  </aside>
+  
+  <article class="content">
+    <h1>Components</h1>
+    <p class="lead">Build reusable UI components with Pulse's component system. Each component is a self-contained unit with its own logic, template, and styles.</p>
+
+    <section id="creating">
+      <h2>Creating Components</h2>
+      <p>Components are <code>.pulse</code> files in the <code>components/</code> directory.</p>
+      
+      <div class="file-tree">
+        <div class="file-header">📁 Project Structure</div>
+        <div class="file-content">
+          <div class="file-item folder">src/</div>
+          <div class="file-item folder indent">components/</div>
+          <div class="file-item file indent-2">Button.pulse</div>
+          <div class="file-item file indent-2">Card.pulse</div>
+          <div class="file-item file indent-2">Navbar.pulse</div>
+          <div class="file-item folder indent">pages/</div>
+          <div class="file-item file indent-2">index.pulse</div>
+        </div>
+      </div>
+
+      <div class="code-block">
+        <div class="code-header">
+          <span class="label">components/Button.pulse</span>
+        </div>
+        <pre><code is:raw>&lt;script&gt;
+  // Component logic
+  const { label, variant = 'primary', onClick } = props;
+&lt;/script&gt;
+
+&lt;button 
+  class={`btn btn-${variant}`}
+  onClick={onClick}
+&gt;
+  {label}
+&lt;/button&gt;
+
+&lt;style&gt;
+  .btn {
+    padding: 10px 20px;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    font-weight: 600;
+  }
+  
+  .btn-primary {
+    background: #6b46c1;
+    color: white;
+  }
+  
+  .btn-secondary {
+    background: #e5e7eb;
+    color: #374151;
+  }
+&lt;/style&gt;</code></pre>
+      </div>
+    </section>
+
+    <section id="props">
+      <h2>Component Props</h2>
+      <p>Props are passed as attributes and available via the <code>props</code> object.</p>
+
+      <div class="code-block">
+        <div class="code-header">
+          <span class="label">Passing Props</span>
+        </div>
+        <pre><code is:raw>&lt;script&gt;
+  import Button from './components/Button.pulse';
+  import Card from './components/Card.pulse';
+  
+  function handleClick() {
+    alert('Button clicked!');
+  }
+&lt;/script&gt;
+
+&lt;!-- String props --&gt;
+&lt;Button label="Click Me" /&gt;
+
+&lt;!-- Expression props --&gt;
+&lt;Button label={dynamicLabel} onClick={handleClick} /&gt;
+
+&lt;!-- Multiple props --&gt;
+&lt;Card 
+  title="Welcome"
+  description="This is a card component"
+  image="/hero.jpg"
+/&gt;</code></pre>
+      </div>
+
+      <h3>Default Props</h3>
+      <div class="code-block">
+        <pre><code is:raw>// Using destructuring with defaults
+const { 
+  label = 'Button',
+  variant = 'primary',
+  size = 'medium',
+  disabled = false
+} = props;</code></pre>
+      </div>
+
+      <div class="info-box">
+        <h4>💡 Props Best Practices</h4>
+        <ul>
+          <li>Use destructuring for cleaner code</li>
+          <li>Provide sensible defaults</li>
+          <li>Keep props minimal and focused</li>
+          <li>Document expected prop types in comments</li>
+        </ul>
+      </div>
+    </section>
+
+    <section id="composition">
+      <h2>Component Composition</h2>
+      <p>Compose complex UIs by nesting components.</p>
+
+      <div class="code-block">
+        <div class="code-header">
+          <span class="label">components/Card.pulse</span>
+        </div>
+        <pre><code is:raw>&lt;script&gt;
+  import Button from './Button.pulse';
+  
+  const { title, description, actions } = props;
+&lt;/script&gt;
+
+&lt;div class="card"&gt;
+  &lt;h3&gt;{title}&lt;/h3&gt;
+  &lt;p&gt;{description}&lt;/p&gt;
+  
+  &lt;div class="card-actions"&gt;
+    &lt;Button label="Learn More" variant="secondary" /&gt;
+    &lt;Button label="Get Started" variant="primary" /&gt;
+  &lt;/div&gt;
+&lt;/div&gt;
+
+&lt;style&gt;
+  .card {
+    background: white;
+    border-radius: 12px;
+    padding: 24px;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+  }
+  
+  .card-actions {
+    display: flex;
+    gap: 12px;
+    margin-top: 20px;
+  }
+&lt;/style&gt;</code></pre>
+      </div>
+
+      <h3>Page Using Components</h3>
+      <div class="code-block">
+        <pre><code is:raw>&lt;script&gt;
+  import Navbar from './components/Navbar.pulse';
+  import Card from './components/Card.pulse';
+  import Button from './components/Button.pulse';
+&lt;/script&gt;
+
+&lt;Navbar /&gt;
+
+&lt;main&gt;
+  &lt;h1&gt;Welcome&lt;/h1&gt;
+  
+  &lt;div class="grid"&gt;
+    &lt;Card 
+      title="Feature One" 
+      description="Amazing feature description"
+    /&gt;
+    &lt;Card 
+      title="Feature Two" 
+      description="Another great feature"
+    /&gt;
+  &lt;/div&gt;
+  
+  &lt;Button label="Get Started" onClick={goToSignup} /&gt;
+&lt;/main&gt;</code></pre>
+      </div>
+    </section>
+
+    <section id="braces">
+      <h2>Expressions &amp; Literal Braces</h2>
+      <p>
+        <code is:raw>{expression}</code> is evaluated everywhere in the template, including inside
+        <code>&lt;pre&gt;</code>, <code>&lt;code&gt;</code>, <code>&lt;textarea&gt;</code> and <code>&lt;title&gt;</code>.
+        Only <code>&lt;script&gt;</code> and <code>&lt;style&gt;</code> bodies are raw.
+      </p>
+      <p>
+        To show code samples with literal braces, add <code>is:raw</code> to the element: its children are
+        emitted verbatim (no expressions, no components) and the attribute is removed from the output.
+        For a single literal brace, use <code>&amp;#123;</code> and <code>&amp;#125;</code>.
+      </p>
+      <div class="code-block">
+        <pre><code is:raw>&lt;pre&gt;&lt;code&gt;{snippet}&lt;/code&gt;&lt;/pre&gt;          &lt;!-- renders the value of snippet --&gt;
+&lt;pre&gt;&lt;code is:raw&gt;{snippet}&lt;/code&gt;&lt;/pre&gt;   &lt;!-- renders the text {snippet} --&gt;</code></pre>
+      </div>
+    </section>
+
+    <section id="reference">
+      <h2>Quick Reference</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Pattern</th>
+            <th>Example</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Import</td>
+            <td><code>import Button from './Button.pulse'</code></td>
+          </tr>
+          <tr>
+            <td>Access Props</td>
+            <td><code is:raw>const { label } = props;</code></td>
+          </tr>
+          <tr>
+            <td>Pass String</td>
+            <td><code>&lt;Button label="Click" /&gt;</code></td>
+          </tr>
+          <tr>
+            <td>Pass Expression</td>
+            <td><code is:raw>&lt;Button onClick={fn} /&gt;</code></td>
+          </tr>
+          <tr>
+            <td>Self-Closing</td>
+            <td><code>&lt;Navbar /&gt;</code></td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+  </article>
+</main>
+
+<style>
+  body { background: #f8fafc; font-family: system-ui, sans-serif; margin: 0; }
+  .docs-page { display: flex; min-height: 100vh; }
+  .sidebar { width: 220px; background: white; border-right: 1px solid #e5e7eb; padding: 30px 20px; position: sticky; top: 0; height: 100vh; display: flex; flex-direction: column; }
+  .sidebar h3 { color: #6b46c1; margin-bottom: 15px; font-size: 1.1rem; }
+  .sidebar nav { display: flex; flex-direction: column; gap: 6px; flex: 1; }
+  .sidebar a { color: #4b5563; text-decoration: none; padding: 8px 12px; border-radius: 6px; font-size: 0.9rem; transition: all 0.2s; }
+  .sidebar a:hover, .sidebar a.active { background: #f3e8ff; color: #6b46c1; }
+  .sidebar .back { margin-top: auto; color: #9ca3af; font-size: 0.85rem; }
+  .content { flex: 1; padding: 40px 60px; max-width: 800px; }
+  h1 { color: #1f2937; font-size: 2.2rem; margin-bottom: 10px; }
+  h2 { color: #6b46c1; font-size: 1.6rem; margin-top: 50px; margin-bottom: 15px; padding-top: 20px; border-top: 1px solid #e5e7eb; }
+  h3 { color: #374151; font-size: 1.2rem; margin-top: 30px; }
+  .lead { font-size: 1.15rem; color: #6b7280; line-height: 1.6; margin-bottom: 30px; }
+  p { color: #4b5563; line-height: 1.7; margin-bottom: 15px; }
+
+  .file-tree { background: white; border: 2px solid #e5e7eb; border-radius: 12px; overflow: hidden; margin: 20px 0; }
+  .file-header { background: #f3f4f6; padding: 12px 15px; font-weight: 600; color: #374151; border-bottom: 1px solid #e5e7eb; }
+  .file-content { padding: 15px; font-family: 'Fira Code', monospace; font-size: 0.9rem; }
+  .file-item { padding: 4px 0; color: #4b5563; }
+  .file-item.folder { color: #6b46c1; font-weight: 600; }
+  .file-item.file { color: #374151; }
+  .file-item.indent { padding-left: 20px; }
+  .file-item.indent-2 { padding-left: 40px; }
+
+  .code-block { background: #1f2937; border-radius: 10px; overflow: hidden; margin: 20px 0; }
+  .code-header { background: #374151; padding: 10px 15px; border-bottom: 1px solid #4b5563; }
+  .code-header .label { color: #9ca3af; font-size: 0.85rem; font-weight: 600; }
+  pre { margin: 0; padding: 20px; overflow-x: auto; }
+  code { font-family: 'Fira Code', monospace; font-size: 0.9rem; color: #e5e7eb; }
+  p code { background: #f3f4f6; color: #6b46c1; padding: 2px 8px; border-radius: 4px; }
+
+  .info-box { background: #eef2ff; border: 1px solid #c7d2fe; border-radius: 10px; padding: 20px; margin: 25px 0; }
+  .info-box h4 { color: #4338ca; margin: 0 0 10px 0; }
+  .info-box ul { margin: 0; padding-left: 20px; color: #4f46e5; }
+  .info-box li { margin-bottom: 5px; }
+
+  table { width: 100%; background: white; border-collapse: separate; border-spacing: 0; border-radius: 10px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.1); margin: 20px 0; }
+  th, td { padding: 12px 16px; text-align: left; border-bottom: 1px solid #f3f4f6; }
+  th { background: #6b46c1; color: white; font-weight: 600; }
+  tr:last-child td { border-bottom: none; }
+  td code { background: #f3e8ff; color: #6b46c1; padding: 2px 8px; border-radius: 4px; font-size: 0.85rem; }
+
+  section { scroll-margin-top: 20px; }
+</style>

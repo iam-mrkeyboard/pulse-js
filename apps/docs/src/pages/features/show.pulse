@@ -1,0 +1,203 @@
+<script>
+  import Navbar from '../../components/Navbar.pulse';
+  
+  const [activeId, setActiveId] = createSignal(null);
+  
+  const benefits = [
+    { id: 1, title: '⚡ Zero Overhead', content: 'No Virtual DOM. Pulse compiles components to surgical DOM updates for maximum performance.' },
+    { id: 2, title: '🍔 Bun Native', content: 'Built primarily for Bun. Enjoy sub-millisecond startup times and native bundler integration.' },
+    { id: 3, title: '🎯 Fine-Grained', content: 'Signals invoke updates only where needed. No component re-rendering overhead.' },
+    { id: 4, title: '🧩 Built-in Primitives', content: 'Control flow primitives like <Show>, <List>, and <Portal> handle logic efficiently.' }
+  ];
+  
+  function toggle(id) {
+    setActiveId(activeId === id ? null : id);
+  }
+</script>
+
+<Navbar />
+
+<main class="page">
+  <div class="card">
+    <div class="header-section">
+      <span class="icon">👁️</span>
+      <div>
+        <h1>Show Primitive</h1>
+        <p>Conditional rendering made simple. Click a benefit to toggle details.</p>
+      </div>
+    </div>
+    
+    <div class="accordion">
+      <List each={benefits} as="benefit" key={benefit.id}>
+        <div class="item">
+          <button 
+            class={activeId() === benefit.id ? 'trigger active' : 'trigger'} 
+            onClick={() => toggle(benefit.id)}
+          >
+            <span class="title">{benefit.title}</span>
+            <span class="arrow">▼</span>
+          </button>
+          
+          <Show when={activeId() === benefit.id}>
+            <div class="content">
+              <p>{benefit.content}</p>
+            </div>
+          </Show>
+        </div>
+      </List>
+    </div>
+  </div>
+</main>
+
+<style>
+  body {
+    background: linear-gradient(135deg, #e0e7ff 0%, #ede9fe 100%);
+    min-height: 100vh;
+    font-family: 'Inter', system-ui, sans-serif;
+    margin: 0;
+    color: #111827;
+  }
+
+  .page {
+    max-width: 700px;
+    margin: 0 auto;
+    padding: 60px 20px;
+  }
+  
+  .card {
+    background: white;
+    padding: 40px;
+    border-radius: 24px;
+    box-shadow: 0 20px 60px -15px rgba(79, 70, 229, 0.15);
+    border: 1px solid rgba(255,255,255,0.8);
+  }
+  
+  .header-section {
+    display: flex;
+    align-items: center;
+    gap: 24px;
+    margin-bottom: 40px;
+    padding-bottom: 30px;
+    border-bottom: 1px solid #f3f4f6;
+  }
+  
+  .icon {
+    font-size: 3rem;
+    background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+    width: 80px;
+    height: 80px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 20px;
+    box-shadow: 0 10px 20px rgba(79, 70, 229, 0.3);
+    color: white;
+  }
+  
+  h1 {
+    font-size: 2.2rem;
+    color: #111827;
+    margin: 0 0 8px;
+    font-weight: 800;
+    letter-spacing: -0.025em;
+  }
+  
+  p {
+    margin: 0;
+    color: #6b7280;
+    font-size: 1.1rem;
+    line-height: 1.5;
+  }
+  
+  .accordion {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+  
+  .item {
+    border: 2px solid transparent;
+    background: white;
+    border-radius: 16px;
+    overflow: hidden;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+  }
+  
+  .item:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+  }
+  
+  .item:has(.active) {
+    border-color: #818cf8;
+    box-shadow: 0 0 0 4px rgba(129, 140, 248, 0.2);
+  }
+  
+  .trigger {
+    width: 100%;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 24px;
+    background: white;
+    border: none;
+    cursor: pointer;
+    text-align: left;
+    transition: all 0.2s;
+    font-family: inherit;
+    font-size: 1.1rem;
+    color: #374151;
+  }
+  
+  .trigger:hover {
+    background: #f8fafc;
+    color: #111827;
+  }
+  
+  .trigger.active {
+    background: #eef2ff;
+    color: #4f46e5;
+  }
+  
+  .trigger.active .arrow {
+    transform: rotate(180deg);
+    color: #4f46e5;
+  }
+  
+  .title {
+    font-size: 1.15rem;
+    font-weight: 700;
+    color: #374151;
+  }
+  
+  .active .title {
+    color: #4338ca;
+  }
+  
+  .arrow {
+    color: #9ca3af;
+    transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275), color 0.2s;
+    font-size: 0.9rem;
+    font-weight: 900;
+  }
+  
+  .content {
+    background: #eef2ff;
+    padding: 0 24px 24px;
+    border-top: 1px solid rgba(99, 102, 241, 0.1);
+    animation: slideDown 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  
+  .content p {
+    margin-top: 16px;
+    color: #4338ca;
+    line-height: 1.6;
+    font-size: 1.05rem;
+  }
+  
+  @keyframes slideDown {
+    from { opacity: 0; transform: translateY(-10px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+</style>

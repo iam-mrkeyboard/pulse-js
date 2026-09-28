@@ -1,0 +1,15 @@
+{
+  "name": "@pulse/example-counter",
+  "version": "0.17.0",
+  "private": true,
+  "description": "Minimal Pulse app: one static page and one interactive counter page.",
+  "type": "module",
+  "scripts": {
+    "dev": "pulse dev",
+    "build": "pulse build",
+    "preview": "pulse preview"
+  },
+  "dependencies": {
+    "pulse": "workspace:*"
+  }
+}

@@ -1,0 +1,4 @@
+# `bun test` from the repository root runs the framework test suite.
+[test]
+root = "packages/pulse/tests"
+preload = ["./packages/pulse/tests/setup.ts"]

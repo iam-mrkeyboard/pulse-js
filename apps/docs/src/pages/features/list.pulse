@@ -1,0 +1,210 @@
+<script>
+  import Navbar from '../../components/Navbar.pulse';
+  
+  const [items, setItems] = createSignal([
+    { id: 1, name: 'Apple', price: 1.2 },
+    { id: 2, name: 'Banana', price: 0.8 },
+    { id: 3, name: 'Cherry', price: 2.5 }
+  ]);
+  
+  const [newName, setNewName] = createSignal('');
+  const [newPrice, setNewPrice] = createSignal('');
+  
+  function addItem() {
+    console.log('[App] addItem called!');
+    const name = newName.trim();
+    const price = parseFloat(newPrice) || 0;
+    console.log('[App] Adding:', name, price);
+    
+    if (!name) {
+      return;
+    }
+    
+    const currentItems = items;
+    console.log('[App] Current items:', currentItems);
+    const newId = Math.max(0, ...currentItems.map(i => i.id)) + 1;
+    setItems([...currentItems, { id: newId, name, price }]);
+    
+    // Clear inputs
+    setNewName('');
+    setNewPrice('');
+  }
+
+  function deleteItem(id) {
+    setItems(items.filter(i => i.id !== id));
+  }
+</script>
+
+<Navbar />
+
+<main class="page">
+  <h1>List Primitive Test</h1>
+  
+  <div class="add-form">
+    <input 
+      type="text" 
+      value={newName} 
+      onChange={(e) => setNewName(e.target.value)} 
+      placeholder="Item name..."
+    />
+    <input 
+      type="number" 
+      value={newPrice} 
+      onChange={(e) => setNewPrice(e.target.value)} 
+      placeholder="Price"
+      step="0.01"
+    />
+    <button onClick={addItem}>Add Item</button>
+  </div>
+  
+  <ul class="list">
+    <List each={items} as="item" key={item.id}>
+      <li>
+        <span class="name">{item.name}</span>
+        <span class="price">${item.price.toFixed(2)}</span>
+        <button class="delete-btn" onClick={() => deleteItem(item.id)}>Delete</button>
+      </li>
+    </List>
+  </ul>
+</main>
+
+<style>
+  body {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    min-height: 100vh;
+    font-family: system-ui, sans-serif;
+    margin: 0;
+  }
+
+  .page {
+    max-width: 600px;
+    margin: 0 auto;
+    padding: 40px 20px;
+  }
+  
+  h1 {
+    color: white;
+    margin-bottom: 30px;
+    font-size: 2.5rem;
+    text-shadow: 0 2px 10px rgba(0,0,0,0.2);
+  }
+
+  .add-form {
+    background: white;
+    padding: 20px;
+    border-radius: 16px;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+    display: flex;
+    gap: 12px;
+    margin-bottom: 30px;
+    flex-wrap: wrap;
+  }
+  
+  .add-form input {
+    flex: 1;
+    min-width: 120px;
+    padding: 14px 18px;
+    border: 2px solid #e5e7eb;
+    border-radius: 10px;
+    font-size: 1rem;
+    transition: border-color 0.2s, box-shadow 0.2s;
+    outline: none;
+  }
+  
+  .add-form input:focus {
+    border-color: #6b46c1;
+    box-shadow: 0 0 0 3px rgba(107, 70, 193, 0.2);
+  }
+  
+  .add-form input[type="number"] {
+    max-width: 100px;
+  }
+  
+  .add-form button {
+    background: linear-gradient(135deg, #6b46c1 0%, #8b5cf6 100%);
+    color: white;
+    border: none;
+    padding: 14px 28px;
+    border-radius: 10px;
+    cursor: pointer;
+    font-weight: 700;
+    font-size: 1rem;
+    transition: transform 0.2s, box-shadow 0.2s;
+    white-space: nowrap;
+  }
+  
+  .add-form button:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(107, 70, 193, 0.4);
+  }
+  
+  .list {
+    background: white;
+    border-radius: 16px;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+    list-style: none;
+    padding: 0;
+    overflow: hidden;
+  }
+  
+  li {
+    padding: 20px 24px;
+    border-bottom: 1px solid #f3f4f6;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    transition: background 0.2s;
+  }
+  
+  li:hover {
+    background: #faf5ff;
+  }
+  
+  li:last-child {
+    border-bottom: none;
+  }
+  
+  .name { 
+    font-weight: 700; 
+    color: #1f2937;
+    font-size: 1.1rem;
+  }
+  
+  .price { 
+    background: linear-gradient(135deg, #6b46c1 0%, #8b5cf6 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    font-weight: 800;
+    font-size: 1.2rem;
+    margin-right: auto;
+    margin-left: 20px;
+  }
+  
+  .delete-btn {
+    background: linear-gradient(135deg, #ef4444 0%, #f87171 100%);
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-weight: 600;
+    font-size: 0.9rem;
+    transition: transform 0.2s, box-shadow 0.2s;
+  }
+  
+  .delete-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 15px rgba(239, 68, 68, 0.4);
+  }
+
+  /* Empty state */
+  .list:empty::after {
+    content: "No items yet. Add one above!";
+    display: block;
+    padding: 40px;
+    text-align: center;
+    color: #9ca3af;
+    font-style: italic;
+  }
+</style>

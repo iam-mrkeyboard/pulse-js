@@ -1,0 +1,16 @@
+<script>
+  const [count, setCount] = createSignal(0);
+  const doubled = createMemo(() => count() * 2);
+</script>
+
+<div class="counter">
+  <p class="value">Count: {count}</p>
+  <p class="doubled">Doubled: {doubled}</p>
+  <button class="dec" onClick={() => setCount(count() - 1)}>−</button>
+  <button class="inc" onClick={() => setCount(count() + 1)}>+</button>
+</div>
+
+<style>
+  .counter { display: inline-flex; gap: 12px; align-items: center; font-family: system-ui, sans-serif; }
+  button { font-size: 1.25rem; min-width: 2.5rem; }
+</style>

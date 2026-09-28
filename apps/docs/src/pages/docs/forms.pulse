@@ -1,0 +1,287 @@
+<script>
+  import Navbar from '../../components/Navbar.pulse';
+</script>
+
+<Navbar />
+
+<main class="docs-page">
+  <aside class="sidebar">
+    <h3>Forms</h3>
+    <nav>
+      <a href="/docs/forms" class="active">Overview</a>
+      <a href="/docs/forms#text-inputs">Text Inputs</a>
+      <a href="/docs/forms#checkboxes">Checkboxes</a>
+      <a href="/docs/forms#selects">Select/Radio</a>
+      <a href="/docs/forms#validation">Validation</a>
+    </nav>
+    <a href="/docs" class="back">← All Docs</a>
+  </aside>
+  
+  <article class="content">
+    <h1>Forms & Two-Way Binding</h1>
+    <p class="lead">Build interactive forms with Pulse's reactive two-way binding. Connect form inputs directly to signals for seamless data flow.</p>
+
+    <section id="text-inputs">
+      <h2>Text Inputs</h2>
+      <p>Use <code>value</code> and <code>onInput</code> for two-way text binding.</p>
+      
+      <div class="demo-box">
+        <div class="demo-label">Live Example</div>
+        <div class="demo-content">
+          <input type="text" class="demo-input" placeholder="Type your name..." value="John Doe" />
+          <p class="demo-preview">Hello, <strong>John Doe</strong>! 👋</p>
+        </div>
+      </div>
+
+      <div class="code-block">
+        <div class="code-header">
+          <span class="label">Text Input Binding</span>
+        </div>
+        <pre><code is:raw>&lt;script&gt;
+  const [name, setName] = createSignal('');
+&lt;/script&gt;
+
+&lt;input 
+  type="text"
+  value={name} 
+  onInput={e => setName(e.target.value)}
+  placeholder="Enter your name"
+/&gt;
+
+&lt;p&gt;Hello, &lt;strong&gt;{name}&lt;/strong&gt;!&lt;/p&gt;</code></pre>
+      </div>
+
+      <h3>Email & Password</h3>
+      <div class="code-block">
+        <pre><code is:raw>const [email, setEmail] = createSignal('');
+const [password, setPassword] = createSignal('');
+
+&lt;input 
+  type="email"
+  value={email}
+  onInput={e => setEmail(e.target.value)}
+  placeholder="you@example.com"
+/&gt;
+
+&lt;input 
+  type="password"
+  value={password}
+  onInput={e => setPassword(e.target.value)}
+  placeholder="••••••••"
+/&gt;</code></pre>
+      </div>
+    </section>
+
+    <section id="checkboxes">
+      <h2>Checkboxes</h2>
+      <p>Use <code>checked</code> and <code>onChange</code> for boolean toggles.</p>
+      
+      <div class="demo-box">
+        <div class="demo-label">Live Example</div>
+        <div class="demo-content">
+          <label class="demo-checkbox">
+            <input type="checkbox" checked />
+            <span>Subscribe to newsletter</span>
+          </label>
+          <p class="demo-status">Status: <span class="on">Subscribed ✓</span></p>
+        </div>
+      </div>
+
+      <div class="code-block">
+        <div class="code-header">
+          <span class="label">Checkbox Binding</span>
+        </div>
+        <pre><code is:raw>&lt;script&gt;
+  const [subscribed, setSubscribed] = createSignal(false);
+&lt;/script&gt;
+
+&lt;label&gt;
+  &lt;input 
+    type="checkbox"
+    checked={subscribed}
+    onChange={e => setSubscribed(e.target.checked)}
+  /&gt;
+  Subscribe to newsletter
+&lt;/label&gt;
+
+&lt;p&gt;Status: {subscribed ? 'Subscribed' : 'Not subscribed'}&lt;/p&gt;</code></pre>
+      </div>
+    </section>
+
+    <section id="selects">
+      <h2>Select & Radio Buttons</h2>
+      
+      <h3>Select Dropdown</h3>
+      <div class="demo-box">
+        <div class="demo-label">Live Example</div>
+        <div class="demo-content">
+          <select class="demo-select">
+            <option value="user">User</option>
+            <option value="admin" selected>Admin</option>
+            <option value="moderator">Moderator</option>
+          </select>
+          <p class="demo-preview">Selected role: <strong>Admin</strong></p>
+        </div>
+      </div>
+
+      <div class="code-block">
+        <pre><code is:raw>&lt;script&gt;
+  const [role, setRole] = createSignal('user');
+&lt;/script&gt;
+
+&lt;select 
+  value={role} 
+  onChange={e => setRole(e.target.value)}
+&gt;
+  &lt;option value="user"&gt;User&lt;/option&gt;
+  &lt;option value="admin"&gt;Admin&lt;/option&gt;
+  &lt;option value="moderator"&gt;Moderator&lt;/option&gt;
+&lt;/select&gt;</code></pre>
+      </div>
+
+      <h3>Radio Buttons</h3>
+      <div class="code-block">
+        <pre><code is:raw>&lt;script&gt;
+  const [theme, setTheme] = createSignal('light');
+&lt;/script&gt;
+
+&lt;label&gt;
+  &lt;input 
+    type="radio" 
+    name="theme"
+    checked={theme === 'light'}
+    onChange={() => setTheme('light')}
+  /&gt;
+  Light
+&lt;/label&gt;
+
+&lt;label&gt;
+  &lt;input 
+    type="radio" 
+    name="theme"
+    checked={theme === 'dark'}
+    onChange={() => setTheme('dark')}
+  /&gt;
+  Dark
+&lt;/label&gt;</code></pre>
+      </div>
+    </section>
+
+    <section id="validation">
+      <h2>Form Validation</h2>
+      <p>Use <code>createMemo</code> for reactive validation.</p>
+
+      <div class="code-block">
+        <div class="code-header">
+          <span class="label">Validated Form</span>
+        </div>
+        <pre><code is:raw>&lt;script&gt;
+  const [email, setEmail] = createSignal('');
+  const [password, setPassword] = createSignal('');
+  
+  const emailValid = createMemo(() => 
+    email.includes('@') && email.includes('.')
+  );
+  
+  const passwordValid = createMemo(() => 
+    password.length >= 8
+  );
+  
+  const formValid = createMemo(() => 
+    emailValid && passwordValid
+  );
+  
+  function handleSubmit(e) {
+    e.preventDefault();
+    if (!formValid) return;
+    
+    // Submit form...
+    console.log('Submitting:', { email: email, password: password });
+  }
+&lt;/script&gt;
+
+&lt;form onSubmit={handleSubmit}&gt;
+  &lt;div class="field"&gt;
+    &lt;input 
+      type="email"
+      value={email}
+      onInput={e => setEmail(e.target.value)}
+      class={emailValid ? 'valid' : 'invalid'}
+    /&gt;
+    &lt;Show when={!emailValid && email.length > 0}&gt;
+      &lt;span class="error"&gt;Enter a valid email&lt;/span&gt;
+    &lt;/Show&gt;
+  &lt;/div&gt;
+  
+  &lt;div class="field"&gt;
+    &lt;input 
+      type="password"
+      value={password}
+      onInput={e => setPassword(e.target.value)}
+    /&gt;
+    &lt;Show when={!passwordValid && password.length > 0}&gt;
+      &lt;span class="error"&gt;Min 8 characters required&lt;/span&gt;
+    &lt;/Show&gt;
+  &lt;/div&gt;
+  
+  &lt;button type="submit" disabled={!formValid}&gt;
+    Submit
+  &lt;/button&gt;
+&lt;/form&gt;</code></pre>
+      </div>
+
+      <div class="info-box">
+        <h4>💡 Validation Tips</h4>
+        <ul>
+          <li>Use <code>createMemo</code> for validation rules</li>
+          <li>Combine multiple validations with logical AND</li>
+          <li>Show errors only after user interaction</li>
+          <li>Disable submit button until form is valid</li>
+        </ul>
+      </div>
+    </section>
+  </article>
+</main>
+
+<style>
+  body { background: #f8fafc; font-family: system-ui, sans-serif; margin: 0; }
+  .docs-page { display: flex; min-height: 100vh; }
+  .sidebar { width: 220px; background: white; border-right: 1px solid #e5e7eb; padding: 30px 20px; position: sticky; top: 0; height: 100vh; display: flex; flex-direction: column; }
+  .sidebar h3 { color: #6b46c1; margin-bottom: 15px; font-size: 1.1rem; }
+  .sidebar nav { display: flex; flex-direction: column; gap: 6px; flex: 1; }
+  .sidebar a { color: #4b5563; text-decoration: none; padding: 8px 12px; border-radius: 6px; font-size: 0.9rem; transition: all 0.2s; }
+  .sidebar a:hover, .sidebar a.active { background: #f3e8ff; color: #6b46c1; }
+  .sidebar .back { margin-top: auto; color: #9ca3af; font-size: 0.85rem; }
+  .content { flex: 1; padding: 40px 60px; max-width: 800px; }
+  h1 { color: #1f2937; font-size: 2.2rem; margin-bottom: 10px; }
+  h2 { color: #6b46c1; font-size: 1.6rem; margin-top: 50px; margin-bottom: 15px; padding-top: 20px; border-top: 1px solid #e5e7eb; }
+  h3 { color: #374151; font-size: 1.2rem; margin-top: 30px; }
+  .lead { font-size: 1.15rem; color: #6b7280; line-height: 1.6; margin-bottom: 30px; }
+  p { color: #4b5563; line-height: 1.7; margin-bottom: 15px; }
+
+  .demo-box { background: white; border: 2px solid #e5e7eb; border-radius: 12px; overflow: hidden; margin: 20px 0; }
+  .demo-label { background: #f3f4f6; padding: 10px 15px; font-size: 0.85rem; font-weight: 600; color: #6b7280; border-bottom: 1px solid #e5e7eb; }
+  .demo-content { padding: 20px; }
+  .demo-input { width: 100%; padding: 12px 16px; border: 2px solid #e5e7eb; border-radius: 8px; font-size: 1rem; margin-bottom: 15px; }
+  .demo-input:focus { outline: none; border-color: #6b46c1; }
+  .demo-preview { color: #374151; font-size: 1.1rem; margin: 0; }
+  .demo-checkbox { display: flex; align-items: center; gap: 10px; cursor: pointer; }
+  .demo-checkbox input { width: 20px; height: 20px; accent-color: #6b46c1; }
+  .demo-status { margin-top: 15px; color: #6b7280; }
+  .demo-status .on { color: #10b981; font-weight: 600; }
+  .demo-select { padding: 12px 16px; border: 2px solid #e5e7eb; border-radius: 8px; font-size: 1rem; width: 100%; margin-bottom: 15px; }
+
+  .code-block { background: #1f2937; border-radius: 10px; overflow: hidden; margin: 20px 0; }
+  .code-header { background: #374151; padding: 10px 15px; border-bottom: 1px solid #4b5563; }
+  .code-header .label { color: #9ca3af; font-size: 0.85rem; font-weight: 600; }
+  pre { margin: 0; padding: 20px; overflow-x: auto; }
+  code { font-family: 'Fira Code', monospace; font-size: 0.9rem; color: #e5e7eb; }
+  p code { background: #f3f4f6; color: #6b46c1; padding: 2px 8px; border-radius: 4px; }
+
+  .info-box { background: #eef2ff; border: 1px solid #c7d2fe; border-radius: 10px; padding: 20px; margin: 25px 0; }
+  .info-box h4 { color: #4338ca; margin: 0 0 10px 0; }
+  .info-box ul { margin: 0; padding-left: 20px; color: #4f46e5; }
+  .info-box li { margin-bottom: 5px; }
+
+  section { scroll-margin-top: 20px; }
+</style>

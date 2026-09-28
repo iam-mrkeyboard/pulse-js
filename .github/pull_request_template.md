@@ -12,10 +12,10 @@
 
 ## How verified
 
-- [ ] `cd pulse-framework && bun test`
-- [ ] `cd pulse-framework && bun run build`
-- [ ] (If relevant) `bun ./bench/run.mjs` — label results as **local measurements**
-- [ ] (If docs/app touched) `cd pulse-app && bun run build`
+- [ ] `bun test` (repository root)
+- [ ] `bun run typecheck`
+- [ ] `bun run build` (framework, docs site, examples)
+- [ ] (If relevant) `bun run bench` — label results as **local measurements**
 
 ## Notes for reviewers
 
