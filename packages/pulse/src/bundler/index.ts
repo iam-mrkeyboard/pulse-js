@@ -5,7 +5,7 @@
 
 import path from 'node:path';
 import { $, Glob } from 'bun';
-// fs import removed
+import fs from 'node:fs';
 import { DependencyAnalyzer } from './dependency-analyzer';
 import { ComponentCompiler as ServerComponentCompiler } from '../server/component-compiler';
 import { ScriptParser } from '../server/script-parser';
@@ -163,6 +163,11 @@ export class PulseBundler {
       // Phase 7: Generate manifest file
       await this.writeManifest();
 
+      // Remove outputs of earlier builds this build did not produce again
+      // (old hashed assets, pages that no longer exist). Only files a Pulse
+      // build wrote are ever deleted.
+      await this.removeStaleOutputs();
+
       // Print summary
       this.printSummary();
 
@@ -275,6 +280,7 @@ export class PulseBundler {
     }
 
     for (const output of result.outputs) {
+      this.track(output.path);
       if (output.kind === 'sourcemap') continue; // written by Bun.build; not compressed or counted
       const code = await output.text();
       const size = Buffer.byteLength(code);
@@ -306,7 +312,67 @@ export class PulseBundler {
     return entries;
   }
 
+  /** Absolute paths of every file this build wrote into outDir. */
+  private written = new Set<string>();
+
+  private track(filePath: string) {
+    this.written.add(path.resolve(filePath));
+  }
+
+  /** Files earlier builds wrote, recorded relative to outDir. */
+  private static readonly OUTPUT_RECORD = '.pulse-files.json';
+  /** Hashed build assets (fallback when no record exists yet, e.g. dist from an older Pulse). */
+  private static readonly HASHED_ASSET = /^(page-[\w-]+|chunk)-[a-z0-9]{8}\.(js|css)(\.map)?(\.gz|\.br)?$/;
+
+  private async removeStaleOutputs(): Promise<void> {
+    const out = this.outDir();
+    const recordPath = path.join(out, PulseBundler.OUTPUT_RECORD);
+    let previous: string[] | null = null;
+    try {
+      const parsed = JSON.parse(fs.readFileSync(recordPath, 'utf8'));
+      if (Array.isArray(parsed?.files)) previous = parsed.files.filter((f: unknown) => typeof f === 'string');
+    } catch {
+      previous = null;
+    }
+    const candidates: string[] = [];
+    if (previous) {
+      for (const rel of previous) {
+        const abs = path.resolve(out, rel);
+        // Never leave outDir, whatever the record says.
+        if (!abs.startsWith(out + path.sep)) continue;
+        candidates.push(abs);
+      }
+    } else {
+      const assets = path.join(out, 'assets');
+      let names: string[] = [];
+      try { names = fs.readdirSync(assets); } catch { names = []; }
+      for (const name of names) {
+        if (PulseBundler.HASHED_ASSET.test(name)) candidates.push(path.join(assets, name));
+      }
+    }
+    let removed = 0;
+    for (const abs of candidates) {
+      if (this.written.has(abs)) continue;
+      try {
+        fs.unlinkSync(abs);
+        removed++;
+      } catch {
+        continue;
+      }
+      // Drop directories emptied by a removed page (never outDir itself).
+      let dir = path.dirname(abs);
+      while (dir.startsWith(out + path.sep)) {
+        try { fs.rmdirSync(dir); } catch { break; }
+        dir = path.dirname(dir);
+      }
+    }
+    if (removed) console.log(`🧹 Removed ${removed} stale output file${removed === 1 ? '' : 's'}`);
+    const files = [...this.written].map((f) => path.relative(out, f).split(path.sep).join('/')).sort();
+    fs.writeFileSync(recordPath, JSON.stringify({ files }, null, 2) + '\n');
+  }
+
   private async compressFile(filePath: string, content: string): Promise<void> {
+    this.track(filePath);
     if (
       this.ctx.config.optimization.compress &&
       this.compressor.shouldCompress(Buffer.byteLength(content))
@@ -315,8 +381,14 @@ export class PulseBundler {
         content,
         this.ctx.config.optimization.compress,
       );
-      if (compressed.gzip) await Bun.write(filePath + '.gz', compressed.gzip);
-      if (compressed.brotli) await Bun.write(filePath + '.br', compressed.brotli);
+      if (compressed.gzip) {
+        await Bun.write(filePath + '.gz', compressed.gzip);
+        this.track(filePath + '.gz');
+      }
+      if (compressed.brotli) {
+        await Bun.write(filePath + '.br', compressed.brotli);
+        this.track(filePath + '.br');
+      }
     }
   }
 
@@ -418,6 +490,7 @@ export class PulseBundler {
 
     const manifestPath = path.join(this.outDir(), 'manifest.json');
     await Bun.write(manifestPath, JSON.stringify(manifest, null, 2));
+    this.track(manifestPath);
   }
   private printSummary(): void {
     const stats = this.ctx.output.stats;
