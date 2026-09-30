@@ -22,7 +22,7 @@
     "build:examples": "bun run --cwd examples/counter build",
     "dev": "bun run --cwd apps/docs dev",
     "test": "bun test",
-    "typecheck": "bun run --cwd packages/pulse typecheck && tsc -p apps/docs/tsconfig.json && tsc -p examples/counter/tsconfig.json",
+    "typecheck": "bun run --cwd packages/pulse typecheck && tsc -p tsconfig.apps.json",
     "bench": "bun run --cwd benchmarks/micro bench",
     "clean": "rm -rf packages/pulse/dist apps/docs/dist apps/docs/.pulse examples/*/dist examples/*/.pulse"
   },
