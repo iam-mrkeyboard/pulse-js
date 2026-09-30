@@ -42,7 +42,7 @@ export async function buildFixture(files: Record<string, string>, prefix = 'puls
   const result = await build();
   const fx: Fixture = {
     root, dist, result,
-    html: (page = 'index') => fs.readFileSync(path.join(dist, `${page}.html`), 'utf8'),
+    html: (page = 'index') => fs.readFileSync(path.join(dist, page === 'index' ? 'index.html' : `${page}/index.html`), 'utf8'),
     app: (page = 'index') => {
       const m = fx.html(page).match(/<div id="app">([\s\S]*)<\/div>\s*(<link|<script|<\/body>)/);
       if (!m) throw new Error('no #app in ' + page);

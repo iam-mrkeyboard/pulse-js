@@ -4,6 +4,7 @@
 // ============================================================================
 
 import path from 'node:path';
+import { createHash } from 'node:crypto';
 import type { PulseConfig } from '../bundler/types';
 import { ScriptParser } from './script-parser';
 import { TemplateTransformer } from './template-transformer';
@@ -27,6 +28,13 @@ export class ComponentCompiler {
   }
 
   
+  /** Base36 hash of (root-relative path, content) used for the component scope id. */
+  static scopeHash(filePath: string, content: string, root?: string): string {
+    const rel = path.relative(root || process.cwd(), path.resolve(filePath)).split(path.sep).join('/');
+    const hex = createHash('sha256').update(rel).update('\0').update(content).digest('hex');
+    return parseInt(hex.slice(0, 10), 16).toString(36);
+  }
+
   /** Escape a string so it is safe inside a JS template literal. */
   private escapeForTemplateLiteral(s: string): string {
     return s
@@ -214,11 +222,10 @@ ${imports.map(i => {
     const hasState = stateVars.length > 0 || computedVars.length > 0;
     let delegateImport = '';
 
-    // Generate deterministic scope ID based on component name (and content length for uniqueness if needed, but simple name is fine for now if unique)
-    // For HMR/uniqueness across projects, we usually need a hash. 
-    // For now, let's use a simple distinct hash of the name.
-    const simpleHash = componentName.split('').reduce((a, b) => { a = ((a << 5) - a) + b.charCodeAt(0); return a & a }, 0);
-    const scopeId = `data-v-${Math.abs(simpleHash).toString(36)}`;
+    // Scope id (CSS scope class + expression tag): hash of the file's path relative
+    // to the project root plus its content. Unique for same-named components in
+    // different folders, stable across builds of the same source.
+    const scopeId = `data-v-${ComponentCompiler.scopeHash(filePath, content, this.config?.root)}`;
 
     // Prepare styles and template ONCE
     // Scope CSS
@@ -421,15 +428,6 @@ export default function ${componentName}(props) {
       // ---------------------------------------------------------
       // STATIC COMPONENT
       // ---------------------------------------------------------
-
-      const simpleHash = componentName.split('').reduce((a, b) => { a = ((a << 5) - a) + b.charCodeAt(0); return a & a }, 0);
-      const scopeId = `data-v-${Math.abs(simpleHash).toString(36)}`;
-
-      let scopedStyles = '';
-      if (styles) {
-        const cssScoper = new CSSScoper();
-        scopedStyles = cssScoper.scope(styles, scopeId, template);
-      }
 
       // Static components render props with ${props.x} inside an innerHTML template.
       // Props can be live getters (a parent's {expr}), so the render runs in an
