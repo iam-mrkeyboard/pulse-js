@@ -252,7 +252,7 @@ export class TemplateTransformer {
           const bindingsJSON = JSON.stringify(listScope._listBindings).replaceAll('"', '&quot;');
           attrs += ` data-bindings="${bindingsJSON}" data-template-id="${templateId}"`;
 
-          return `<pulse-list${attrs} style="display:contents"></pulse-list>`;
+          return `<pulse-list${attrs}${WRAP_STYLE}></pulse-list>`;
         }
 
         // Handle Show
@@ -262,31 +262,51 @@ export class TemplateTransformer {
           if (whenExpr) whenExpr = this.transformExpression(whenExpr, stateNames);
 
           const fallbackAttr = node.attributes?.get('fallback');
-          let fallbackExpr = typeof fallbackAttr === 'string' ? fallbackAttr : fallbackAttr?.code;
-          if (fallbackExpr) fallbackExpr = this.transformExpression(fallbackExpr, stateNames);
+          // fallback={expr} is an expression; fallback="text" a string literal.
+          let fallbackExpr: string | undefined;
+          if (fallbackAttr !== undefined && fallbackAttr !== null) {
+            const isExpr = typeof fallbackAttr !== 'string' || /^\{[\s\S]*\}$/.test(fallbackAttr.trim());
+            fallbackExpr = isExpr ? this.transformExpression(attrCode(fallbackAttr)!, stateNames) : JSON.stringify(fallbackAttr);
+          }
 
-          let attrs = whenExpr ? ` when="${tag}:${valueRef(whenExpr, scope._rowVars || [])}"` : '';
-          if (fallbackExpr) attrs += ` fallback="{${fallbackExpr}}"`;
+          const rowVars: string[] = scope._rowVars || [];
+          let attrs = whenExpr ? ` when="${tag}:${valueRef(whenExpr, rowVars)}"` : '';
+          if (fallbackExpr) attrs += ` fallback="${tag}:${valueRef(fallbackExpr, rowVars)}"`;
 
-          // Show children need to be templates usually
-          const childrenStr = serializeChildren(children, scope, isInScope, isRaw, path);
+          // The branch is a template the runtime clones (or adopts from SSR): its
+          // bindings are relative to the branch and live on the <pulse-show>, never
+          // on the component root or an enclosing List row (whose paths would point
+          // into the inert <template>).
+          const showScope = { ...scope, _listBindings: [], _rowVars: rowVars };
+          const childrenStr = serializeChildren(children, showScope, true, isRaw, []);
+          if (showScope._listBindings.length) {
+            attrs += ` data-bindings="${JSON.stringify(showScope._listBindings).replaceAll('"', '&quot;')}"`;
+          }
 
-          return `<pulse-show${attrs} style="display:contents"><template data-pulse-template>${childrenStr}</template></pulse-show>`;
+          return `<pulse-show${attrs}${WRAP_STYLE}><template data-pulse-template>${childrenStr}</template></pulse-show>`;
         }
 
         // Handle Components
         if (scope._componentNames && scope._componentNames.includes(originalTagName)) {
-          // Treating as element for now, but preserving props
-          // ... (Attributes logic)
-          let attrsStr = '';
-          if (node.attributes) {
-            node.attributes.forEach((val, key) => {
-              const valStr = typeof val === 'string' ? val : `{${val.code}}`;
-              attrsStr += ` ${key}="${valStr.replaceAll('"', '&quot;')}"`;
-            });
-          }
+          // Props compile to one closure returning the props object: string
+          // attributes as literals, {expr} attributes as getters, so a child that
+          // reads props.count inside an effect tracks the parent's signal.
+          const entries: string[] = [];
+          node.attributes?.forEach((val, key) => {
+            if (key === 'style') return;
+            const isExpr = typeof val !== 'string' || /^\{[\s\S]*\}$/.test(val.trim());
+            if (isExpr) {
+              const code = this.transformExpression(attrCode(val)!, stateNames);
+              entries.push(`get ${JSON.stringify(key)}() { return (${code}); }`);
+            } else {
+              entries.push(`${JSON.stringify(key)}: ${JSON.stringify(decodeEntities(val))}`);
+            }
+          });
+          const propsAttr = entries.length
+            ? ` data-pulse-props="${tag}:${valueRef(`({ ${entries.join(', ')} })`, scope._rowVars || [])}"`
+            : '';
           const childrenStr = serializeChildren(children, scope, isInScope, isRaw, path);
-          return `<div data-pulse-component="${originalTagName}"${attrsStr} style="display:contents"><template data-pulse-template>${childrenStr}</template></div>`;
+          return `<div data-pulse-component="${originalTagName}"${propsAttr}${WRAP_STYLE}><template data-pulse-template>${childrenStr}</template></div>`;
         }
 
         // Standard Element
@@ -303,14 +323,24 @@ export class TemplateTransformer {
               const varName = valStr.slice(1, -1).trim();
 
               if (stateNames.has(varName)) {
-                bindings.push({
-                  type: 'property', // bind:value is property
-                  path: [...path],
-                  name: prop,
-                  expression: `${varName}()`
-                });
+                if (isInScope && Array.isArray(scope._listBindings)) {
+                  // Inside a List row / Show branch: bound with the row/branch.
+                  scope._listBindings.push({
+                    type: 'attribute',
+                    path: [...path],
+                    name: prop,
+                    x: valueRef(`${varName}()`, scope._rowVars || []),
+                  });
+                } else {
+                  bindings.push({
+                    type: 'property', // bind:value is property
+                    path: [...path],
+                    name: prop,
+                    expression: `${varName}()`
+                  });
+                }
 
-                // Input Event for two-way binding
+                // Input event for two-way binding (a delegated handler).
                 const setter = setterMap.get(varName);
                 if (setter) {
                   let eventName = 'input';
@@ -320,13 +350,9 @@ export class TemplateTransformer {
                   } else if (prop === 'checked') {
                     eventName = 'change'; handlerCode = `${setter}(e.target.checked)`;
                   }
-
-                  // Add event handler directly to HTML?
-                  // Or bind it? 
-                  // Event handlers are usually static attributes in Pulse?
-                  // "onclick={...}"
-                  // here we synthesize one.
-                  attrsStr += ` data-on-${eventName}="${handlerRef(`e => ${handlerCode}`, scope._rowVars || [])}"`;
+                  if (handlerCode) {
+                    attrsStr += ` data-on-${eventName}="${handlerRef(`e => ${handlerCode}`, scope._rowVars || [])}"`;
+                  }
                 }
               }
               return;
@@ -409,6 +435,21 @@ export class TemplateTransformer {
   }
 }
 
+/** Decode the character references a static attribute value may contain (props are values, not markup). */
+function decodeEntities(s: string): string {
+  const named: Record<string, string> = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: '\u00a0' };
+  return s.replace(/&(#x[0-9a-f]+|#\d+|[a-z]+);/gi, (m, e: string) => {
+    if (e[0] === '#') {
+      const n = e[1] === 'x' || e[1] === 'X' ? parseInt(e.slice(2), 16) : parseInt(e.slice(1), 10);
+      return Number.isFinite(n) ? String.fromCodePoint(n) : m;
+    }
+    return named[e.toLowerCase()] ?? m;
+  });
+}
+
+/** Inline display:contents on List/Show/component wrappers. */
+const WRAP_STYLE = ' style="display:contents"';
+
 /** Attribute value as expression source: {code} objects, "{code}" strings, or plain strings. */
 function attrCode(attr: string | { code: string } | undefined): string | undefined {
   if (attr === undefined || attr === null) return undefined;
@@ -440,7 +481,7 @@ export function compileClosure(code: string, rowVars: string[], isHandler: boole
     if (isReturnBody) {
       acorn.parse(`(function(){${src}})`, { ecmaVersion: 'latest' });
     } else {
-      const node: any = acorn.parseExpressionAt(src, 0, { ecmaVersion: 'latest' });
+      const node: any = acorn.parseExpressionAt(src, 0, { ecmaVersion: 'latest', preserveParens: true });
       if (src.slice(node.end).trim() !== '') throw new Error(`unexpected "${src.slice(node.end).trim().slice(0, 20)}"`);
     }
   } catch (e: any) {

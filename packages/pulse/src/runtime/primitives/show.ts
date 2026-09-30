@@ -11,7 +11,7 @@ export type ShowProps = {
 };
 
 export function Show(props: ShowProps) {
-  const anchor = document.createComment('Show Anchor');
+  let anchor: Comment = document.createComment('Show Anchor');
   const frag = document.createDocumentFragment();
 
   let cachedTrueNodes: Node[] | null = null;
@@ -21,15 +21,23 @@ export function Show(props: ShowProps) {
 
   if (props.host) {
     props.host.setAttribute(P_SHOW, '1');
-    // Existing rendered branch nodes (everything except <template>)
-    const existing = Array.from(props.host.childNodes).filter(
-      (n) => n.nodeType === Node.ELEMENT_NODE && (n as HTMLElement).tagName !== 'TEMPLATE',
-    );
-    if (existing.length > 0 || (props.initialNodes && props.initialNodes.length)) {
+    // Existing rendered branch nodes (everything except <template> and the SSR anchor).
+    // Text-only branches count too, so they hide when "when" turns false.
+    let ssrAnchor: Comment | null = null;
+    const existing: Node[] = [];
+    for (const n of Array.from(props.host.childNodes)) {
+      if (n.nodeType === 8 && (n as Comment).data === 'Show Anchor') { ssrAnchor = n as Comment; break; }
+      if (n.nodeType === 1 && (n as HTMLElement).tagName === 'TEMPLATE') continue;
+      existing.push(n);
+    }
+    const hasContent = existing.some((n) => n.nodeType !== 3 || /\S/.test((n as Text).data));
+    if (hasContent || (props.initialNodes && props.initialNodes.length)) {
       isHydrating = true;
       currentNodes = props.initialNodes?.length ? [...props.initialNodes] : existing;
     }
-    props.host.appendChild(anchor);
+    // Reuse the server-rendered anchor instead of adding a second one.
+    if (ssrAnchor) anchor = ssrAnchor;
+    else props.host.appendChild(anchor);
   } else {
     frag.appendChild(anchor);
     if (props.initialNodes && props.initialNodes.length > 0) {

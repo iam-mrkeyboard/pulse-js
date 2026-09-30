@@ -143,47 +143,138 @@ export function on(node: Node, eventName: string, handler: (e: Event) => void) {
 }
 
 // ----------------------------------------------------------------------------
-// Control Flow (For future Phase)
+// Binding helpers used by compiled components
 // ----------------------------------------------------------------------------
+
+/** walk() that returns null instead of throwing. */
+export function nodeAt(root: Node, path: number[]): Node | null {
+  let el: Node | null = root;
+  for (let i = 0; i < path.length; i++) {
+    if (!el) return null;
+    el = el.childNodes[path[i]] || null;
+  }
+  return el;
+}
+
+/**
+ * Text node for a text binding at `path` under `root`. An empty string renders
+ * no text node in serialized HTML, so after SSR the slot can be missing (or hold
+ * the next sibling); in that case an empty Text node is inserted at the slot so
+ * the binding still has a node to update. Call in document order.
+ */
+export function textAt(root: Node, path: number[]): Text | null {
+  const parent = path.length > 1 ? nodeAt(root, path.slice(0, -1)) : root;
+  if (!parent) return null;
+  const node = parent.childNodes[path[path.length - 1]] || null;
+  if (node && node.nodeType === 3) return node as Text;
+  const t = document.createTextNode('');
+  parent.insertBefore(t, node);
+  return t;
+}
+
+/**
+ * Attribute binding write. `style` goes through CSSOM (`style.cssText`), which a
+ * Content-Security-Policy without 'unsafe-inline' allows; a style attribute set
+ * with setAttribute would be blocked.
+ */
+export function setAttr(el: Element, name: string, value: any) {
+  if (name === 'style') (el as HTMLElement).style.cssText = value == null ? '' : String(value);
+  else el.setAttribute(name, String(value));
+}
 
 // ----------------------------------------------------------------------------
 // Primitives Mounting (List, Show)
 // ----------------------------------------------------------------------------
 
-/** walk() that returns null instead of throwing; descends into <template> / <pulse-show> template content. */
-function safeWalk(root: Node, path: number[]): Node | null {
-  let el: Node | null = root;
-  for (const index of path) {
-    if (!el) return null;
-    // Compiled paths index a <pulse-show>'s children as its template's content.
-    const tag = (el as any).tagName;
-    let holder: Node = el;
-    if (tag === 'TEMPLATE') holder = (el as HTMLTemplateElement).content;
-    else if (tag === 'PULSE-SHOW') {
-      const tpl = Array.from((el as Element).children).find((c) => c.tagName === 'TEMPLATE') as HTMLTemplateElement | undefined;
-      if (tpl) holder = tpl.content;
-    }
-    el = holder.childNodes[index] || null;
-  }
-  return el;
-}
+type Binding = { type: string; path: number[]; name?: string; x: number };
+
+/** Row context as stored on a List row root for delegated events. */
+type RowRef = RowCtx & { t: string };
 
 /** True when `el` is not nested inside another List/Show owned by `container`. */
 function ownedByContainer(el: Element, container: Element | DocumentFragment): boolean {
   let p = el.parentElement;
   while (p && p !== container) {
     const tag = p.tagName;
-    if (tag === 'PULSE-LIST') return false;
+    if (tag === 'PULSE-LIST' || tag === 'PULSE-SHOW') return false;
     p = p.parentElement;
   }
   return true;
 }
 
 /**
+ * Bind compiled List-row / Show-branch bindings. `resolve(path)` finds an
+ * element (attribute bindings), `resolveText(path)` the text node of a text
+ * binding (created when SSR dropped an empty one). Resolution runs in binding
+ * (document) order before any effect, so repaired text slots keep later paths right.
+ */
+function applyBindings(
+  bindings: Binding[],
+  x: Function[],
+  resolve: (path: number[]) => Node | null,
+  resolveText: (path: number[]) => Text | null,
+  v: any, i: any, p: any[],
+  effect: (fn: () => void) => void,
+) {
+  const n = bindings.length;
+  const targets: Array<Node | null> = new Array(n);
+  for (let k = 0; k < n; k++) {
+    const b = bindings[k];
+    targets[k] = b.type === 'text' ? resolveText(b.path) : resolve(b.path);
+  }
+  for (let k = 0; k < n; k++) {
+    const target = targets[k];
+    if (!target) continue;
+    const b = bindings[k];
+    const fn = x[b.x];
+    if (b.type === 'text') {
+      effect(() => {
+        let value: any;
+        try { value = fn(v, i, p); } catch (e) { value = ''; }
+        (target as Text).data = String(value);
+      });
+    } else {
+      const name = b.name as string;
+      const isProp = name === 'value' || name === 'checked';
+      effect(() => {
+        let value: any;
+        try { value = fn(v, i, p); } catch (e) { value = ''; }
+        if (isProp) (target as any)[name] = value;
+        else setAttr(target as Element, name, value);
+      });
+    }
+  }
+}
+
+/** Nearest row context of component `tag` at or above `el` (stops at `stop`). */
+function rowCtxOf(el: Node | null, tag: string, stop: Node | null): RowRef | null {
+  let n: any = el;
+  while (n && n !== stop) {
+    const c = n.__pctx as RowRef | undefined;
+    if (c && c.t === tag) return c;
+    if (n.__px && n.__px.t === tag) return null;
+    n = n.parentNode;
+  }
+  return null;
+}
+
+/** Props for a component placeholder / SSR root: compiled closure ("<tag>:<n>") or plain attributes. */
+function componentProps(el: Element, exprs: ExprTable | null | undefined, ctx: RowCtx | null, attr: string): { props: any; ref: string | null } {
+  const ref = el.getAttribute(attr);
+  const fn = resolveRef(exprs, ref);
+  if (fn) {
+    const c = ctx || rowCtxOf(el, exprs!.t, null);
+    const props = c ? fn(c.v, c.i, c.p) : fn();
+    return { props, ref };
+  }
+  return { props: null, ref: null };
+}
+
+/**
  * Replace `[data-pulse-component]` placeholders under `root` with freshly rendered
  * component roots (fresh render, or content a Show/List creates later).
  */
-function mountFreshComponents(root: ParentNode, components: Record<string, any> | undefined) {
+function mountFreshComponents(root: ParentNode, components: Record<string, any> | undefined, exprs?: ExprTable | null, ctx: RowCtx | null = null) {
   if (!components || !root || !(root as any).querySelectorAll) return;
   const componentEls = root.querySelectorAll('[data-pulse-component]');
   componentEls.forEach(el => {
@@ -192,25 +283,25 @@ function mountFreshComponents(root: ParentNode, components: Record<string, any> 
 
     const Component = components[componentName];
     if (Component && typeof Component === 'function') {
-      // Collect Props
-      const props: any = {};
-      Array.from(el.attributes).forEach(attr => {
-        if (attr.name.startsWith('data-pulse-')) return;
-        if (attr.name === 'style') return;
-        props[attr.name] = attr.value;
-      });
+      // Props: compiled closure (expressions stay live via getters) or, for
+      // hand-written markup, the placeholder's attributes as strings.
+      let { props, ref } = componentProps(el, exprs, ctx, 'data-pulse-props');
+      if (!props) {
+        props = {};
+        Array.from(el.attributes).forEach(attr => {
+          if (attr.name.startsWith('data-pulse-')) return;
+          if (attr.name === 'style' || attr.name === 'class') return;
+          props[attr.name] = attr.value;
+        });
+      }
 
       // Handle Children
       const templateEl = el.querySelector('template[data-pulse-template]');
       if (templateEl) {
-        const t = document.createElement('template');
-        t.innerHTML = templateEl.innerHTML;
-        props.children = Array.from(t.content.cloneNode(true).childNodes);
+        props.children = Array.from((template(templateEl.innerHTML)() as DocumentFragment).childNodes);
       }
 
       try {
-        // Instantiate Component
-        // Component returns a DOM Node (wrapper div usually)
         const componentNode = Component(props);
         if (componentNode) {
           // Remember which component rendered here so hydration can adopt it later
@@ -218,7 +309,9 @@ function mountFreshComponents(root: ParentNode, components: Record<string, any> 
           if (componentNode instanceof Element) {
             (componentNode as any).__pulseAdopted = true;
             componentNode.setAttribute(P_COMPONENT, componentName);
-            if (Object.keys(props).some((k) => k !== 'children')) {
+            if (ref) {
+              componentNode.setAttribute(P_PROPS_REF, ref);
+            } else if (Object.keys(props).some((k) => k !== 'children')) {
               const { children: _c, ...plain } = props;
               componentNode.setAttribute(P_PROPS, JSON.stringify(plain));
             }
@@ -232,8 +325,11 @@ function mountFreshComponents(root: ParentNode, components: Record<string, any> 
   });
 }
 
+/** Attribute on an SSR component root naming the parent's compiled props closure. */
+const P_PROPS_REF = 'data-p-pr';
+
 export function mountPrimitives(
-  container: HTMLElement,
+  container: HTMLElement | DocumentFragment,
   exprs: ExprTable | null | undefined,
   primitives: { List: any, Show: any, createEffect: any, components?: any },
   templates: Record<string, string> = {},
@@ -244,6 +340,7 @@ export function mountPrimitives(
   const cv = ctx ? ctx.v : undefined;
   const ci = ctx ? ctx.i : undefined;
   const cp = ctx ? ctx.p : NO_PARENTS;
+  const effect = primitives.createEffect;
 
   // Mount Lists
   if (primitives.List) {
@@ -263,10 +360,12 @@ export function mountPrimitives(
         || (inlineTpl ? inlineTpl.innerHTML : '')
         || '';
       if (templateHtml) {
-        const bindings: Array<{ type: string; path: number[]; name?: string; x: number }> = bindingsStr ? JSON.parse(bindingsStr) : [];
+        const bindings: Binding[] = bindingsStr ? JSON.parse(bindingsStr) : [];
         const x = exprs!.x;
+        const tag = exprs!.t;
         // Items of the enclosing rows, passed to row closures as `$p`.
         const rowParents = ctx ? [...cp, cv] : NO_PARENTS;
+        const hasNested = /<pulse-(show|list)\b/.test(templateHtml);
 
         const getEach = () => {
           try {
@@ -294,61 +393,18 @@ export function mountPrimitives(
 
         el.setAttribute('data-p-list', '1');
 
-        const bindRow = (resolve: (path: number[]) => Node | null, rowRoot: Element | DocumentFragment, item: any, index: number) => {
-          for (const b of bindings) {
-            const target = resolve(b.path);
-            if (!target) continue;
-            const fn = x[b.x];
-            const isText = b.type === 'text';
-            const name = b.name as string;
-            const isProp = name === 'value' || name === 'checked';
-
-            primitives.createEffect(() => {
-              let value: any;
-              try { value = fn(item, index, rowParents); } catch (e) { value = ''; }
-              if (isText) {
-                target.textContent = String(value);
-              } else if (isProp) {
-                (target as any)[name] = value;
-              } else {
-                (target as Element).setAttribute(name, String(value));
-              }
-            });
-          }
-
-          const eventEls: Element[] = [];
-          if (rowRoot instanceof Element) eventEls.push(rowRoot);
-          if ((rowRoot as ParentNode).querySelectorAll) {
-            eventEls.push(...Array.from((rowRoot as ParentNode).querySelectorAll('[data-on-click],[data-on-input],[data-on-change]')));
-          }
-          const seen = new Set<Element>();
-          for (const evEl of eventEls) {
-            if (seen.has(evEl) || evEl.closest('template')) continue;
-            // Elements of a nested List's rows are bound by that List (with its row).
-            const ownerList = evEl.closest('pulse-list');
-            if (ownerList && ownerList !== el) continue;
-            seen.add(evEl);
-            for (const attr of Array.from(evEl.attributes || [])) {
-              if (!attr.name.startsWith('data-on-')) continue;
-              const handler = resolveRef(exprs, attr.value);
-              if (!handler) continue;
-              const evt = attr.name.slice('data-on-'.length);
-              (evEl as any).__pulseDirect = true; // bound here; skip root delegation
-              evEl.addEventListener(evt, (event) => {
-                try {
-                  const result = handler(event, item, index, rowParents);
-                  if (typeof result === 'function') result(event);
-                } catch (err) {
-                  console.error('Pulse list event error:', err);
-                }
-              });
-            }
-          }
-
+        const bindRow = (
+          resolve: (path: number[]) => Node | null,
+          resolveText: (path: number[]) => Text | null,
+          rowRoot: Node, item: any, index: number,
+        ) => {
+          // Delegated events inside the row (any type, incl. Show content rendered
+          // later) find the row item here.
+          (rowRoot as any).__pctx = { t: tag, v: item, i: index, p: rowParents } as RowRef;
+          applyBindings(bindings, x, resolve, resolveText, item, index, rowParents, effect);
           // Nested primitives (e.g. <Show> inside a <List> row) see the row item.
-          const host = rowRoot as any;
-          if (host.querySelector && host.querySelector('pulse-show, pulse-list')) {
-            mountPrimitives(host, exprs, primitives, templates, { v: item, i: index, p: rowParents });
+          if (hasNested && (rowRoot as any).querySelector) {
+            mountPrimitives(rowRoot as HTMLElement, exprs, primitives, templates, { v: item, i: index, p: rowParents });
           }
         };
 
@@ -359,9 +415,9 @@ export function mountPrimitives(
           initialNodes,
           children: (item: any, index: number) => {
             const clone = rowTemplate() as DocumentFragment;
-            mountFreshComponents(clone, primitives.components);
-            bindRow((p) => safeWalk(clone, p), clone, item, index);
+            mountFreshComponents(clone, primitives.components, exprs, { v: item, i: index, p: rowParents });
             const node = clone.firstElementChild || clone;
+            bindRow((p) => nodeAt(clone, p), (p) => textAt(clone, p), node, item, index);
             if (keyFn && node instanceof Element) {
               try { markKey(node, keyFn(item, index)); } catch {}
             }
@@ -370,7 +426,11 @@ export function mountPrimitives(
           // Hydration: SSR rows are adopted in place; bind them instead of re-rendering.
           // Row binding paths start at the row root (path[0] is the root's index).
           adopt: (node: Node, item: any, index: number) => {
-            bindRow((p) => (p[0] === 0 ? safeWalk(node, p.slice(1)) : null), node as Element, item, index);
+            bindRow(
+              (p) => (p[0] === 0 ? nodeAt(node, p.slice(1)) : null),
+              (p) => (p[0] === 0 && p.length > 1 ? textAt(node, p.slice(1)) : null),
+              node, item, index,
+            );
           },
         });
         // Keep pulse-list host in the tree (SSR/hydration identity)
@@ -378,18 +438,23 @@ export function mountPrimitives(
     });
   }
 
-  // Mount Shows (Basic implementation)
+  // Mount Shows
   if (primitives.Show) {
     const shows = container.querySelectorAll('pulse-show');
     shows.forEach(el => {
       if (!ownedByContainer(el, container)) return;
       const whenFn = resolveRef(exprs, el.getAttribute('when'));
       if (!whenFn) return;
-      const fallbackExpr = el.getAttribute('fallback');
-      const templateEl = el.querySelector('template[data-pulse-template]');
+      const fallbackFn = resolveRef(exprs, el.getAttribute('fallback'));
+      const templateEl = el.querySelector(':scope > template[data-pulse-template]') || el.querySelector('template[data-pulse-template]');
 
       if (templateEl) {
-        const branchTemplate = template(templateEl.innerHTML);
+        const branchHtml = templateEl.innerHTML;
+        const branchTemplate = template(branchHtml);
+        const bindingsStr = el.getAttribute('data-bindings');
+        const bindings: Binding[] = bindingsStr ? JSON.parse(bindingsStr) : [];
+        const x = exprs!.x;
+        const hasNested = /<pulse-(show|list)\b/.test(branchHtml);
 
         const getWhen = () => {
           try {
@@ -399,21 +464,55 @@ export function mountPrimitives(
           } catch (e) { return false; }
         };
 
-        const initialNodes = Array.from(el.childNodes).filter(
-          (n) => n.nodeType === Node.ELEMENT_NODE && (n as HTMLElement).tagName !== 'TEMPLATE'
-        );
+        // SSR branch: every node after the <template>, up to the SSR anchor.
+        const initialNodes: Node[] = [];
+        let offset = -1;
+        const kids = el.childNodes;
+        for (let k = 0; k < kids.length; k++) {
+          const n = kids[k];
+          if (n === templateEl) { offset = k + 1; continue; }
+          if (offset < 0) continue;
+          if (n.nodeType === 8 && (n as Comment).data === 'Show Anchor') break;
+          initialNodes.push(n);
+        }
+        // Only whitespace (hand-written markup around the <template>): nothing to adopt.
+        if (!initialNodes.some((n) => n.nodeType !== 3 || /\S/.test((n as Text).data))) initialNodes.length = 0;
 
         el.setAttribute('data-p-show', '1');
+
+        // Fallback text follows its expression (fallback={'closed ' + n()}).
+        const fallbackText = (t: Text) => {
+          effect(() => {
+            let v: any;
+            try { v = fallbackFn!(cv, ci, cp); } catch { v = ''; }
+            t.data = v == null ? '' : String(v);
+          });
+          return t;
+        };
+        const whenNow = initialNodes.length ? getWhen() : false;
+        if (initialNodes.length && !whenNow && fallbackFn && initialNodes.length === 1 && initialNodes[0].nodeType === 3) {
+          fallbackText(initialNodes[0] as Text);
+        }
+
+        // Hydration: bind the SSR branch in place when it is the "when" branch.
+        if (initialNodes.length && offset >= 0 && whenNow) {
+          const shift = (p: number[]) => [p[0] + offset, ...p.slice(1)];
+          applyBindings(bindings, x, (p) => nodeAt(el, shift(p)), (p) => textAt(el, shift(p)), cv, ci, cp, effect);
+          // Primitives inside the branch are owned by this Show, not the outer container.
+          if (hasNested) mountPrimitives(el as HTMLElement, exprs, { ...primitives, components: undefined }, templates, ctx);
+        }
 
         primitives.Show({
           when: getWhen,
           host: el,
           initialNodes,
-          fallback: fallbackExpr ? () => document.createTextNode(fallbackExpr || '') : undefined,
+          fallback: fallbackFn ? () => fallbackText(document.createTextNode('')) : undefined,
           children: () => {
             const clone = branchTemplate() as DocumentFragment;
-            mountFreshComponents(clone, primitives.components);
-            return clone.firstElementChild || clone;
+            mountFreshComponents(clone, primitives.components, exprs, ctx);
+            applyBindings(bindings, x, (p) => nodeAt(clone, p), (p) => textAt(clone, p), cv, ci, cp, effect);
+            if (hasNested) mountPrimitives(clone, exprs, primitives, templates, ctx);
+            return clone;
           }
         });
         // Keep pulse-show host (adopt SSR branch)
@@ -424,7 +523,7 @@ export function mountPrimitives(
   // Mount Components (e.g. Navbar)
   if (primitives.components) {
     // Fresh render: replace [data-pulse-component] placeholders with component roots.
-    mountFreshComponents(container, primitives.components);
+    mountFreshComponents(container, primitives.components, exprs, ctx);
 
     // Hydration: component roots rendered on the server carry data-p-c. Adopt the
     // ones owned directly by this container (nested ones are adopted by their parent).
@@ -432,18 +531,23 @@ export function mountPrimitives(
     ssrComponents.forEach((el) => {
       if ((el as any).__pulseAdopted) return;
       const owner = el.parentElement ? el.parentElement.closest(`[${P_COMPONENT}]`) : null;
-      if (owner && owner !== container && container.contains(owner)) return;
+      if (owner && owner !== container && (container as Node).contains(owner)) return;
       const componentName = el.getAttribute(P_COMPONENT);
       const Component = componentName ? primitives.components[componentName] : undefined;
       if (!Component || typeof Component !== 'function') return;
-      let props: any = {};
-      const raw = el.getAttribute(P_PROPS);
-      if (raw) {
-        try { props = JSON.parse(raw); } catch { props = {}; }
+      let { props } = componentProps(el, exprs, null, P_PROPS_REF);
+      if (!props) {
+        props = {};
+        const raw = el.getAttribute(P_PROPS);
+        if (raw) {
+          try { props = JSON.parse(raw); } catch { props = {}; }
+        }
       }
       (el as any).__pulseAdopted = true;
       try {
-        const result = Component({ ...props, _hydrationNode: el });
+        // Set (not spread): spreading would read the props getters once and drop reactivity.
+        props._hydrationNode = el;
+        const result = Component(props);
         if (result && result !== el && result instanceof Node) {
           console.warn(`[Pulse] Hydration mismatch in <${componentName}>: component returned a new tree.`);
           el.replaceWith(result);
@@ -453,34 +557,40 @@ export function mountPrimitives(
       }
     });
   }
-
-
 } // End mountPrimitives
 
 // ----------------------------------------------------------------------------
 // Global Event Delegation
 // ----------------------------------------------------------------------------
 const DELEGATED_EVENTS = ['click', 'input', 'change', 'submit', 'keydown', 'keyup', 'focus', 'blur'];
+/** Events that do not bubble: delegated in the capture phase. */
+const NON_BUBBLING = new Set(['focus', 'blur', 'mouseenter', 'mouseleave', 'pointerenter', 'pointerleave', 'load', 'error', 'scroll', 'toggle', 'invalid']);
 
 function handleEvent(event: Event) {
   let target = event.target as HTMLElement | null;
+  if (target && target.nodeType !== 1) target = target.parentElement;
   const dataAttr = `data-on-${event.type.toLowerCase()}`;
 
   // Bubble up
   while (target && target !== document.body) {
-    if (target.hasAttribute(dataAttr) && !(target as any).__pulseDirect) {
+    if (target.hasAttribute && target.hasAttribute(dataAttr)) {
       const ref = target.getAttribute(dataAttr) || '';
       const colon = ref.indexOf(':');
       if (colon > 0) {
         // Compiled handler "<tag>:<index>": run the closure of the component that
-        // owns it (the nearest ancestor root with that tag; also finds the parent
-        // for markup it passed into a child's slot).
+        // owns it (nearest ancestor root with that tag; also finds the parent for
+        // markup it passed into a child's slot). Inside a List row the closure gets
+        // the row item / index / enclosing rows from the nearest row root.
         const tag = ref.slice(0, colon);
         let root: any = target;
-        while (root && !(root.__px && root.__px.t === tag)) root = root.parentElement;
+        let row: RowRef | null = null;
+        while (root && !(root.__px && root.__px.t === tag)) {
+          if (!row && root.__pctx && root.__pctx.t === tag) row = root.__pctx;
+          root = root.parentElement;
+        }
         const fn = root ? root.__px.x[+ref.slice(colon + 1)] : undefined;
         if (typeof fn === 'function') {
-          const result = fn(event);
+          const result = row ? fn(event, row.v, row.i, row.p) : fn(event);
           if (typeof result === 'function') result(event);
           return;
         }
@@ -501,6 +611,25 @@ function handleEvent(event: Event) {
   }
 }
 
+const canDelegate = () =>
+  typeof window !== 'undefined' && typeof document !== 'undefined' && !(globalThis as any).__PULSE_SSR__;
+
+/**
+ * Listen for `names` at the document (once per type per document). Compiled
+ * components call this with the event types their markup uses, so any
+ * `on<event>` works, not only the default set.
+ */
+export function delegate(names: string[]) {
+  if (!canDelegate()) return;
+  const doc = document as any;
+  const seen: Set<string> = doc.__pulseEvents || (doc.__pulseEvents = new Set());
+  for (const evt of names) {
+    if (seen.has(evt)) continue;
+    seen.add(evt);
+    document.addEventListener(evt, handleEvent, { capture: NON_BUBBLING.has(evt), passive: false });
+  }
+}
+
 // Hydration Helper (prefer runtime/hydration.ts for full adopt-and-bind API)
 export function hydrateDOM(Component: any, container: HTMLElement) {
   const hydrationRoot = container.firstElementChild as HTMLElement | null;
@@ -513,19 +642,9 @@ export function hydrateDOM(Component: any, container: HTMLElement) {
   }
 }
 
-// Initialize Delegation (once per document, even if several runtime copies load;
-// never while server-rendering, where `document` is the SSR DOM).
-if (
-  typeof window !== 'undefined' &&
-  typeof document !== 'undefined' &&
-  !(globalThis as any).__PULSE_SSR__ &&
-  !(document as any).__pulseDelegation
-) {
-  (document as any).__pulseDelegation = true;
-  DELEGATED_EVENTS.forEach(evt => {
-    document.addEventListener(evt, handleEvent, { capture: false, passive: false });
-  });
-}
+// Initialize Delegation for the default event set (once per document, even if
+// several runtime copies load; never while server-rendering).
+delegate(DELEGATED_EVENTS);
 
 // Re-export adopt-and-bind API (dev-server historically imported hydrate from dom.js).
 export { hydrate, hydrateAll, renderToString } from './hydration.js';

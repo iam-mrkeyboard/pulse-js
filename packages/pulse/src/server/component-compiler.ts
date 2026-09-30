@@ -83,7 +83,7 @@ export class ComponentCompiler {
 
     let moduleCode = `
 import { ${coreImports} } from 'pulse/runtime';
-import { mountPrimitives as dom_mountPrimitives, walk } from 'pulse/runtime/dom';
+import { mountPrimitives as dom_mountPrimitives, walk, nodeAt, textAt, setAttr__DELEGATE_IMPORT__ } from 'pulse/runtime/dom';
 ${hasListPrimitive ? "import { List } from 'pulse/runtime/list';" : ''}
 ${hasShowPrimitive ? "import { Show } from 'pulse/runtime/show';" : ''}
 ${imports.map(i => {
@@ -212,6 +212,7 @@ ${imports.map(i => {
     };
 
     const hasState = stateVars.length > 0 || computedVars.length > 0;
+    let delegateImport = '';
 
     // Generate deterministic scope ID based on component name (and content length for uniqueness if needed, but simple name is fine for now if unique)
     // For HMR/uniqueness across projects, we usually need a hash. 
@@ -242,6 +243,17 @@ ${imports.map(i => {
       // We wrap the HTML in a container with the scope ID
       // This template is created ONCE at module level
       const fullTemplateHTML = `${scopedStyles ? `<style>${scopedStyles}</style>` : ''}<div class="${scopeId} pulse-component-${componentName.toLowerCase()}">${html}</div>`;
+
+      // Event types beyond the runtime's default delegated set.
+      const DEFAULT_EVENTS = new Set(['click', 'input', 'change', 'submit', 'keydown', 'keyup', 'focus', 'blur']);
+      const usedEvents = new Set<string>();
+      for (const src of [html, ...templates.values()]) {
+        for (const m of src.matchAll(/data-on-([a-z][\w-]*)=/g)) if (!DEFAULT_EVENTS.has(m[1])) usedEvents.add(m[1]);
+      }
+      if (usedEvents.size) {
+        delegateImport = ', delegate';
+        moduleCode += `\ndelegate(${JSON.stringify([...usedEvents])});\n`;
+      }
 
       moduleCode += `
 // Static Template
@@ -358,30 +370,27 @@ export default function ${componentName}(props) {
 
       // NO innerHTML here! We already cloned.
 
-      // Reactive bindings
-      // Reactive bindings
-      bindings.forEach((binding) => {
+      // Reactive bindings. Nodes are resolved once, in document order, before any
+      // effect runs: textAt() re-creates a text node SSR dropped (an empty string
+      // serializes to nothing), which keeps later paths in the same parent right.
+      bindings.forEach((binding, i) => {
         const pathStr = JSON.stringify(binding.path);
-
+        moduleCode += binding.type === 'text'
+          ? `  const _b${i} = textAt(container, ${pathStr});\n`
+          : `  const _b${i} = nodeAt(container, ${pathStr});\n`;
+      });
+      bindings.forEach((binding, i) => {
+        const el = `_b${i}`;
         if (binding.type === 'text') {
-          moduleCode += `  createEffect(() => {\n`;
-          // Use walk to find node
-          moduleCode += `    const el = walk(container, ${pathStr});\n`;
-          moduleCode += `    if (el) el.textContent = String(${binding.expression});\n`;
-          moduleCode += `  });\n\n`;
+          moduleCode += `  if (${el}) createEffect(() => { ${el}.data = String(${binding.expression}); });\n`;
+        } else if (binding.name === 'value' || binding.name === 'checked' || binding.name === 'disabled') {
+          // Property assignment so the UI reflects the value.
+          moduleCode += `  if (${el}) createEffect(() => { ${el}.${binding.name} = ${binding.expression}; });\n`;
         } else {
-          // Attribute/Property binding
-          moduleCode += `  createEffect(() => {\n`;
-          moduleCode += `    const el = walk(container, ${pathStr});\n`;
-          // Use property assignment for value/checked to ensure UI updates correctly
-          if (binding.name === 'value' || binding.name === 'checked' || binding.name === 'disabled') {
-            moduleCode += `    if (el) el.${binding.name} = ${binding.expression};\n`;
-          } else {
-            moduleCode += `    if (el) el.setAttribute('${binding.name}', ${binding.expression});\n`;
-          }
-          moduleCode += `  });\n\n`;
+          moduleCode += `  if (${el}) createEffect(() => { setAttr(${el}, '${binding.name}', ${binding.expression}); });\n`;
         }
       });
+      moduleCode += '\n';
 
       // Event handlers - DELEGATION OPTIMIZATION
       moduleCode += `  const handlers = { ${functions.map((f) => `${f.name}: ${f.name}`).join(', ')} };\n`;
@@ -423,39 +432,45 @@ export default function ${componentName}(props) {
       }
 
       // Static components render props with ${props.x} inside an innerHTML template.
-
-      moduleCode += `export default function ${componentName}(props = {}) {\n`;
-      // Hydration: static markup is already correct; adopt the SSR node as-is.
-      moduleCode += `  if (props._hydrationNode) {\n`;
-      if (template.includes('onClick={')) {
-        moduleCode += `    const b = props._hydrationNode.querySelector('button');\n`;
-        moduleCode += `    if (b && typeof props.onClick === 'function') b.addEventListener('click', props.onClick);\n`;
-      }
-      moduleCode += `    return props._hydrationNode;\n  }\n`;
-      // REMOVED random scopeId generation
-
-      moduleCode += `  const container = document.createElement('div');\n`;
-      moduleCode += `  container.classList.add('${scopeId}');\n`;
-      moduleCode += `  container.className += ' pulse-component-${componentName.toLowerCase()}';\n\n`;
-
-      // Serialize the parsed template (comments dropped, whitespace normalized,
-      // `is:raw` children literal); {identifier} becomes a props interpolation.
+      // Props can be live getters (a parent's {expr}), so the render runs in an
+      // effect and re-renders when they change. With slotted children the markup
+      // is rendered once (re-rendering would drop them).
       const processedTemplate = (templateNode.children || []).map((c) => this.serializeStatic(c)).join('');
+      const usesProps = /\u0000PULSEPROP:/.test(processedTemplate);
+      const reactive = usesProps && !/<slot\b/.test(processedTemplate);
+      const hasClick = template.includes('onClick={');
 
       // Escape the markup first, then splice in the ${props.x} interpolations (escaping
-      // afterwards would turn them into literal "${props.x}" text).
+      // afterwards would turn them into literal "${props.x}" text). Prop values are
+      // HTML-escaped: they are data, not markup.
       const staticHTML = this.escapeForTemplateLiteral((scopedStyles ? `<style>${scopedStyles}</style>` : '') + processedTemplate)
-        .replace(/\u0000PULSEPROP:(\w+)\u0000/g, (_m, name) => '${props.' + name + ' ?? ""}');
-      moduleCode += `  container.innerHTML = \`${staticHTML}\`;
+        .replace(/\u0000PULSEPROP:(\w+)\u0000/g, (_m, name) => '${__esc(props.' + name + ')}');
 
-`;
+      if (usesProps) {
+        moduleCode += `const __esc = (v) => v == null ? '' : String(v).replace(/[&<>"']/g, (c) => '&#' + c.charCodeAt(0) + ';');\n`;
+      }
+      moduleCode += `export default function ${componentName}(props = {}) {\n`;
+      moduleCode += `  const render = () => \`${staticHTML}\`;\n`;
+      // onClick prop: wired to the first <button> (again after each re-render).
+      moduleCode += hasClick
+        ? `  const wire = (el) => { const b = el.querySelector('button'); if (b && typeof props.onClick === 'function') b.addEventListener('click', props.onClick); };\n`
+        : `  const wire = () => {};\n`;
+      // Hydration: static markup is already correct; adopt the SSR node as-is.
+      moduleCode += `  if (props._hydrationNode) {\n`;
+      moduleCode += `    const container = props._hydrationNode;\n`;
+      if (reactive) {
+        moduleCode += `    let first = true;\n`;
+        moduleCode += `    createEffect(() => { const html = render(); if (first) { first = false; return; } container.innerHTML = html; wire(container); });\n`;
+      }
+      moduleCode += `    wire(container);\n`;
+      moduleCode += `    return container;\n  }\n`;
 
-      // Simple event handling for non-reactive components
-      if (template.includes('onClick={')) {
-        moduleCode += `  const button = container.querySelector('button');\n`;
-        moduleCode += `  if (button && props.onClick) {\n`;
-        moduleCode += `    button.addEventListener('click', props.onClick);\n`;
-        moduleCode += `  }\n\n`;
+      moduleCode += `  const container = document.createElement('div');\n`;
+      moduleCode += `  container.className = '${scopeId} pulse-component-${componentName.toLowerCase()}';\n`;
+      if (reactive) {
+        moduleCode += `  createEffect(() => { container.innerHTML = render(); wire(container); });\n\n`;
+      } else {
+        moduleCode += `  container.innerHTML = render();\n  wire(container);\n\n`;
       }
 
       // Slot handling
@@ -478,7 +493,7 @@ export default function ${componentName}(props) {
       moduleCode += `}\n`;
     }
 
-    return moduleCode;
+    return moduleCode.replace('__DELEGATE_IMPORT__', delegateImport);
   }
 
   /**
@@ -493,7 +508,8 @@ export default function ${componentName}(props) {
     if (node.type === 'text') return node.content || '';
     if (node.type === 'expression') {
       const code = (node.content || '').trim();
-      return /^[A-Za-z_$][\w$]*$/.test(code) ? PROP(code) : `{${code}}`;
+      const m = /^(?:props\.)?([A-Za-z_$][\w$]*)$/.exec(code);
+      return m ? PROP(m[1]) : `{${code}}`;
     }
     if (node.type === 'element') {
       let attrs = '';
@@ -503,7 +519,8 @@ export default function ${componentName}(props) {
           attrs += val === '' ? ` ${key}` : ` ${key}="${val.replaceAll('"', '&quot;')}"`;
         } else {
           const code = val.code.trim();
-          attrs += /^[A-Za-z_$][\w$]*$/.test(code) ? ` ${key}="${PROP(code)}"` : '';
+          const m = /^(?:props\.)?([A-Za-z_$][\w$]*)$/.exec(code);
+          attrs += m ? ` ${key}="${PROP(m[1])}"` : '';
         }
       });
       const children = (node.children || []).map((c) => this.serializeStatic(c)).join('');
