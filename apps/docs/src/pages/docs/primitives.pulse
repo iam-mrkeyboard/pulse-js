@@ -11,7 +11,6 @@
       <a href="/docs/primitives" class="active">Overview</a>
       <a href="/docs/primitives#list">List</a>
       <a href="/docs/primitives#show">Show</a>
-      <a href="/docs/primitives#portal">Portal</a>
     </nav>
     <a href="/docs" class="back">← All Docs</a>
   </aside>
@@ -137,48 +136,6 @@ function removeItem(id) {
       </div>
     </section>
 
-    <section id="portal">
-      <h2>Portal Primitive</h2>
-      <p>The <code>&lt;Portal&gt;</code> primitive renders content to a different location in the DOM tree.</p>
-      
-      <div class="code-block">
-        <div class="code-header">
-          <span class="label">Modal Example</span>
-        </div>
-        <pre><code is:raw>&lt;script&gt;
-  const [showModal, setShowModal] = createSignal(false);
-&lt;/script&gt;
-
-&lt;button onClick={() => setShowModal(true)}&gt;
-  Open Modal
-&lt;/button&gt;
-
-&lt;Show when={showModal}&gt;
-  &lt;Portal target="body"&gt;
-    &lt;div class="modal-overlay"&gt;
-      &lt;div class="modal"&gt;
-        &lt;h2&gt;Modal Title&lt;/h2&gt;
-        &lt;p&gt;Modal content here...&lt;/p&gt;
-        &lt;button onClick={() => setShowModal(false)}&gt;
-          Close
-        &lt;/button&gt;
-      &lt;/div&gt;
-    &lt;/div&gt;
-  &lt;/Portal&gt;
-&lt;/Show&gt;</code></pre>
-      </div>
-
-      <div class="info-box">
-        <h4>🎯 Use Cases</h4>
-        <ul>
-          <li>Modals and dialogs</li>
-          <li>Tooltips and popovers</li>
-          <li>Full-screen overlays</li>
-          <li>Dropdown menus that need to escape overflow</li>
-        </ul>
-      </div>
-    </section>
-
     <section id="comparison">
       <h2>Quick Reference</h2>
       <table>
@@ -199,11 +156,6 @@ function removeItem(id) {
             <td><code>&lt;Show&gt;</code></td>
             <td>Conditional render</td>
             <td><code is:raw>when={boolean}</code></td>
-          </tr>
-          <tr>
-            <td><code>&lt;Portal&gt;</code></td>
-            <td>Render elsewhere</td>
-            <td><code>target="selector"</code></td>
           </tr>
         </tbody>
       </table>
