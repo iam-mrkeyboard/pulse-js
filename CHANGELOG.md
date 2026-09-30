@@ -13,6 +13,8 @@ Historical entries for **v0.6.0–v0.15.0** are reconstructed from the project's
 ### Security
 
 - **No `eval` / `new Function` anywhere in the browser.** Pulse pages now run under a strict Content Security Policy (`script-src 'self'`, no `'unsafe-eval'`). The SFC compiler emits every runtime expression as a real closure: `<List each>` / `key`, List row text and attribute bindings, `<Show when>`, and `on*` / `bind:` handlers (top level and inside List rows, including nested Lists). The markup only references a closure (`each="<tag>:3"`, `data-on-click="<tag>:7"`). The runtime's string evaluator (`safeEvalExpr`, its expression cache and the scope/accessor tables built for it) is deleted. On v0.17.0, 8 of the 30 docs pages broke under that policy (27 CSP violations). Now all 30 pages and `examples/counter` hydrate and stay interactive with 0 violations. The production HTML has no inline scripts, so no nonce or hash is needed.
+- **Strict style CSP for production pages.** Pages now pass `default-src 'self'` with no `'unsafe-inline'` for styles (v0.17.0: 74 violations across the docs). Component CSS is no longer inlined as `<style>`: each page links one hashed stylesheet (`assets/page-<route>-<hash>.css`) holding the scoped CSS of the components it renders (imports first, then the page), a base rule for Pulse's wrapper elements, and generated classes for inline styles. Static `style="…"` attributes compile to a class (`ps-<hash>`, declarations `!important` so they still win like an inline style), merged into the element's static or bound class. Style bindings write through CSSOM (`style.cssText`), which CSP allows; styles the server render produced become `pd-<hash>` classes that the binding drops after hydration. `pulse dev` and direct compiler use keep inline styles. Checked on all 30 docs pages and `examples/counter`: 0 violations, 0 `replaceWith`, interaction checks pass, rendering pixel-identical to inline styles.
+- **`pulse dev` works under `script-src 'self'`.** The dev page no longer uses inline scripts: hydration is an external module (`/__pulse/hydrate.js?page=…`), the inline import map is gone (served modules import the runtime by `/runtime/*.js` URL), and the error page's reload script is external. All 30 docs pages hydrate in dev with 0 violations.
 
 ### Changed
 
@@ -20,11 +22,25 @@ Historical entries for **v0.6.0–v0.15.0** are reconstructed from the project's
 - `mountPrimitives(container, exprs, primitives, templates)`: the second argument is now the compiler-generated expression table (`{ t, x }`) instead of a scope object. Compiled output is updated. Hand-written markup must reference closures (`each="t:0"`) instead of carrying code. Named delegated handlers on hand-written roots (`data-on-click="increment"` + `__pulseHandlers`) still work.
 - Compiled components no longer build the runtime `scope` object and its `__accessors` table, and no longer set `container.__pulseScope`. The expression table is set as `container.__px`.
 - List rows and Show branches parse their template once per List/Show and clone it for each row. They used to run `innerHTML` for every row.
+- Delegated events inside List rows: the row item comes from the nearest row root, for every event type. Per-row listeners are gone. Compiled components register the event types their markup uses beyond the default set (`delegate()`); `focus` / `blur` and other non-bubbling events are delegated in the capture phase (the default `focus` / `blur` listeners never fired).
+- The component scope id (CSS scope class and expression tag) is a hash of the file's path relative to the project root plus its content, instead of a hash of the file name.
+- Each build records the files it writes in `dist/.pulse-files.json` and deletes files of the previous build it did not write again.
+- `bun run typecheck` checks both app configs in one program (`tsconfig.apps.json`), and the app tsconfigs map `pulse` to the package sources.
 
 ### Fixed
 
 - Handlers inside a nested List's rows no longer also get bound by the outer row, which used to run them with the wrong item. Expressions in inner rows can read the outer row's item (`group.name` inside `<List each={group.tags} as="tag">`).
 - `key="id"` (a plain identifier) now means `key={item.id}` as documented. Before, it became `key="{id}"` and failed.
+- A text binding whose server-rendered value is `''` updates after hydration. An empty string renders no text node, so the binding used to have nothing (or the wrong node) to update.
+- Events other than click/input/change inside a `<Show>` in a List row get the row item (`onKeydown={() => save(row)}` used to fail with `row` undefined), including rows added after hydration.
+- Component props written as `{expr}` are real values instead of the literal string `"{expr}"`. They compile to getters, so a signal passed as a prop stays reactive (`<Badge label={msg() || "empty"} />`, `<Live count={n} />`), also inside List rows. Components without a script re-render when a prop changes, HTML-escape prop values, and accept `{props.x}`. String props decode character references.
+- `<Show>` inside a component: text bindings inside the branch render and update (they used to point into the inert `<template>`), bindings inside a Show within a List row bind the live content, every node of the branch is kept (not only the first element), text-only branches hide, the server-rendered anchor is reused (no second `Show Anchor`), `fallback={expr}` is evaluated (and stays live) instead of showing its source, and Lists/Shows nested in a branch rendered after hydration mount.
+- `bind:value` / `bind:checked` inside List rows and Show branches bind with the row.
+- **Component CSS was dropped for every component with a `<script>`.** The compiler put its `<style>` next to, not inside, the element the component returns, so only script-less components were ever styled (in dev and production; the landing page rendered unstyled). Production now links it; dev puts it inside the root.
+- Two components with the same file name in different folders no longer share a CSS scope (their styles leaked into each other).
+- The build no longer leaves old hashed `page-*` / `chunk-*` files and deleted pages in `dist`. Files the build did not write are never touched.
+- `bun run typecheck` works on a fresh clone (it needed `build:pulse` first for `packages/pulse/dist/*.d.ts`). Same time as before: 2.6 s for the app configs.
+- The VS Code extension no longer offers completions or hover docs for `Portal`, `Suspense` and `ErrorBoundary`, which do not exist. The docs no longer document a `<Portal>` primitive. The docs footer links to https://github.com/iam-mrkeyboard/pulse-js.
 
 ### Removed
 
@@ -34,8 +50,11 @@ Historical entries for **v0.6.0–v0.15.0** are reconstructed from the project's
 ### Performance (same machine, v0.17.0 → this change)
 
 - Compiled-SFC version of the js-framework-benchmark app (`benchmarks/js-framework-benchmark/src/App.pulse`, which exercises List/row bindings/row handlers), in-page median over 8 interleaved rounds: geomean **22.87 → 14.40 ms (−37%)**. select −78%, remove −36%, swap −35%, create 10k −34%, append 1k −29%, create 1k −28%, replace 1k −28%, update every 10th −21%, clear −11%.
-- Runtime chunk in the docs build: 9,929 → 9,019 B (gzip 4,090 → 3,683 B, −10%). Per-page JS over the 30 docs pages: 261,710 → 246,683 B (gzip 107,206 → 101,042 B). HTML: 132,079 → 130,733 B. Static pages still ship 0 JS (17 of 30).
+- Runtime chunk in the docs build: 9,929 → 9,019 B (gzip 4,090 → 3,683 B, −10%). After the fixes above: 10,216 B (gzip 4,291 B). Per-page JS over the 30 docs pages: 261,710 → 246,683 B (gzip 107,206 → 101,042 B). HTML: 132,079 → 130,733 B. Static pages still ship 0 JS (17 of 30).
 - js-framework-benchmark keyed Pulse entry (`src/main.js`, which uses the runtime API directly): its bundle is byte-identical before and after. Three runs of those same bytes (count 12, 01–09) gave a Pulse/vanilla geomean of 1.140, 1.145 and 1.163, so that spread is this machine's run-to-run noise.
+- Fixes above, measured against the no-eval state: compiled-SFC geomean 17.36 → 15.11 ms and 17.07 → 15.81 ms (two interleaved runs in opposite orders, 8 rounds; row events are delegated instead of bound per row). A 12-round × 40-iteration run of swap / remove / select / clear shows no regression (−1% to −8%).
+- Docs build, 30 pages: per-page JS 246,683 → 219,551 B (gzip 101,044 → 96,129 B), because component CSS no longer ships inside JS and HTML. HTML 130,733 → 112,961 B. The CSS moved into 30 per-page stylesheets, 87,128 B in total (gzip 28,512 B; per page 950 B gzip on average, 1.9 KB max). One site-wide stylesheet would be 9.0 KB gzip, and it would also be wrong, because pages define conflicting global `body` rules. `examples/counter` JS 10,792 → 11,745 B (gzip 4,156 → 4,632 B).
+- Cost of the linked stylesheet: on a cold load at 150 ms RTT / 1.6 Mbps, first contentful paint is 190–320 ms later (one render-blocking round trip). Warm cache and unthrottled: no difference. There is no flash of unstyled content (the stylesheet is in `<head>`).
 
 ---
 
