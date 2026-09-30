@@ -178,8 +178,16 @@ export function textAt(root: Node, path: number[]): Text | null {
  * with setAttribute would be blocked.
  */
 export function setAttr(el: Element, name: string, value: any) {
-  if (name === 'style') (el as HTMLElement).style.cssText = value == null ? '' : String(value);
-  else el.setAttribute(name, String(value));
+  if (name === 'style') {
+    (el as HTMLElement).style.cssText = value == null ? '' : String(value);
+    // A production server render moves inline styles into generated "pd-" classes
+    // (strict style-src CSP); once the binding owns the style, drop them.
+    if (!(el as any).__pd) {
+      (el as any).__pd = 1;
+      const cl = el.classList;
+      for (let i = cl.length - 1; i >= 0; i--) if (cl[i].startsWith('pd-')) cl.remove(cl[i]);
+    }
+  } else el.setAttribute(name, String(value));
 }
 
 // ----------------------------------------------------------------------------

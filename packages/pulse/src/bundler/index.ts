@@ -10,7 +10,7 @@ import { DependencyAnalyzer } from './dependency-analyzer';
 import { ComponentCompiler as ServerComponentCompiler } from '../server/component-compiler';
 import { ScriptParser } from '../server/script-parser';
 import { TemplateTransformer } from '../server/template-transformer';
-import { SSRRenderer } from '../server/ssr';
+import { SSRRenderer, PULSE_BASE_CSS } from '../server/ssr';
 import { pulsePlugin } from '../server/pulse-plugin';
 import { Compressor } from './compressor';
 import type {
@@ -109,10 +109,12 @@ export class PulseBundler {
       );
 
       // Shared compiler for SSR and client bundles (same output as the dev server)
+      // Production pages run under a strict style-src CSP: component CSS goes to
+      // linked .css files and the markup carries no inline style attributes.
       const compiler = new ServerComponentCompiler(
         this.ctx.config,
         new ScriptParser(),
-        new TemplateTransformer(),
+        new TemplateTransformer({ extractStyles: true }),
       );
 
       // Phase 3: Client hydration bundles (one entry per interactive page, shared chunks)
@@ -124,16 +126,25 @@ export class PulseBundler {
 
       // Phase 4: Server-render every page
       console.log('\n🔧 Phase 4: Server-rendering pages...');
-      const ssr = new SSRRenderer(this.ctx.config, compiler);
+      const ssr = new SSRRenderer(this.ctx.config, compiler, { extractStyles: true });
 
       // Phase 5: Generate pages
       console.log('\n📄 Phase 5: Generating pages...');
 
       for (const page of pages) {
         let body = '';
+        let cssFiles: string[] = [];
+        let ssrRules: string[] = [];
         try {
           body = await ssr.renderPageStrict(page.file);
+          // Deterministic CSS order (imports depth-first, then the page), limited
+          // to the files the page's render actually compiled.
+          const compiled = new Set(ssr.lastFiles);
+          const order = this.dependencyFiles(page.file);
+          cssFiles = [...order.filter((f) => compiled.has(f)), ...[...compiled].filter((f) => !order.includes(f)).sort()];
+          ssrRules = ssr.lastStyleRules;
         } catch (error: any) {
+          cssFiles = this.dependencyFiles(page.file);
           const message = String(error?.message || error).split('\n')[0];
           warnings.push({
             file: path.relative(this.ctx.config.root, page.file),
@@ -142,12 +153,14 @@ export class PulseBundler {
           console.warn(`  ⚠ SSR failed for /${page.route} (client render fallback): ${message}`);
         }
 
+        const stylesheet = await this.writePageCss(page.route, compiler, cssFiles, ssrRules);
         const pageManifest = await this.generatePage(
           page.node,
           page.route,
           body,
           clientEntries.get(page.file),
           !page.interactive,
+          stylesheet,
         );
         this.ctx.output.pages.set(page.node.id, pageManifest);
 
@@ -371,6 +384,59 @@ export class PulseBundler {
     fs.writeFileSync(recordPath, JSON.stringify({ files }, null, 2) + '\n');
   }
 
+  /** A page file and every file it imports, transitively (dependency graph), imports first. */
+  private dependencyFiles(file: string, seen = new Set<string>()): string[] {
+    if (seen.has(file)) return [];
+    seen.add(file);
+    const node = this.ctx.graph.nodes.get(file);
+    // Post-order (imports first, then the file): a page's CSS comes after its
+    // components' CSS and wins ties, as with bundlers that follow import order.
+    const out: string[] = [];
+    for (const dep of node?.dependencies || []) out.push(...this.dependencyFiles(dep, seen));
+    out.push(path.resolve(file));
+    return out;
+  }
+
+  /**
+   * Write the page's stylesheet: Pulse's base rule, the scoped CSS and generated
+   * style classes of every component file the page renders, and the classes for
+   * inline styles the server render produced. Returns its URL.
+   */
+  private async writePageCss(
+    route: string,
+    compiler: ServerComponentCompiler,
+    files: string[],
+    ssrRules: string[],
+  ): Promise<{ url: string; size: number }> {
+    const parts: string[] = [PULSE_BASE_CSS];
+    const seen = new Set<string>();
+    for (const f of files) {
+      if (seen.has(f)) continue;
+      seen.add(f);
+      const css = compiler.cssByFile.get(f);
+      if (css) parts.push(css);
+    }
+    for (const rule of ssrRules) if (!parts.includes(rule)) parts.push(rule);
+    let css = parts.join('\n') + '\n';
+    if (this.ctx.config.build.minify) {
+      try {
+        const { transform } = await import('lightningcss');
+        css = transform({ filename: 'page.css', code: Buffer.from(css), minify: true }).code.toString();
+      } catch {
+        // lightningcss unavailable: ship unminified
+      }
+    }
+    const hash = new Bun.CryptoHasher('sha256').update(css).digest('hex').slice(0, 8);
+    const name = 'page-' + (route || 'index').replace(/[^a-zA-Z0-9_-]/g, '_');
+    const file = path.join(this.outDir(), 'assets', `${name}-${hash}.css`);
+    await $`mkdir -p ${path.dirname(file)}`;
+    await Bun.write(file, css);
+    await this.compressFile(file, css);
+    const size = Buffer.byteLength(css);
+    this.ctx.output.stats.cssSize += size;
+    return { url: `/assets/${path.basename(file)}`, size };
+  }
+
   private async compressFile(filePath: string, content: string): Promise<void> {
     this.track(filePath);
     if (
@@ -402,6 +468,7 @@ export class PulseBundler {
     body: string,
     clientEntry: string | undefined,
     isStatic: boolean,
+    stylesheet?: { url: string; size: number },
   ): Promise<PageManifest> {
     // Only the document shell is minified. The server-rendered body is written
     // verbatim: whitespace / comments are part of the DOM that hydration walks.
@@ -411,6 +478,7 @@ export class PulseBundler {
       '<meta charset="UTF-8">',
       '<meta name="viewport" content="width=device-width, initial-scale=1.0">',
       `<title>${this.escapeHTML(node.name)}</title>`,
+      stylesheet ? `<link rel="stylesheet" href="${stylesheet.url}">` : '',
       clientEntry ? `<link rel="modulepreload" href="${clientEntry}">` : '',
     ]
       .filter(Boolean)
@@ -437,7 +505,7 @@ export class PulseBundler {
       islands: clientEntry ? [node.id] : [],
       isStatic,
       preloads: clientEntry ? [clientEntry] : [],
-      css: [],
+      css: stylesheet ? [stylesheet.url] : [],
       size: Buffer.byteLength(finalHTML),
     };
   }

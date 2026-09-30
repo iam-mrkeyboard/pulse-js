@@ -7,7 +7,7 @@ import path from 'node:path';
 import { createHash } from 'node:crypto';
 import type { PulseConfig } from '../bundler/types';
 import { ScriptParser } from './script-parser';
-import { TemplateTransformer } from './template-transformer';
+import { TemplateTransformer, styleClass } from './template-transformer';
 import { CSSScoper } from '../bundler/compiler/css-scoper';
 import { UnifiedParser } from '../bundler/compiler/unified-parser';
 import { type ParsedNode } from '../bundler/compiler/html-parser';
@@ -19,6 +19,11 @@ export class ComponentCompiler {
   private scriptParser: ScriptParser;
   private templateTransformer: TemplateTransformer;
   private unifiedParser: UnifiedParser;
+  /**
+   * Extract mode (strict style-src CSP): each file's scoped CSS and generated
+   * style classes, by absolute file path, instead of <style> in the markup.
+   */
+  public readonly cssByFile = new Map<string, string>();
 
   constructor(config: PulseConfig, scriptParser: ScriptParser, templateTransformer: TemplateTransformer) {
     this.config = config;
@@ -246,10 +251,15 @@ ${imports.map(i => {
 
       // 1. Top Level Template (Use AST Node!)
       const exprTag = scopeId.slice('data-v-'.length);
-      const { html, bindings, templates, exprs } = this.templateTransformer.transform(templateNode, [...stateVars, ...computedVars], imports.flatMap(i => i.names).filter(n => /^[A-Z]/.test(n)), declarations, exprTag);
+      const { html, bindings, templates, exprs, styleRules } = this.templateTransformer.transform(templateNode, [...stateVars, ...computedVars], imports.flatMap(i => i.names).filter(n => /^[A-Z]/.test(n)), declarations, exprTag);
       // We wrap the HTML in a container with the scope ID
       // This template is created ONCE at module level
-      const fullTemplateHTML = `${scopedStyles ? `<style>${scopedStyles}</style>` : ''}<div class="${scopeId} pulse-component-${componentName.toLowerCase()}">${html}</div>`;
+      const extract = this.templateTransformer.extractStyles;
+      if (extract) this.cssByFile.set(path.resolve(filePath), [scopedStyles, ...styleRules].filter(Boolean).join('\n'));
+      // Without extraction the scoped CSS goes inside the root element, after the
+      // content (binding paths index from the start). It used to be a sibling of
+      // the root, which the component never returned: the CSS was silently dropped.
+      const fullTemplateHTML = `<div class="${scopeId} pulse-component-${componentName.toLowerCase()}">${html}${scopedStyles && !extract ? `<style>${scopedStyles}</style>` : ''}</div>`;
 
       // Event types beyond the runtime's default delegated set.
       const DEFAULT_EVENTS = new Set(['click', 'input', 'change', 'submit', 'keydown', 'keyup', 'focus', 'blur']);
@@ -433,7 +443,10 @@ export default function ${componentName}(props) {
       // Props can be live getters (a parent's {expr}), so the render runs in an
       // effect and re-renders when they change. With slotted children the markup
       // is rendered once (re-rendering would drop them).
-      const processedTemplate = (templateNode.children || []).map((c) => this.serializeStatic(c)).join('');
+      const extract = this.templateTransformer.extractStyles;
+      const staticRules: string[] = [];
+      const processedTemplate = (templateNode.children || []).map((c) => this.serializeStatic(c, extract ? staticRules : null)).join('');
+      if (extract) this.cssByFile.set(path.resolve(filePath), [scopedStyles, ...staticRules].filter(Boolean).join('\n'));
       const usesProps = /\u0000PULSEPROP:/.test(processedTemplate);
       const reactive = usesProps && !/<slot\b/.test(processedTemplate);
       const hasClick = template.includes('onClick={');
@@ -441,7 +454,7 @@ export default function ${componentName}(props) {
       // Escape the markup first, then splice in the ${props.x} interpolations (escaping
       // afterwards would turn them into literal "${props.x}" text). Prop values are
       // HTML-escaped: they are data, not markup.
-      const staticHTML = this.escapeForTemplateLiteral((scopedStyles ? `<style>${scopedStyles}</style>` : '') + processedTemplate)
+      const staticHTML = this.escapeForTemplateLiteral((scopedStyles && !extract ? `<style>${scopedStyles}</style>` : '') + processedTemplate)
         .replace(/\u0000PULSEPROP:(\w+)\u0000/g, (_m, name) => '${__esc(props.' + name + ')}');
 
       if (usesProps) {
@@ -500,7 +513,7 @@ export default function ${componentName}(props) {
    * (spliced in after template-literal escaping); other expressions stay literal;
    * event attributes are omitted (bound separately); raw text is emitted verbatim.
    */
-  private serializeStatic(node: ParsedNode): string {
+  private serializeStatic(node: ParsedNode, styleRules: string[] | null = null): string {
     const PROP = (name: string) => `\u0000PULSEPROP:${name}\u0000`;
     if (node.type === 'comment') return '';
     if (node.type === 'text') return node.content || '';
@@ -511,17 +524,31 @@ export default function ${componentName}(props) {
     }
     if (node.type === 'element') {
       let attrs = '';
+      // Strict style CSP: static style="…" -> generated class (see TemplateTransformer).
+      let styleCls = '';
+      const styleAttr = node.attributes?.get('style');
+      if (styleRules && typeof styleAttr === 'string') {
+        const sc = styleClass(styleAttr.replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&amp;/g, '&'));
+        if (sc) {
+          styleCls = sc.cls;
+          if (!styleRules.includes(sc.rule)) styleRules.push(sc.rule);
+        }
+      }
+      if (styleCls && node.attributes?.get('class') === undefined) attrs += ` class="${styleCls}"`;
       node.attributes?.forEach((val, key) => {
         if (/^on[A-Z]/.test(key) || key.startsWith('on:')) return;
+        if (styleCls && key === 'style') return;
+        if (styleCls && key === 'class' && typeof val === 'string') val = val ? `${val} ${styleCls}` : styleCls;
         if (typeof val === 'string') {
           attrs += val === '' ? ` ${key}` : ` ${key}="${val.replaceAll('"', '&quot;')}"`;
         } else {
           const code = val.code.trim();
           const m = /^(?:props\.)?([A-Za-z_$][\w$]*)$/.exec(code);
-          attrs += m ? ` ${key}="${PROP(m[1])}"` : '';
+          const extra = styleCls && key === 'class' ? ` ${styleCls}` : '';
+          attrs += m ? ` ${key}="${PROP(m[1])}${extra}"` : extra ? ` class="${styleCls}"` : '';
         }
       });
-      const children = (node.children || []).map((c) => this.serializeStatic(c)).join('');
+      const children = (node.children || []).map((c) => this.serializeStatic(c, styleRules)).join('');
       const voidElements = new Set(['area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input', 'link', 'meta', 'param', 'source', 'track', 'wbr']);
       if (node.tag && voidElements.has(node.tag.toLowerCase()) && !children) {
         return `<${node.tag}${attrs} />`;

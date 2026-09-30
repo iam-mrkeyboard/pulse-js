@@ -5,10 +5,19 @@
 
 import { HTMLParser, type ParsedNode, type ParsedExpression } from '../bundler/compiler/html-parser';
 import * as acorn from 'acorn';
+import { createHash } from 'node:crypto';
 import { walk } from 'estree-walker';
 
 export class TemplateTransformer {
-  constructor() {
+  /**
+   * Strict style-src CSP mode (production build): no inline style attributes in
+   * the markup. Static style="…" becomes a generated class (rules collected in
+   * `styleRules`); List/Show/component wrappers rely on the base CSS rule.
+   */
+  public extractStyles = false;
+
+  constructor(options: { extractStyles?: boolean } = {}) {
+    this.extractStyles = !!options.extractStyles;
   }
 
   private transformExpression(expression: string, stateNames: Set<string>): string {
@@ -75,7 +84,7 @@ export class TemplateTransformer {
     componentNames: string[] = [],
     declarations: Array<{ name: string; value: any }> = [],
     tag = 'p'
-  ): { html: string; bindings: Array<any>; templates: Map<string, string>; exprs: string[] } {
+  ): { html: string; bindings: Array<any>; templates: Map<string, string>; exprs: string[]; styleRules: string[] } {
 
     const root = templateNode;
     const bindings: Array<any> = [];
@@ -90,6 +99,9 @@ export class TemplateTransformer {
       exprs.push(src);
       return exprs.length - 1;
     };
+    const extract = this.extractStyles;
+    const WRAP_STYLE = extract ? '' : ' style="display:contents"';
+    const styleRules: string[] = [];
     const valueRef = (code: string, rowVars: string[]) => addExpr(compileClosure(code, rowVars, false));
     const handlerRef = (code: string, rowVars: string[]) => `${tag}:${addExpr(compileClosure(code, rowVars, true))}`;
 
@@ -313,8 +325,29 @@ export class TemplateTransformer {
         const tagName = originalTagName.toLowerCase();
         let attrsStr = '';
 
+        // Strict style CSP: a static style="…" becomes a generated class, merged
+        // into the element's static or bound class.
+        let styleCls = '';
+        const styleAttr = node.attributes?.get('style');
+        if (extract && typeof styleAttr === 'string' && !/^\{[\s\S]*\}$/.test(styleAttr.trim())) {
+          const sc = styleClass(decodeEntities(styleAttr));
+          if (sc) {
+            styleCls = sc.cls;
+            if (!styleRules.includes(sc.rule)) styleRules.push(sc.rule);
+          }
+        }
+        const classAttr = node.attributes?.get('class');
+        if (styleCls && classAttr === undefined) attrsStr += ` class="${styleCls}"`;
+
         if (node.attributes) {
           node.attributes.forEach((val, key) => {
+            if (key === 'style' && styleCls) return;
+            if (key === 'class' && styleCls) {
+              const isExpr = typeof val !== 'string' || /^\{[\s\S]*\}$/.test(val.trim());
+              val = isExpr
+                ? { code: `(${attrCode(val)}) + " ${styleCls}"` } as any
+                : (val ? `${val} ${styleCls}` : styleCls);
+            }
             let valStr = typeof val === 'string' ? val : `{${val.code}}`;
 
             // Check bindings
@@ -431,7 +464,7 @@ export class TemplateTransformer {
     // Start with empty path [] for root children
     const html = serializeChildren(root.children || [], { _componentNames: componentNames }, false, false, []);
 
-    return { html, bindings, templates, exprs };
+    return { html, bindings, templates, exprs, styleRules };
   }
 }
 
@@ -447,8 +480,44 @@ function decodeEntities(s: string): string {
   });
 }
 
-/** Inline display:contents on List/Show/component wrappers. */
-const WRAP_STYLE = ' style="display:contents"';
+/** Split a style attribute into declarations (`;` outside quotes / parentheses). */
+export function splitDeclarations(css: string): string[] {
+  const out: string[] = [];
+  let depth = 0;
+  let quote = '';
+  let cur = '';
+  for (let i = 0; i < css.length; i++) {
+    const c = css[i];
+    if (quote) {
+      if (c === '\\') { cur += c + (css[++i] ?? ''); continue; }
+      if (c === quote) quote = '';
+    } else if (c === '"' || c === "'") quote = c;
+    else if (c === '(') depth++;
+    else if (c === ')') depth = Math.max(0, depth - 1);
+    else if (c === ';' && depth === 0) {
+      if (cur.trim()) out.push(cur.trim());
+      cur = '';
+      continue;
+    }
+    cur += c;
+  }
+  if (cur.trim()) out.push(cur.trim());
+  return out;
+}
+
+/**
+ * Class + rule replacing an inline style attribute (strict style-src CSP).
+ * Declarations are !important so they keep beating stylesheet rules the way an
+ * inline style does. `prefix` is 'ps' for compile-time styles, 'pd' for styles
+ * the server render produced (removed again when a style binding takes over).
+ */
+export function styleClass(css: string, prefix = 'ps'): { cls: string; rule: string } | null {
+  const decls = splitDeclarations(css).filter((d) => d.includes(':'));
+  if (!decls.length) return null;
+  const body = decls.map((d) => (/!important\s*$/i.test(d) ? d : `${d} !important`)).join(';');
+  const cls = `${prefix}-${parseInt(createHash('sha256').update(body).digest('hex').slice(0, 10), 16).toString(36)}`;
+  return { cls, rule: `.${cls}{${body}}` };
+}
 
 /** Attribute value as expression source: {code} objects, "{code}" strings, or plain strings. */
 function attrCode(attr: string | { code: string } | undefined): string | undefined {
