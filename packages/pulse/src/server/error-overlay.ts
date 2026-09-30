@@ -16,6 +16,16 @@ export interface DevError {
   suggestion?: string;
 }
 
+/** Reload-on-fix script of the error page (external: no inline script under script-src 'self'). */
+export const OVERLAY_CLIENT_JS = `const ws = new WebSocket((location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/__pulse_hmr');
+ws.onmessage = (msg) => {
+  try {
+    const data = JSON.parse(msg.data);
+    if (data.type === 'full-reload') location.reload();
+  } catch (e) {}
+};
+`;
+
 export class ErrorOverlay {
   static generateHTML(error: DevError): string {
     const codePreview = error.code
@@ -321,16 +331,7 @@ export class ErrorOverlay {
       </div>
     </div>
   </div>
-  <script>
-    // Auto-reload logic could go here
-    const ws = new WebSocket('ws://' + window.location.host + '/__pulse_hmr');
-    ws.onmessage = (msg) => {
-        try {
-            const data = JSON.parse(msg.data);
-            if(data.type === 'full-reload') window.location.reload();
-        } catch(e){}
-    };
-  </script>
+  <script src="/__pulse/overlay.js"></script>
 </body>
 </html>
     `;

@@ -7,7 +7,7 @@ import type { PulseConfig } from '../bundler/types';
 import { HMRManager } from './hmr';
 import { SSRRenderer } from './ssr';
 import { CompilationCache } from './compilation-cache';
-import { ErrorOverlay, type DevError } from './error-overlay';
+import { ErrorOverlay, OVERLAY_CLIENT_JS, type DevError } from './error-overlay';
 import { FileWatcher } from './file-watcher';
 
 import {
@@ -71,6 +71,18 @@ export class DevServer {
         // Serve HMR client script
         if (url.pathname === '/__pulse_client.js') {
           return serveHMRClient();
+        }
+
+        // Error page reload client (external; no inline script)
+        if (url.pathname === '/__pulse/overlay.js') {
+          return new Response(OVERLAY_CLIENT_JS, {
+            headers: { 'Content-Type': 'application/javascript', 'Cache-Control': 'no-cache' },
+          });
+        }
+
+        // Hydration entry of a page (external module; no inline script)
+        if (url.pathname === '/__pulse/hydrate.js') {
+          return this.serveHydrateEntry(url.searchParams.get('page'));
         }
 
         // Serve runtime files
@@ -183,42 +195,13 @@ export class DevServer {
       // serveModule logic: /__modules/path/to/file.pulse
       // pagePath is absolute.
       const relativePath = path.relative(this.config.root, pagePath);
-      const clientModuleUrl = `/__modules/${relativePath}`;
 
-      const clientScript = `
-        <script type="module">
-          import Page from '${clientModuleUrl}';
-          import { hydrate } from '/runtime/hydration.js';
-          
-          const app = document.getElementById('app');
-          hydrate(Page, app);
-          
-          // HMR Support
-          if (import.meta.hot) {
-            import.meta.hot.accept(() => {
-              window.location.reload();
-            });
-          }
-        </script>
-      `;
-
-      // Compiled modules import 'pulse/runtime*' (package specifiers); map them to
-      // the dev server's /runtime/ routes so the browser can resolve them.
-      const importMap = {
-        imports: {
-          'pulse/runtime': '/runtime/core.js',
-          'pulse/runtime/dom': '/runtime/dom.js',
-          'pulse/runtime/list': '/runtime/primitives/list.js',
-          'pulse/runtime/show': '/runtime/primitives/show.js',
-          'pulse/runtime/hydration': '/runtime/hydration.js',
-          'pulse-framework/runtime': '/runtime/core.js',
-          'pulse-framework/runtime/dom': '/runtime/dom.js',
-          'pulse-framework/runtime/list': '/runtime/primitives/list.js',
-          'pulse-framework/runtime/show': '/runtime/primitives/show.js',
-          'pulse-framework/runtime/hydration': '/runtime/hydration.js',
-        },
-      };
-      const head = `<script type="importmap">${JSON.stringify(importMap)}</script>\n  ${getHMRScript(this.config)}`;
+      // No inline scripts, so `pulse dev` works under a strict script-src 'self'
+      // CSP: the hydration entry is an external module, and instead of an inline
+      // import map the served modules import the runtime by URL (see
+      // rewriteRuntimeImports).
+      const clientScript = `<script type="module" src="${DevServer.hydrateEntryUrl(relativePath)}"></script>`;
+      const head = getHMRScript(this.config);
 
       const fullHtml = this.ssr.wrapHTML(`
         <div id="app">${ssrHtml}</div>
@@ -256,6 +239,33 @@ export class DevServer {
         headers: { 'Content-Type': 'text/html; charset=utf-8' },
       });
     }
+  }
+
+  /** URL of the external hydration entry for a page (path relative to the project root). */
+  static hydrateEntryUrl(relativePagePath: string): string {
+    return `/__pulse/hydrate.js?page=${encodeURIComponent(relativePagePath.split(path.sep).join('/'))}`;
+  }
+
+  private serveHydrateEntry(page: string | null): Response {
+    const root = path.resolve(this.config.root);
+    const abs = page ? path.resolve(root, page) : '';
+    if (!page || !page.endsWith('.pulse') || !abs.startsWith(root + path.sep)) {
+      return new Response('console.error("Pulse: invalid page for hydration")', {
+        status: 400,
+        headers: { 'Content-Type': 'application/javascript' },
+      });
+    }
+    const moduleUrl = '/__modules/' + path.relative(root, abs).split(path.sep).map(encodeURIComponent).join('/');
+    const js =
+      `import Page from ${JSON.stringify(moduleUrl)};\n` +
+      `import { hydrate } from '/runtime/hydration.js';\n` +
+      `hydrate(Page, document.getElementById('app'));\n`;
+    return new Response(js, {
+      headers: {
+        'Content-Type': 'application/javascript',
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+      },
+    });
   }
 
   private async serveRuntime(pathname: string): Promise<Response> {
@@ -370,7 +380,7 @@ export class DevServer {
         }
       }
 
-      return new Response(compiled, {
+      return new Response(rewriteRuntimeImports(compiled!), {
         headers: {
           'Content-Type': 'application/javascript',
           'Cache-Control': 'no-cache, no-store, must-revalidate',
@@ -413,7 +423,7 @@ export class DevServer {
         }
       }
 
-      return new Response(compiled, {
+      return new Response(rewriteRuntimeImports(compiled!), {
         headers: {
           'Content-Type': 'application/javascript',
           'Cache-Control': 'no-cache, no-store, must-revalidate',
@@ -443,7 +453,7 @@ export class DevServer {
 
       if (result.isOk()) {
         const compiled = result.value.code;
-        return new Response(compiled, {
+        return new Response(rewriteRuntimeImports(compiled), {
           headers: { 'Content-Type': 'application/javascript' },
         });
       } else {
@@ -525,4 +535,27 @@ export class DevServer {
     this.server?.stop();
     console.log('\n👋 Dev server stopped\n');
   }
+}
+
+const RUNTIME_URLS: Record<string, string> = {
+  '': '/runtime/core.js',
+  '/dom': '/runtime/dom.js',
+  '/list': '/runtime/primitives/list.js',
+  '/show': '/runtime/primitives/show.js',
+  '/hydration': '/runtime/hydration.js',
+};
+
+/**
+ * Point `pulse/runtime*` (and `pulse-framework/runtime*`) imports of a compiled
+ * module at the dev server's /runtime/ URLs, which is what the old inline
+ * import map did (inline scripts are blocked by script-src 'self').
+ */
+export function rewriteRuntimeImports(code: string): string {
+  return code.replace(
+    /(\bfrom\s*|\bimport\s*\(?\s*)(['"])(?:pulse|pulse-framework)\/runtime(\/(?:dom|list|show|hydration))?\2/g,
+    (m, lead: string, q: string, sub: string | undefined) => {
+      const url = RUNTIME_URLS[sub || ''];
+      return url ? `${lead}${q}${url}${q}` : m;
+    },
+  );
 }
