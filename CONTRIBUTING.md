@@ -35,7 +35,7 @@ bun run build:sokudo    # build packages/sokudo (apps use its dist/ CLI and type
 ```
 
 Workspaces: `packages/sokudo`, `packages/create-sokudo`, `apps/*`, `examples/*`, `benchmarks/micro`. Apps depend on
-the framework with `"pulse": "workspace:*"`.
+the framework with `"sokudo": "workspace:*"`.
 
 ## Running tests, typecheck, build, bench
 
