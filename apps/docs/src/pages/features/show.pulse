@@ -7,7 +7,7 @@
     { id: 1, title: '⚡ Zero Overhead', content: 'No Virtual DOM. Pulse compiles components to surgical DOM updates for maximum performance.' },
     { id: 2, title: '🍔 Bun Native', content: 'Built primarily for Bun. Enjoy sub-millisecond startup times and native bundler integration.' },
     { id: 3, title: '🎯 Fine-Grained', content: 'Signals invoke updates only where needed. No component re-rendering overhead.' },
-    { id: 4, title: '🧩 Built-in Primitives', content: 'Control flow primitives like <Show>, <List>, and <Portal> handle logic efficiently.' }
+    { id: 4, title: '🧩 Built-in Primitives', content: 'Control flow primitives like <Show> and <List> handle logic efficiently.' }
   ];
   
   function toggle(id) {

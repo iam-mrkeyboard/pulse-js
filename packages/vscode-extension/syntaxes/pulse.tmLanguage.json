@@ -77,7 +77,7 @@
       "patterns": [{ "include": "#tag-attributes" }]
     },
     "html-tag": {
-      "begin": "(</?)(Show|List|Portal|Suspense|ErrorBoundary|head|title|meta|link|script|style|body|div|span|p|h[1-6]|ul|ol|li|a|img|button|input|textarea|select|option|form|label|table|thead|tbody|tr|td|th|nav|header|footer|section|article|aside|main|figure|figcaption|video|audio|source|canvas|svg|path|circle|rect|line|polyline|polygon|ellipse|g|defs|use|symbol|text|tspan|pre|code|blockquote|hr|br|strong|em|b|i|u|s|mark|small|sub|sup|kbd|samp|var|abbr|address|cite|dfn|del|ins|time|details|summary|dialog|menu|menuitem|picture|iframe|embed|object|param|fieldset|legend|datalist|output|progress|meter)\\b",
+      "begin": "(</?)(Show|List|head|title|meta|link|script|style|body|div|span|p|h[1-6]|ul|ol|li|a|img|button|input|textarea|select|option|form|label|table|thead|tbody|tr|td|th|nav|header|footer|section|article|aside|main|figure|figcaption|video|audio|source|canvas|svg|path|circle|rect|line|polyline|polygon|ellipse|g|defs|use|symbol|text|tspan|pre|code|blockquote|hr|br|strong|em|b|i|u|s|mark|small|sub|sup|kbd|samp|var|abbr|address|cite|dfn|del|ins|time|details|summary|dialog|menu|menuitem|picture|iframe|embed|object|param|fieldset|legend|datalist|output|progress|meter)\\b",
       "beginCaptures": {
         "1": { "name": "punctuation.definition.tag.begin.html" },
         "2": { "name": "entity.name.tag.html" }

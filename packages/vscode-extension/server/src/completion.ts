@@ -331,7 +331,8 @@ export class PulseCompletionEngine {
       'main',
     ];
 
-    const pulseTags = ['Show', 'List', 'Portal', 'Suspense', 'ErrorBoundary'];
+    // Only primitives the runtime implements.
+    const pulseTags = ['Show', 'List'];
 
     return [
       ...htmlTags.map((tag) => ({

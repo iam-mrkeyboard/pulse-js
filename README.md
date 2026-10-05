@@ -2,7 +2,7 @@
 
 **A Bun-native web framework** with fine-grained signal reactivity and islands architecture.
 
-[![Version](https://img.shields.io/badge/version-0.17.0-blue.svg)](https://github.com/iam-mrkeyboard/pulse-js)
+[![Version](https://img.shields.io/badge/version-0.18.0-blue.svg)](https://github.com/iam-mrkeyboard/pulse-js)
 [![CI](https://github.com/iam-mrkeyboard/pulse-js/actions/workflows/ci.yml/badge.svg)](https://github.com/iam-mrkeyboard/pulse-js/actions/workflows/ci.yml)
 [![Bun](https://img.shields.io/badge/Bun-Native-black.svg)](https://bun.sh)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
@@ -23,7 +23,7 @@ Pulse is **pre-1.0**. Public APIs may change between minor versions. See [CHANGE
 - 🎨 **Scoped Styling** — Component-level CSS scoping built in.
 - 💧 **Adopt-and-bind hydration** — Reuse SSR DOM with `data-p-*` markers (v0.16).
 - 🪶 **Zero JS for static pages** — Pages without signals, effects or handlers ship no client JavaScript (v0.17).
-- 🔒 **Hardened bindings** — Expression eval via `safeEvalExpr`; error UI uses `textContent` (not `innerHTML`).
+- 🔒 **CSP-safe** — Template expressions compile to closures; no `eval` / `new Function`, so pages run under `script-src 'self'` without `'unsafe-eval'`; component CSS is linked from a stylesheet, so production pages also pass `default-src 'self'`. Error UI uses `textContent` (not `innerHTML`).
 
 ---
 

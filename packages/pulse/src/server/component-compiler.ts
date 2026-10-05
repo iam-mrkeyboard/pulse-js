@@ -4,9 +4,10 @@
 // ============================================================================
 
 import path from 'node:path';
+import { createHash } from 'node:crypto';
 import type { PulseConfig } from '../bundler/types';
 import { ScriptParser } from './script-parser';
-import { TemplateTransformer } from './template-transformer';
+import { TemplateTransformer, styleClass } from './template-transformer';
 import { CSSScoper } from '../bundler/compiler/css-scoper';
 import { UnifiedParser } from '../bundler/compiler/unified-parser';
 import { type ParsedNode } from '../bundler/compiler/html-parser';
@@ -18,6 +19,11 @@ export class ComponentCompiler {
   private scriptParser: ScriptParser;
   private templateTransformer: TemplateTransformer;
   private unifiedParser: UnifiedParser;
+  /**
+   * Extract mode (strict style-src CSP): each file's scoped CSS and generated
+   * style classes, by absolute file path, instead of <style> in the markup.
+   */
+  public readonly cssByFile = new Map<string, string>();
 
   constructor(config: PulseConfig, scriptParser: ScriptParser, templateTransformer: TemplateTransformer) {
     this.config = config;
@@ -27,6 +33,13 @@ export class ComponentCompiler {
   }
 
   
+  /** Base36 hash of (root-relative path, content) used for the component scope id. */
+  static scopeHash(filePath: string, content: string, root?: string): string {
+    const rel = path.relative(root || process.cwd(), path.resolve(filePath)).split(path.sep).join('/');
+    const hex = createHash('sha256').update(rel).update('\0').update(content).digest('hex');
+    return parseInt(hex.slice(0, 10), 16).toString(36);
+  }
+
   /** Escape a string so it is safe inside a JS template literal. */
   private escapeForTemplateLiteral(s: string): string {
     return s
@@ -83,7 +96,7 @@ export class ComponentCompiler {
 
     let moduleCode = `
 import { ${coreImports} } from 'pulse/runtime';
-import { mountPrimitives as dom_mountPrimitives, walk } from 'pulse/runtime/dom';
+import { mountPrimitives as dom_mountPrimitives, walk, nodeAt, textAt, setAttr__DELEGATE_IMPORT__ } from 'pulse/runtime/dom';
 ${hasListPrimitive ? "import { List } from 'pulse/runtime/list';" : ''}
 ${hasShowPrimitive ? "import { Show } from 'pulse/runtime/show';" : ''}
 ${imports.map(i => {
@@ -212,12 +225,12 @@ ${imports.map(i => {
     };
 
     const hasState = stateVars.length > 0 || computedVars.length > 0;
+    let delegateImport = '';
 
-    // Generate deterministic scope ID based on component name (and content length for uniqueness if needed, but simple name is fine for now if unique)
-    // For HMR/uniqueness across projects, we usually need a hash. 
-    // For now, let's use a simple distinct hash of the name.
-    const simpleHash = componentName.split('').reduce((a, b) => { a = ((a << 5) - a) + b.charCodeAt(0); return a & a }, 0);
-    const scopeId = `data-v-${Math.abs(simpleHash).toString(36)}`;
+    // Scope id (CSS scope class + expression tag): hash of the file's path relative
+    // to the project root plus its content. Unique for same-named components in
+    // different folders, stable across builds of the same source.
+    const scopeId = `data-v-${ComponentCompiler.scopeHash(filePath, content, this.config?.root)}`;
 
     // Prepare styles and template ONCE
     // Scope CSS
@@ -237,10 +250,27 @@ ${imports.map(i => {
       // ---------------------------------------------------------
 
       // 1. Top Level Template (Use AST Node!)
-      const { html, bindings, templates } = this.templateTransformer.transform(templateNode, [...stateVars, ...computedVars], imports.flatMap(i => i.names).filter(n => /^[A-Z]/.test(n)), declarations);
+      const exprTag = scopeId.slice('data-v-'.length);
+      const { html, bindings, templates, exprs, styleRules } = this.templateTransformer.transform(templateNode, [...stateVars, ...computedVars], imports.flatMap(i => i.names).filter(n => /^[A-Z]/.test(n)), declarations, exprTag);
       // We wrap the HTML in a container with the scope ID
       // This template is created ONCE at module level
-      const fullTemplateHTML = `${scopedStyles ? `<style>${scopedStyles}</style>` : ''}<div class="${scopeId} pulse-component-${componentName.toLowerCase()}">${html}</div>`;
+      const extract = this.templateTransformer.extractStyles;
+      if (extract) this.cssByFile.set(path.resolve(filePath), [scopedStyles, ...styleRules].filter(Boolean).join('\n'));
+      // Without extraction the scoped CSS goes inside the root element, after the
+      // content (binding paths index from the start). It used to be a sibling of
+      // the root, which the component never returned: the CSS was silently dropped.
+      const fullTemplateHTML = `<div class="${scopeId} pulse-component-${componentName.toLowerCase()}">${html}${scopedStyles && !extract ? `<style>${scopedStyles}</style>` : ''}</div>`;
+
+      // Event types beyond the runtime's default delegated set.
+      const DEFAULT_EVENTS = new Set(['click', 'input', 'change', 'submit', 'keydown', 'keyup', 'focus', 'blur']);
+      const usedEvents = new Set<string>();
+      for (const src of [html, ...templates.values()]) {
+        for (const m of src.matchAll(/data-on-([a-z][\w-]*)=/g)) if (!DEFAULT_EVENTS.has(m[1])) usedEvents.add(m[1]);
+      }
+      if (usedEvents.size) {
+        delegateImport = ', delegate';
+        moduleCode += `\ndelegate(${JSON.stringify([...usedEvents])});\n`;
+      }
 
       moduleCode += `
 // Static Template
@@ -322,40 +352,11 @@ export default function ${componentName}(props) {
 
 
 
-      // Scope Construction for Runtime
-      moduleCode += `  const scope = { \n`;
-      // state getters
-      stateVars.forEach(({ name }) => {
-        moduleCode += `    get ${name}() { return get_${name} (); }, \n`;
-      });
-      // computed getters
-      computedVars.forEach(({ name }) => {
-        moduleCode += `    get ${name}() { return ${name}(); }, \n`;
-      });
-      // Add functions
-      functions.forEach(({ name }) => {
-        moduleCode += `    ${name}: ${name}, \n`;
-      });
-      // Add declarations
-      declarations.forEach(({ name }) => {
-        moduleCode += `    ${name}: ${name}, \n`;
-      });
-      // Add setters (inline handlers such as onClick={() => setOpen(!open)})
-      stateVars.forEach(({ name, setterName }) => {
-        const setter = setterName || `set_${name}`;
-        if (!declared.has(setter)) moduleCode += `    ${setter}: ${setter}, \n`;
-      });
-      // Add props
-      moduleCode += `    props: props, \n`; // Allow props access
-      moduleCode += `    state: state, \n`;
-      moduleCode += `  }; \n\n`;
-      // Accessors for runtime-evaluated expressions (Show when / List each / inline
-      // handlers), which the template transformer rewrites to \`count()\` form.
-      const accessorEntries = [
-        ...stateVars.map(({ name }) => `${name}: get_${name}`),
-        ...computedVars.map(({ name }) => `${name}: ${name}`),
-      ];
-      moduleCode += `  Object.defineProperty(scope, '__accessors', { value: { ${accessorEntries.join(', ')} }, enumerable: false });\n\n`;
+      // Compiled template expressions (List each/key/row bindings, Show when, event
+      // handlers) as closures over the component's locals. The markup refers to them
+      // as "<tag>:<index>"; nothing is evaluated from strings at runtime.
+      moduleCode += `  const __px = { t: '${exprTag}', x: [${exprs.map((e) => `\n    ${e}`).join(',')}${exprs.length ? '\n  ' : ''}] };\n`;
+      moduleCode += `  container.__px = __px;\n\n`;
 
       // Mount primitives helper using Runtime
       moduleCode += `  const mountPrimitives = (cont) => {
@@ -364,7 +365,7 @@ export default function ${componentName}(props) {
       // Serialize templates for runtime
       const serializedTemplates = JSON.stringify(Object.fromEntries(templates));
 
-      moduleCode += `    dom_mountPrimitives(cont, scope, { \n`; // Pass scope object
+      moduleCode += `    dom_mountPrimitives(cont, __px, { \n`;
       moduleCode += `       List: ${hasListPrimitive ? 'List' : 'undefined'}, \n`;
       moduleCode += `       Show: ${hasShowPrimitive ? 'Show' : 'undefined'}, \n`;
       moduleCode += `       createEffect: createEffect, \n`;
@@ -386,35 +387,31 @@ export default function ${componentName}(props) {
 
       // NO innerHTML here! We already cloned.
 
-      // Reactive bindings
-      // Reactive bindings
-      bindings.forEach((binding) => {
+      // Reactive bindings. Nodes are resolved once, in document order, before any
+      // effect runs: textAt() re-creates a text node SSR dropped (an empty string
+      // serializes to nothing), which keeps later paths in the same parent right.
+      bindings.forEach((binding, i) => {
         const pathStr = JSON.stringify(binding.path);
-
+        moduleCode += binding.type === 'text'
+          ? `  const _b${i} = textAt(container, ${pathStr});\n`
+          : `  const _b${i} = nodeAt(container, ${pathStr});\n`;
+      });
+      bindings.forEach((binding, i) => {
+        const el = `_b${i}`;
         if (binding.type === 'text') {
-          moduleCode += `  createEffect(() => {\n`;
-          // Use walk to find node
-          moduleCode += `    const el = walk(container, ${pathStr});\n`;
-          moduleCode += `    if (el) el.textContent = String(${binding.expression});\n`;
-          moduleCode += `  });\n\n`;
+          moduleCode += `  if (${el}) createEffect(() => { ${el}.data = String(${binding.expression}); });\n`;
+        } else if (binding.name === 'value' || binding.name === 'checked' || binding.name === 'disabled') {
+          // Property assignment so the UI reflects the value.
+          moduleCode += `  if (${el}) createEffect(() => { ${el}.${binding.name} = ${binding.expression}; });\n`;
         } else {
-          // Attribute/Property binding
-          moduleCode += `  createEffect(() => {\n`;
-          moduleCode += `    const el = walk(container, ${pathStr});\n`;
-          // Use property assignment for value/checked to ensure UI updates correctly
-          if (binding.name === 'value' || binding.name === 'checked' || binding.name === 'disabled') {
-            moduleCode += `    if (el) el.${binding.name} = ${binding.expression};\n`;
-          } else {
-            moduleCode += `    if (el) el.setAttribute('${binding.name}', ${binding.expression});\n`;
-          }
-          moduleCode += `  });\n\n`;
+          moduleCode += `  if (${el}) createEffect(() => { setAttr(${el}, '${binding.name}', ${binding.expression}); });\n`;
         }
       });
+      moduleCode += '\n';
 
       // Event handlers - DELEGATION OPTIMIZATION
       moduleCode += `  const handlers = { ${functions.map((f) => `${f.name}: ${f.name}`).join(', ')} };\n`;
-      moduleCode += `  container.__pulseHandlers = handlers;\n`;
-      moduleCode += `  container.__pulseScope = scope;\n\n`;
+      moduleCode += `  container.__pulseHandlers = handlers;\n\n`;
 
 
       // Handle children/slots
@@ -442,49 +439,49 @@ export default function ${componentName}(props) {
       // STATIC COMPONENT
       // ---------------------------------------------------------
 
-      const simpleHash = componentName.split('').reduce((a, b) => { a = ((a << 5) - a) + b.charCodeAt(0); return a & a }, 0);
-      const scopeId = `data-v-${Math.abs(simpleHash).toString(36)}`;
-
-      let scopedStyles = '';
-      if (styles) {
-        const cssScoper = new CSSScoper();
-        scopedStyles = cssScoper.scope(styles, scopeId, template);
-      }
-
       // Static components render props with ${props.x} inside an innerHTML template.
-
-      moduleCode += `export default function ${componentName}(props = {}) {\n`;
-      // Hydration: static markup is already correct; adopt the SSR node as-is.
-      moduleCode += `  if (props._hydrationNode) {\n`;
-      if (template.includes('onClick={')) {
-        moduleCode += `    const b = props._hydrationNode.querySelector('button');\n`;
-        moduleCode += `    if (b && typeof props.onClick === 'function') b.addEventListener('click', props.onClick);\n`;
-      }
-      moduleCode += `    return props._hydrationNode;\n  }\n`;
-      // REMOVED random scopeId generation
-
-      moduleCode += `  const container = document.createElement('div');\n`;
-      moduleCode += `  container.classList.add('${scopeId}');\n`;
-      moduleCode += `  container.className += ' pulse-component-${componentName.toLowerCase()}';\n\n`;
-
-      // Serialize the parsed template (comments dropped, whitespace normalized,
-      // `is:raw` children literal); {identifier} becomes a props interpolation.
-      const processedTemplate = (templateNode.children || []).map((c) => this.serializeStatic(c)).join('');
+      // Props can be live getters (a parent's {expr}), so the render runs in an
+      // effect and re-renders when they change. With slotted children the markup
+      // is rendered once (re-rendering would drop them).
+      const extract = this.templateTransformer.extractStyles;
+      const staticRules: string[] = [];
+      const processedTemplate = (templateNode.children || []).map((c) => this.serializeStatic(c, extract ? staticRules : null)).join('');
+      if (extract) this.cssByFile.set(path.resolve(filePath), [scopedStyles, ...staticRules].filter(Boolean).join('\n'));
+      const usesProps = /\u0000PULSEPROP:/.test(processedTemplate);
+      const reactive = usesProps && !/<slot\b/.test(processedTemplate);
+      const hasClick = template.includes('onClick={');
 
       // Escape the markup first, then splice in the ${props.x} interpolations (escaping
-      // afterwards would turn them into literal "${props.x}" text).
-      const staticHTML = this.escapeForTemplateLiteral((scopedStyles ? `<style>${scopedStyles}</style>` : '') + processedTemplate)
-        .replace(/\u0000PULSEPROP:(\w+)\u0000/g, (_m, name) => '${props.' + name + ' ?? ""}');
-      moduleCode += `  container.innerHTML = \`${staticHTML}\`;
+      // afterwards would turn them into literal "${props.x}" text). Prop values are
+      // HTML-escaped: they are data, not markup.
+      const staticHTML = this.escapeForTemplateLiteral((scopedStyles && !extract ? `<style>${scopedStyles}</style>` : '') + processedTemplate)
+        .replace(/\u0000PULSEPROP:(\w+)\u0000/g, (_m, name) => '${__esc(props.' + name + ')}');
 
-`;
+      if (usesProps) {
+        moduleCode += `const __esc = (v) => v == null ? '' : String(v).replace(/[&<>"']/g, (c) => '&#' + c.charCodeAt(0) + ';');\n`;
+      }
+      moduleCode += `export default function ${componentName}(props = {}) {\n`;
+      moduleCode += `  const render = () => \`${staticHTML}\`;\n`;
+      // onClick prop: wired to the first <button> (again after each re-render).
+      moduleCode += hasClick
+        ? `  const wire = (el) => { const b = el.querySelector('button'); if (b && typeof props.onClick === 'function') b.addEventListener('click', props.onClick); };\n`
+        : `  const wire = () => {};\n`;
+      // Hydration: static markup is already correct; adopt the SSR node as-is.
+      moduleCode += `  if (props._hydrationNode) {\n`;
+      moduleCode += `    const container = props._hydrationNode;\n`;
+      if (reactive) {
+        moduleCode += `    let first = true;\n`;
+        moduleCode += `    createEffect(() => { const html = render(); if (first) { first = false; return; } container.innerHTML = html; wire(container); });\n`;
+      }
+      moduleCode += `    wire(container);\n`;
+      moduleCode += `    return container;\n  }\n`;
 
-      // Simple event handling for non-reactive components
-      if (template.includes('onClick={')) {
-        moduleCode += `  const button = container.querySelector('button');\n`;
-        moduleCode += `  if (button && props.onClick) {\n`;
-        moduleCode += `    button.addEventListener('click', props.onClick);\n`;
-        moduleCode += `  }\n\n`;
+      moduleCode += `  const container = document.createElement('div');\n`;
+      moduleCode += `  container.className = '${scopeId} pulse-component-${componentName.toLowerCase()}';\n`;
+      if (reactive) {
+        moduleCode += `  createEffect(() => { container.innerHTML = render(); wire(container); });\n\n`;
+      } else {
+        moduleCode += `  container.innerHTML = render();\n  wire(container);\n\n`;
       }
 
       // Slot handling
@@ -507,7 +504,7 @@ export default function ${componentName}(props) {
       moduleCode += `}\n`;
     }
 
-    return moduleCode;
+    return moduleCode.replace('__DELEGATE_IMPORT__', delegateImport);
   }
 
   /**
@@ -516,26 +513,42 @@ export default function ${componentName}(props) {
    * (spliced in after template-literal escaping); other expressions stay literal;
    * event attributes are omitted (bound separately); raw text is emitted verbatim.
    */
-  private serializeStatic(node: ParsedNode): string {
+  private serializeStatic(node: ParsedNode, styleRules: string[] | null = null): string {
     const PROP = (name: string) => `\u0000PULSEPROP:${name}\u0000`;
     if (node.type === 'comment') return '';
     if (node.type === 'text') return node.content || '';
     if (node.type === 'expression') {
       const code = (node.content || '').trim();
-      return /^[A-Za-z_$][\w$]*$/.test(code) ? PROP(code) : `{${code}}`;
+      const m = /^(?:props\.)?([A-Za-z_$][\w$]*)$/.exec(code);
+      return m ? PROP(m[1]) : `{${code}}`;
     }
     if (node.type === 'element') {
       let attrs = '';
+      // Strict style CSP: static style="…" -> generated class (see TemplateTransformer).
+      let styleCls = '';
+      const styleAttr = node.attributes?.get('style');
+      if (styleRules && typeof styleAttr === 'string') {
+        const sc = styleClass(styleAttr.replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&amp;/g, '&'));
+        if (sc) {
+          styleCls = sc.cls;
+          if (!styleRules.includes(sc.rule)) styleRules.push(sc.rule);
+        }
+      }
+      if (styleCls && node.attributes?.get('class') === undefined) attrs += ` class="${styleCls}"`;
       node.attributes?.forEach((val, key) => {
         if (/^on[A-Z]/.test(key) || key.startsWith('on:')) return;
+        if (styleCls && key === 'style') return;
+        if (styleCls && key === 'class' && typeof val === 'string') val = val ? `${val} ${styleCls}` : styleCls;
         if (typeof val === 'string') {
           attrs += val === '' ? ` ${key}` : ` ${key}="${val.replaceAll('"', '&quot;')}"`;
         } else {
           const code = val.code.trim();
-          attrs += /^[A-Za-z_$][\w$]*$/.test(code) ? ` ${key}="${PROP(code)}"` : '';
+          const m = /^(?:props\.)?([A-Za-z_$][\w$]*)$/.exec(code);
+          const extra = styleCls && key === 'class' ? ` ${styleCls}` : '';
+          attrs += m ? ` ${key}="${PROP(m[1])}${extra}"` : extra ? ` class="${styleCls}"` : '';
         }
       });
-      const children = (node.children || []).map((c) => this.serializeStatic(c)).join('');
+      const children = (node.children || []).map((c) => this.serializeStatic(c, styleRules)).join('');
       const voidElements = new Set(['area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input', 'link', 'meta', 'param', 'source', 'track', 'wbr']);
       if (node.tag && voidElements.has(node.tag.toLowerCase()) && !children) {
         return `<${node.tag}${attrs} />`;

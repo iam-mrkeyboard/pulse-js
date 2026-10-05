@@ -2089,11 +2089,11 @@ Conditionally renders content based on boolean.
 
 **Props:**
 - \`when\`: Condition (required)
-- \`fallback\`: Content when false (optional)
+- \`fallback\`: Text shown when false: a string or an expression (optional)
 
 **Usage:**
 \`\`\`html
-<Show when={isLoaded} fallback={<Loading />}>
+<Show when={isLoaded} fallback="Loading…">
   <Content />
 </Show>
 \`\`\`
@@ -2115,47 +2115,6 @@ Efficiently renders arrays with fine-grained updates.
 \`\`\`
 
 **Performance:** Only re-renders changed items, not entire list`,
-
-      Portal: `### 🌀 Portal Primitive
-Renders children into different DOM node.
-
-**Props:**
-- \`mount\`: Target element (default: document.body)
-
-**Usage:**
-\`\`\`html
-<Portal mount={document.body}>
-  <Modal />
-</Portal>
-\`\`\`
-
-**Use Cases:** Modals, tooltips, popovers`,
-
-      Suspense: `### ⏳ Suspense Primitive
-Shows fallback while async content loads.
-
-**Props:**
-- \`fallback\`: Loading UI
-
-**Usage:**
-\`\`\`html
-<Suspense fallback={<Spinner />}>
-  <AsyncData />
-</Suspense>
-\`\`\``,
-
-      ErrorBoundary: `### 🛡️ ErrorBoundary Primitive
-Catches errors in child components.
-
-**Props:**
-- \`fallback\`: Error UI (receives error)
-
-**Usage:**
-\`\`\`html
-<ErrorBoundary fallback={(err) => <Error error={err} />}>
-  <App />
-</ErrorBoundary>
-\`\`\``,
     };
 
     if (pulsePrimitives[word]) {

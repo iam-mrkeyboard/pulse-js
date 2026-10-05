@@ -25,7 +25,9 @@ describe('Pulse Compiler: TemplateTransformer', () => {
     const result = transformer.transform(root, stateVars);
 
     // Expect transformation to <pulse-show> with template data
-    expect(result.html).toContain('<pulse-show when="{isOpen()}"');
+    // when={isOpen} compiles to a closure; the markup only references it.
+    expect(result.html).toContain('<pulse-show when="p:0"');
+    expect(result.exprs[0]).toBe('() => (isOpen())');
     expect(result.html).toContain('<template data-pulse-template>');
     expect(result.html).toContain('<div>Content</div>');
     expect(result.html).toContain('</template>');
@@ -45,7 +47,11 @@ describe('Pulse Compiler: TemplateTransformer', () => {
 
     const result = transformer.transform(root, stateVars);
 
-    expect(result.html).toContain('<pulse-list each="{items()}" as="item"');
+    expect(result.html).toContain('<pulse-list each="p:0"');
+    expect(result.exprs[0]).toBe('() => (items())');
+    // row text binding {item.name} -> (item) => (item.name)
+    expect(result.exprs).toContain('(item) => (item.name)');
+    expect(result.html).not.toContain('item.name');
     expect(result.html).toContain('data-bindings=');
     expect(result.html).toContain('data-template-id=');
   });
@@ -66,7 +72,7 @@ describe('Pulse Compiler: TemplateTransformer', () => {
     const result = transformer.transform(root, stateVars);
     expect(result.bindings.find((b) => b.name === 'class')).toBeUndefined();
     expect(result.html).toContain('data-bindings=');
-    expect(result.html).toContain('danger');
+    expect(result.exprs.some((e: string) => e.includes('danger'))).toBe(true);
     expect(result.html).toMatch(/data-bindings="[^"]*class/);
   });
 

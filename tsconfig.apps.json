@@ -1,0 +1,12 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "allowImportingTsExtensions": true,
+    "paths": {
+      "pulse": ["./packages/pulse/src/index.ts"],
+      "pulse/*": ["./packages/pulse/src/*"]
+    }
+  },
+  "include": ["apps/docs/pulse.config.ts", "examples/counter/pulse.config.ts"]
+}

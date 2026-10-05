@@ -53,7 +53,7 @@ export function runtimeFile(specifier: string): string | null {
   return null;
 }
 
-export function pulsePlugin(compiler: ComponentCompiler): BunPlugin {
+export function pulsePlugin(compiler: ComponentCompiler, onCompile?: (file: string) => void): BunPlugin {
   return {
     name: 'pulse',
     setup(build) {
@@ -68,6 +68,7 @@ export function pulsePlugin(compiler: ComponentCompiler): BunPlugin {
       build.onLoad({ filter: /\.pulse$/ }, async (args) => {
         const content = await Bun.file(args.path).text();
         const contents = await compiler.compile(args.path, content);
+        onCompile?.(path.resolve(args.path));
         return { contents, loader: 'js' };
       });
     },

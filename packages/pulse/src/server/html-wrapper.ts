@@ -6,39 +6,6 @@
 import { ErrorOverlay } from './error-overlay';
 
 /**
- * Wraps page content in a complete HTML document
- */
-export type ImportMap = { imports: Record<string, string>; scopes?: Record<string, Record<string, string>> };
-
-export function wrapHTML(content: string, title: string, hmrScript: string, importMap?: ImportMap): string {
-  const importMapScript = importMap
-    ? `<script type="importmap">\n${JSON.stringify(importMap, null, 2)}\n</script>`
-    : '';
-
-  return `<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob:;">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>${title}</title>
-  ${importMapScript}
-  <style>
-    * {
-      margin: 0;
-      padding: 0;
-      box-sizing: border-box;
-    }
-  </style>
-</head>
-<body>
-  ${content}
-  ${hmrScript}
-</body>
-</html>`;
-}
-
-/**
  * Generates a 404 response with error overlay
  */
 export function serve404(pathname: string): Response {

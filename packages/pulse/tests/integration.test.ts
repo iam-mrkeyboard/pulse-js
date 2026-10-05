@@ -1,6 +1,6 @@
 
 import { describe, test, expect, beforeEach, afterEach } from 'bun:test';
-import { mountPrimitives } from '../src/runtime/dom';
+import { mountPrimitives, delegate } from '../src/runtime/dom';
 import { List } from '../src/runtime/primitives/list';
 import { Show } from '../src/runtime/primitives/show';
 import { createSignal, createEffect } from '../src/runtime/core';
@@ -48,7 +48,7 @@ describe('Pulse Integration Tests', () => {
       MockButton: (props: any) => MockButton(props) // Factory
     };
 
-    mountPrimitives(container, {}, {
+    mountPrimitives(container, null, {
       List, Show, createEffect, components
     });
 
@@ -60,6 +60,8 @@ describe('Pulse Integration Tests', () => {
   test('Should handle global event delegation', async () => {
     let clicked = false;
     const handleClick = () => { clicked = true; };
+    // Ensure listeners on this document (idempotent; covers import-during-SSR).
+    delegate(['click']);
 
     // Manual setup simulating compiler output
     const btn = document.createElement('button');
@@ -82,7 +84,7 @@ describe('Pulse Integration Tests', () => {
 
   test('List should persist nodes (Fragment Exhaustion Verification)', async () => {
     container.innerHTML = `
-      <pulse-list each="{items()}" data-template-id="t1"></pulse-list>
+      <pulse-list each="c:0" data-template-id="t1"></pulse-list>
     `;
 
     const [items, setItems] = createSignal([1, 2]);
@@ -90,7 +92,7 @@ describe('Pulse Integration Tests', () => {
       t1: '<div class="item">Item</div>'
     };
 
-    mountPrimitives(container, { items }, { List, Show, createEffect }, templates);
+    mountPrimitives(container, { t: 'c', x: [() => items()] }, { List, Show, createEffect }, templates);
 
     await new Promise(r => setTimeout(r, 10));
     expect(container.querySelectorAll('.item').length).toBe(2);

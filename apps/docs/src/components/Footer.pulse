@@ -9,7 +9,7 @@
       <p class="copyright">© {year} Pulse Framework. Open Source.</p>
     </div>
     <div class="links">
-        <a href="https://github.com/pulse-framework/pulse" target="_blank">GitHub</a>
+        <a href="https://github.com/iam-mrkeyboard/pulse-js" target="_blank">GitHub</a>
         <a href="/docs">Docs</a>
         <a href="/blog">Blog</a>
     </div>

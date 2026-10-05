@@ -1,36 +1,12 @@
 // ============================================================================
-// FILE: src/runtime/dom-v2.ts
-// Efficient DOM Runtime using Template Cloning and Path Traversal
+// FILE: src/runtime/dom.ts
+// Efficient DOM Runtime using Template Cloning and Path Traversal.
+//
+// Template expressions (List each/key, row bindings, Show when, event handlers)
+// are compiled to closures by the SFC compiler; markup refers to them by
+// "<tag>:<index>". This runtime never turns strings into code (no eval /
+// new Function), so pages run under a CSP without 'unsafe-eval'.
 // ============================================================================
-
-
-const MAX_EXPR_CACHE = 256;
-const exprCache = new Map<string, Function>();
-
-/** Fallback eval for template expressions. Prefer compile-time emission. */
-function safeEvalExpr(code: string, keys: string[], values: any[]): any {
-  try {
-    if (/\b(Function|eval|import\s*\(|process|require|globalThis)\b/.test(code)) {
-      console.error('Pulse: blocked unsafe expression');
-      return undefined;
-    }
-    const cacheKey = code + '||' + keys.join(',');
-    let fn = exprCache.get(cacheKey);
-    if (!fn) {
-      if (exprCache.size >= MAX_EXPR_CACHE) {
-        const first = exprCache.keys().next().value;
-        if (first !== undefined) exprCache.delete(first);
-      }
-      const body = code.trim().startsWith('return') ? code : `return (${code})`;
-      fn = new Function(...keys, body);
-      exprCache.set(cacheKey, fn);
-    }
-    return fn(...values);
-  } catch (e) {
-    console.error('Pulse Binding Error:', code, e);
-    return undefined;
-  }
-}
 
 import { createEffect, type Accessor } from './core.js';
 import { P_LIST, P_SHOW, P_KEY, P_COMPONENT, P_PROPS, markKey, markRoot } from './ssr-markers.js';
@@ -58,17 +34,29 @@ export function template(html: string): () => Node {
 // ----------------------------------------------------------------------------
 
 /**
- * Names/values for evaluating compiled template expressions against a component
- * scope. The compiler rewrites state reads to accessor calls (`count()`), so state
- * and computed entries resolve to their accessor (from the non-enumerable
- * `scope.__accessors`); everything else (functions, setters, declarations, props)
- * resolves to its value. Scopes without `__accessors` keep plain value semantics.
+ * Compiler-generated expression table of one component instance: `t` is the
+ * component tag used in "<tag>:<index>" references, `x` the closures.
  */
-function scopeEntries(scope: any): { keys: string[]; values: any[] } {
-  const keys = Object.keys(scope || {});
-  const acc = (scope && scope.__accessors) || null;
-  const values = keys.map((k) => (acc && Object.prototype.hasOwnProperty.call(acc, k) ? acc[k] : scope[k]));
-  return { keys, values };
+export interface ExprTable {
+  t: string;
+  x: Function[];
+}
+
+/** Row context for closures inside a List row: item, index, enclosing rows' items. */
+interface RowCtx {
+  v: any;
+  i: number;
+  p: any[];
+}
+
+const NO_PARENTS: any[] = [];
+
+/** Resolve a "<tag>:<index>" reference against `table`; undefined if it belongs to another component. */
+function resolveRef(table: ExprTable | null | undefined, ref: string | null): Function | undefined {
+  if (!table || !ref) return undefined;
+  const colon = ref.indexOf(':');
+  if (colon < 0 || ref.slice(0, colon) !== table.t) return undefined;
+  return table.x[+ref.slice(colon + 1)];
 }
 
 export function walk(root: Node, path: number[]): Node {
@@ -246,21 +234,27 @@ function mountFreshComponents(root: ParentNode, components: Record<string, any> 
 
 export function mountPrimitives(
   container: HTMLElement,
-  scope: any,
+  exprs: ExprTable | null | undefined,
   primitives: { List: any, Show: any, createEffect: any, components?: any },
-  templates: Record<string, string> = {}
+  templates: Record<string, string> = {},
+  ctx: RowCtx | null = null
 ) {
-  // console.log('Pulse [mountPrimitives]', container, primitives);
   if (!container) return;
+  // Closure arguments for List each / Show when evaluated in this container.
+  const cv = ctx ? ctx.v : undefined;
+  const ci = ctx ? ctx.i : undefined;
+  const cp = ctx ? ctx.p : NO_PARENTS;
 
   // Mount Lists
   if (primitives.List) {
     const lists = container.querySelectorAll('pulse-list');
     lists.forEach(el => {
       if (!ownedByContainer(el, container)) return;
-      const eachExpr = el.getAttribute('each');
-        const keyAttr = el.getAttribute('key');
-      const asVar = el.getAttribute('as') || 'item';
+      // Lists of other components (nested roots, slots) carry another tag.
+      const eachFn = resolveRef(exprs, el.getAttribute('each'));
+      if (!eachFn) return;
+      const keyAttr = el.getAttribute('key');
+      const keyX = keyAttr ? exprs!.x[+keyAttr] : undefined;
       const templateId = el.getAttribute('data-template-id');
       const bindingsStr = el.getAttribute('data-bindings');
 
@@ -268,37 +262,29 @@ export function mountPrimitives(
       const templateHtml = (templateId && templates[templateId])
         || (inlineTpl ? inlineTpl.innerHTML : '')
         || '';
-      if (eachExpr && templateHtml) {
-        const bindings = bindingsStr ? JSON.parse(bindingsStr) : [];
+      if (templateHtml) {
+        const bindings: Array<{ type: string; path: number[]; name?: string; x: number }> = bindingsStr ? JSON.parse(bindingsStr) : [];
+        const x = exprs!.x;
+        // Items of the enclosing rows, passed to row closures as `$p`.
+        const rowParents = ctx ? [...cp, cv] : NO_PARENTS;
 
-        // Evaluate 'each' expression
-        // We need to evaluate it in the context of 'scope'. 
-        // scope has getters for state.
         const getEach = () => {
           try {
-            // Create a function that returns the expression value using scope
-            const { keys: scopeKeys, values: scopeValues } = scopeEntries(scope);
-            let result = safeEvalExpr(eachExpr.replace(/^{(.*)}$/, '$1'), scopeKeys, scopeValues);
+            let result = eachFn(cv, ci, cp);
             // Unwrap signal accessors: each="{items}" where items is () => T[]
             if (typeof result === 'function') result = result();
             return Array.isArray(result) ? result : [];
           } catch (e) {
-            console.error('Pulse: Failed to evaluate List each:', eachExpr, e);
+            console.error('Pulse: Failed to evaluate List each:', e);
             return [];
           }
         };
 
-        const keyFn = keyAttr
-          ? (item: any, index: number) => {
-              const { keys: scopeKeys, values: scopeValues } = scopeEntries(scope);
-              const asName = asVar;
-              const keys = [...scopeKeys, asName, 'index'];
-              const values = [...scopeValues, item, index];
-              const expr = keyAttr.startsWith('{') && keyAttr.endsWith('}')
-                ? keyAttr.slice(1, -1)
-                : (keyAttr.includes('.') || keyAttr.includes('(') ? keyAttr : `${asName}.${keyAttr}`);
-              return safeEvalExpr(expr, keys, values);
-            }
+        // Parse the row template once per list; each row is a deep clone.
+        const rowTemplate = template(templateHtml);
+
+        const keyFn = keyX
+          ? (item: any, index: number) => keyX(item, index, rowParents)
           : undefined;
 
         // Adopt existing SSR rows (skip <template>)
@@ -308,43 +294,27 @@ export function mountPrimitives(
 
         el.setAttribute('data-p-list', '1');
 
-        // Row scope: page scope (getters + accessors preserved) plus the item/index.
-        const rowScopeFor = (item: any, index: number) => {
-          const rowScope: any = Object.defineProperties({}, Object.getOwnPropertyDescriptors(scope || {}));
-          rowScope[asVar] = item;
-          rowScope.index = index;
-          return rowScope;
-        };
-
         const bindRow = (resolve: (path: number[]) => Node | null, rowRoot: Element | DocumentFragment, item: any, index: number) => {
-          bindings.forEach((b: any) => {
+          for (const b of bindings) {
             const target = resolve(b.path);
-            if (!target) return;
-
-            const run = () => {
-              try {
-                const { keys: scopeKeys, values: scopeValues } = scopeEntries(scope);
-                const keys = [...scopeKeys, asVar, 'index'];
-                const values = [...scopeValues, item, index];
-                return safeEvalExpr(b.expr, keys, values);
-              } catch (e) {
-                return '';
-              }
-            };
+            if (!target) continue;
+            const fn = x[b.x];
+            const isText = b.type === 'text';
+            const name = b.name as string;
+            const isProp = name === 'value' || name === 'checked';
 
             primitives.createEffect(() => {
-              const value = run();
-              if (b.type === 'text') {
+              let value: any;
+              try { value = fn(item, index, rowParents); } catch (e) { value = ''; }
+              if (isText) {
                 target.textContent = String(value);
-              } else if (b.type === 'attribute') {
-                if (b.name === 'value' || b.name === 'checked') {
-                  (target as any)[b.name] = value;
-                } else {
-                  (target as Element).setAttribute(b.name, String(value));
-                }
+              } else if (isProp) {
+                (target as any)[name] = value;
+              } else {
+                (target as Element).setAttribute(name, String(value));
               }
             });
-          });
+          }
 
           const eventEls: Element[] = [];
           if (rowRoot instanceof Element) eventEls.push(rowRoot);
@@ -354,21 +324,22 @@ export function mountPrimitives(
           const seen = new Set<Element>();
           for (const evEl of eventEls) {
             if (seen.has(evEl) || evEl.closest('template')) continue;
+            // Elements of a nested List's rows are bound by that List (with its row).
+            const ownerList = evEl.closest('pulse-list');
+            if (ownerList && ownerList !== el) continue;
             seen.add(evEl);
             for (const attr of Array.from(evEl.attributes || [])) {
               if (!attr.name.startsWith('data-on-')) continue;
+              const handler = resolveRef(exprs, attr.value);
+              if (!handler) continue;
               const evt = attr.name.slice('data-on-'.length);
-              const expr = attr.value.replace(/^\{|\}$/g, '');
               (evEl as any).__pulseDirect = true; // bound here; skip root delegation
               evEl.addEventListener(evt, (event) => {
                 try {
-                  const { keys: scopeKeys, values: scopeValues } = scopeEntries(scope);
-                  const keys = [...scopeKeys, asVar, 'row', 'index', 'e'];
-                  const values = [...scopeValues, item, item, index, event];
-                  const result = safeEvalExpr(expr, keys, values);
+                  const result = handler(event, item, index, rowParents);
                   if (typeof result === 'function') result(event);
                 } catch (err) {
-                  console.error('Pulse list event error:', expr, err);
+                  console.error('Pulse list event error:', err);
                 }
               });
             }
@@ -377,7 +348,7 @@ export function mountPrimitives(
           // Nested primitives (e.g. <Show> inside a <List> row) see the row item.
           const host = rowRoot as any;
           if (host.querySelector && host.querySelector('pulse-show, pulse-list')) {
-            mountPrimitives(host, rowScopeFor(item, index), primitives, templates);
+            mountPrimitives(host, exprs, primitives, templates, { v: item, i: index, p: rowParents });
           }
         };
 
@@ -387,9 +358,7 @@ export function mountPrimitives(
           host: el,
           initialNodes,
           children: (item: any, index: number) => {
-            const t = document.createElement('template');
-            t.innerHTML = templateHtml;
-            const clone = t.content.cloneNode(true) as DocumentFragment;
+            const clone = rowTemplate() as DocumentFragment;
             mountFreshComponents(clone, primitives.components);
             bindRow((p) => safeWalk(clone, p), clone, item, index);
             const node = clone.firstElementChild || clone;
@@ -414,17 +383,17 @@ export function mountPrimitives(
     const shows = container.querySelectorAll('pulse-show');
     shows.forEach(el => {
       if (!ownedByContainer(el, container)) return;
-      const whenExpr = el.getAttribute('when');
+      const whenFn = resolveRef(exprs, el.getAttribute('when'));
+      if (!whenFn) return;
       const fallbackExpr = el.getAttribute('fallback');
       const templateEl = el.querySelector('template[data-pulse-template]');
 
-      if (whenExpr && templateEl) {
-        const content = templateEl.innerHTML;
+      if (templateEl) {
+        const branchTemplate = template(templateEl.innerHTML);
 
         const getWhen = () => {
           try {
-            const { keys: scopeKeys, values: scopeValues } = scopeEntries(scope);
-            let result = safeEvalExpr(whenExpr.replace(/^{(.*)}$/, '$1'), scopeKeys, scopeValues);
+            let result = whenFn(cv, ci, cp);
             if (typeof result === 'function') result = result();
             return result;
           } catch (e) { return false; }
@@ -442,9 +411,7 @@ export function mountPrimitives(
           initialNodes,
           fallback: fallbackExpr ? () => document.createTextNode(fallbackExpr || '') : undefined,
           children: () => {
-            const t = document.createElement('template');
-            t.innerHTML = content;
-            const clone = t.content.cloneNode(true) as DocumentFragment;
+            const clone = branchTemplate() as DocumentFragment;
             mountFreshComponents(clone, primitives.components);
             return clone.firstElementChild || clone;
           }
@@ -496,45 +463,39 @@ export function mountPrimitives(
 const DELEGATED_EVENTS = ['click', 'input', 'change', 'submit', 'keydown', 'keyup', 'focus', 'blur'];
 
 function handleEvent(event: Event) {
-  // console.log('Pulse [Event]:', event.type, event.target);
   let target = event.target as HTMLElement | null;
-
-  const eventName = event.type.toLowerCase();
-  const dataAttr = `data-on-${eventName}`;
+  const dataAttr = `data-on-${event.type.toLowerCase()}`;
 
   // Bubble up
   while (target && target !== document.body) {
     if (target.hasAttribute(dataAttr) && !(target as any).__pulseDirect) {
-      const handlerName = target.getAttribute(dataAttr) || '';
-      // Find component root with handlers
-      let root = target;
-      while (root && !(root as any).__pulseHandlers) {
-        if (root.parentElement) root = root.parentElement;
-        else break;
-      }
-
-      if (root && (root as any).__pulseHandlers) {
-        const handlers = (root as any).__pulseHandlers;
-        const scope = (root as any).__pulseScope;
-        // "{increment}" and "increment" both name a handler.
-        const name = handlerName.replace(/^\{\s*([\w$]+)\s*\}$/, '$1');
-        const handler = handlers[name] ?? (scope && typeof scope[name] === 'function' ? scope[name] : undefined);
-
-        if (handler && typeof handler === 'function') {
+      const ref = target.getAttribute(dataAttr) || '';
+      const colon = ref.indexOf(':');
+      if (colon > 0) {
+        // Compiled handler "<tag>:<index>": run the closure of the component that
+        // owns it (the nearest ancestor root with that tag; also finds the parent
+        // for markup it passed into a child's slot).
+        const tag = ref.slice(0, colon);
+        let root: any = target;
+        while (root && !(root.__px && root.__px.t === tag)) root = root.parentElement;
+        const fn = root ? root.__px.x[+ref.slice(colon + 1)] : undefined;
+        if (typeof fn === 'function') {
+          const result = fn(event);
+          if (typeof result === 'function') result(event);
+          return;
+        }
+      } else {
+        // Named handler on a hand-written root: data-on-click="increment" / "{increment}".
+        let root: any = target;
+        while (root && !root.__pulseHandlers) root = root.parentElement;
+        const name = ref.replace(/^\{\s*([\w$]+)\s*\}$/, '$1');
+        const handler = root ? root.__pulseHandlers[name] : undefined;
+        if (typeof handler === 'function') {
           handler(event);
           return;
         }
-        // Inline handler expression, e.g. data-on-click="{() => setOpen(!open())}"
-        if (scope && /[(=!?:]/.test(handlerName)) {
-          const expr = handlerName.replace(/^\{([\s\S]*)\}$/, '$1');
-          const { keys, values } = scopeEntries(scope);
-          const result = safeEvalExpr(expr, [...keys, 'event', 'e'], [...values, event, event]);
-          if (typeof result === 'function') result(event);
-          return;
-        } else {
-          console.warn(`Pulse: Handler '${handlerName}' not found on component`, root);
-        }
       }
+      console.warn(`Pulse: Handler '${ref}' not found`, target);
     }
     target = target.parentElement as HTMLElement | null;
   }

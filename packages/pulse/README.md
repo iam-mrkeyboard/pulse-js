@@ -52,6 +52,25 @@ The build and dev server also resolve the legacy `pulse-framework/runtime*` spec
   block elements is dropped, a space next to inline content is kept, `<pre>` and
   `<textarea>` keep whitespace verbatim.
 
+## Content Security Policy
+
+The compiler turns every template expression into a closure: `<List each>` /
+`key`, row bindings, `<Show when>`, and `on*` / `bind:` handlers. The markup only
+references a closure by id (`each="<tag>:3"`). The runtime never evaluates
+strings (no `eval` / `new Function`), and production pages load their JS from
+external files. Styles are CSP-safe too: `pulse build` links each page's
+component CSS from a hashed stylesheet (`assets/page-<route>-<hash>.css`), turns
+static `style="…"` attributes into generated classes, and style bindings write
+through CSSOM (`el.style.cssText`). Production pages therefore work under:
+
+```
+Content-Security-Policy: default-src 'self'; object-src 'none'; base-uri 'self'
+```
+
+`pulse dev` uses no inline scripts either (it works under `script-src 'self'`);
+in dev, component CSS stays inline. An expression that is not valid JavaScript
+fails the build.
+
 ## When does a page ship JavaScript?
 
 A component is interactive when its script uses signals / effects / lifecycle

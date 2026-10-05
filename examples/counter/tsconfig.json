@@ -1,7 +1,18 @@
 {
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
-    "noEmit": true
+    "noEmit": true,
+    "paths": {
+      "pulse": [
+        "../../packages/pulse/src/index.ts"
+      ],
+      "pulse/*": [
+        "../../packages/pulse/src/*"
+      ]
+    },
+    "allowImportingTsExtensions": true
   },
-  "include": ["pulse.config.ts"]
+  "include": [
+    "pulse.config.ts"
+  ]
 }
