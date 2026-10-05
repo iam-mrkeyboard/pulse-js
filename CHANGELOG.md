@@ -10,6 +10,8 @@ Historical entries for **v0.6.0–v0.15.0** are reconstructed from the project's
 
 ## [Unreleased]
 
+## [0.18.0] - 2026-10-05
+
 ### Security
 
 - **No `eval` / `new Function` anywhere in the browser.** Pulse pages now run under a strict Content Security Policy (`script-src 'self'`, no `'unsafe-eval'`). The SFC compiler emits every runtime expression as a real closure: `<List each>` / `key`, List row text and attribute bindings, `<Show when>`, and `on*` / `bind:` handlers (top level and inside List rows, including nested Lists). The markup only references a closure (`each="<tag>:3"`, `data-on-click="<tag>:7"`). The runtime's string evaluator (`safeEvalExpr`, its expression cache and the scope/accessor tables built for it) is deleted. On v0.17.0, 8 of the 30 docs pages broke under that policy (27 CSP violations). Now all 30 pages and `examples/counter` hydrate and stay interactive with 0 violations. The production HTML has no inline scripts, so no nonce or hash is needed.
@@ -47,7 +49,7 @@ Historical entries for **v0.6.0–v0.15.0** are reconstructed from the project's
 - `runtime/safe-eval.ts` and the `evalSSR` / `interpolateSSR` / `safeEvalSSR` exports of `server/template-transformer`. These were an unused string-expression interpreter (only their own test imported them).
 - The unused `wrapHTML()` in `server/html-wrapper.ts`, which carried a `'unsafe-eval'` CSP meta tag (the dev server uses `SSRRenderer.wrapHTML`).
 
-### Performance (same machine, v0.17.0 → this change)
+### Performance (same machine, v0.17.0 → v0.18.0)
 
 - Compiled-SFC version of the js-framework-benchmark app (`benchmarks/js-framework-benchmark/src/App.pulse`, which exercises List/row bindings/row handlers), in-page median over 8 interleaved rounds: geomean **22.87 → 14.40 ms (−37%)**. select −78%, remove −36%, swap −35%, create 10k −34%, append 1k −29%, create 1k −28%, replace 1k −28%, update every 10th −21%, clear −11%.
 - Runtime chunk in the docs build: 9,929 → 9,019 B (gzip 4,090 → 3,683 B, −10%). After the fixes above: 10,216 B (gzip 4,291 B). Per-page JS over the 30 docs pages: 261,710 → 246,683 B (gzip 107,206 → 101,042 B). HTML: 132,079 → 130,733 B. Static pages still ship 0 JS (17 of 30).
@@ -55,6 +57,7 @@ Historical entries for **v0.6.0–v0.15.0** are reconstructed from the project's
 - Fixes above, measured against the no-eval state: compiled-SFC geomean 17.36 → 15.11 ms and 17.07 → 15.81 ms (two interleaved runs in opposite orders, 8 rounds; row events are delegated instead of bound per row). A 12-round × 40-iteration run of swap / remove / select / clear shows no regression (−1% to −8%).
 - Docs build, 30 pages: per-page JS 246,683 → 219,551 B (gzip 101,044 → 96,129 B), because component CSS no longer ships inside JS and HTML. HTML 130,733 → 112,961 B. The CSS moved into 30 per-page stylesheets, 87,128 B in total (gzip 28,512 B; per page 950 B gzip on average, 1.9 KB max). One site-wide stylesheet would be 9.0 KB gzip, and it would also be wrong, because pages define conflicting global `body` rules. `examples/counter` JS 10,792 → 11,745 B (gzip 4,156 → 4,632 B).
 - Cost of the linked stylesheet: on a cold load at 150 ms RTT / 1.6 Mbps, first contentful paint is 190–320 ms later (one render-blocking round trip). Warm cache and unthrottled: no difference. There is no flash of unstyled content (the stylesheet is in `<head>`).
+
 
 ---
 

@@ -2,7 +2,7 @@
 
 **A Bun-native web framework** with fine-grained signal reactivity and islands architecture.
 
-[![Version](https://img.shields.io/badge/version-0.17.0-blue.svg)](https://github.com/iam-mrkeyboard/pulse-js)
+[![Version](https://img.shields.io/badge/version-0.18.0-blue.svg)](https://github.com/iam-mrkeyboard/pulse-js)
 [![CI](https://github.com/iam-mrkeyboard/pulse-js/actions/workflows/ci.yml/badge.svg)](https://github.com/iam-mrkeyboard/pulse-js/actions/workflows/ci.yml)
 [![Bun](https://img.shields.io/badge/Bun-Native-black.svg)](https://bun.sh)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)

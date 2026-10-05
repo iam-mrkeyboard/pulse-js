@@ -29,10 +29,11 @@ Pulse is **pre-1.0**. APIs may change. This file tracks near-term work; it is no
 
 ---
 
-## Done (unreleased)
+## Done in v0.18.0
 
 - CSP-safe runtime: `Show when`, `List each/key`, row bindings and all handlers compile to closures; `eval` / `new Function` removed from the runtime (pages work under `script-src 'self'`).
 - Strict `style-src`: production pages pass `default-src 'self'` (component CSS in a linked per-page stylesheet, static inline styles become classes); `pulse dev` uses no inline scripts.
+- Empty SSR text bindings, row context for all delegated events, evaluated `{expr}` component props, unique scope ids, stale build cleanup, fresh-clone typecheck, VS Code/docs hygiene.
 
 ## Done in v0.17.0
 
