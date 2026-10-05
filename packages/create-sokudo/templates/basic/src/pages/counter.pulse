@@ -1,0 +1,8 @@
+<script>
+  const [count, setCount] = createSignal(0);
+</script>
+
+<main>
+  <h1>Count: {count}</h1>
+  <button onClick={() => setCount(count() + 1)}>+1</button>
+</main>

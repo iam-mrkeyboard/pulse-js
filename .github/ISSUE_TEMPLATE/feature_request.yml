@@ -1,5 +1,5 @@
 name: Feature request
-description: Suggest an idea for Pulse
+description: Suggest an idea for Sokudo
 title: "[feat] "
 labels: ["enhancement"]
 body:
@@ -18,7 +18,7 @@ body:
     id: proposal
     attributes:
       label: Proposed solution
-      description: How should Pulse behave?
+      description: How should Sokudo behave?
     validations:
       required: true
   - type: textarea

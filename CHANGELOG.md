@@ -10,17 +10,21 @@ Historical entries for **v0.6.0–v0.15.0** are reconstructed from the project's
 
 ## [Unreleased]
 
+### Changed
+
+- **Renamed the framework to Sokudo for npm.** Package name is `sokudo` (was `pulse`); CLI binary is `sokudo` (was `pulse`); config file is `sokudo.config.ts` (was `pulse.config.ts`); TypeScript import is `import … from 'sokudo'` / `sokudo/runtime` / …. The monorepo package lives in `packages/sokudo`. Scaffold with `bun create sokudo` (`create-sokudo`). The GitHub repository remains `iam-mrkeyboard/pulse-js`. The `.pulse` single-file component extension and DOM tags (`pulse-list`, `pulse-show`, `data-p-*`) are unchanged so existing markup and hydration markers stay valid. Legacy `pulse/runtime` and `pulse-framework/runtime` import specifiers still resolve in the Bun plugin / rewrite for one release.
+
 ## [0.18.0] - 2026-10-05
 
 ### Security
 
 - **No `eval` / `new Function` anywhere in the browser.** Pulse pages now run under a strict Content Security Policy (`script-src 'self'`, no `'unsafe-eval'`). The SFC compiler emits every runtime expression as a real closure: `<List each>` / `key`, List row text and attribute bindings, `<Show when>`, and `on*` / `bind:` handlers (top level and inside List rows, including nested Lists). The markup only references a closure (`each="<tag>:3"`, `data-on-click="<tag>:7"`). The runtime's string evaluator (`safeEvalExpr`, its expression cache and the scope/accessor tables built for it) is deleted. On v0.17.0, 8 of the 30 docs pages broke under that policy (27 CSP violations). Now all 30 pages and `examples/counter` hydrate and stay interactive with 0 violations. The production HTML has no inline scripts, so no nonce or hash is needed.
-- **Strict style CSP for production pages.** Pages now pass `default-src 'self'` with no `'unsafe-inline'` for styles (v0.17.0: 74 violations across the docs). Component CSS is no longer inlined as `<style>`: each page links one hashed stylesheet (`assets/page-<route>-<hash>.css`) holding the scoped CSS of the components it renders (imports first, then the page), a base rule for Pulse's wrapper elements, and generated classes for inline styles. Static `style="…"` attributes compile to a class (`ps-<hash>`, declarations `!important` so they still win like an inline style), merged into the element's static or bound class. Style bindings write through CSSOM (`style.cssText`), which CSP allows; styles the server render produced become `pd-<hash>` classes that the binding drops after hydration. `pulse dev` and direct compiler use keep inline styles. Checked on all 30 docs pages and `examples/counter`: 0 violations, 0 `replaceWith`, interaction checks pass, rendering pixel-identical to inline styles.
-- **`pulse dev` works under `script-src 'self'`.** The dev page no longer uses inline scripts: hydration is an external module (`/__pulse/hydrate.js?page=…`), the inline import map is gone (served modules import the runtime by `/runtime/*.js` URL), and the error page's reload script is external. All 30 docs pages hydrate in dev with 0 violations.
+- **Strict style CSP for production pages.** Pages now pass `default-src 'self'` with no `'unsafe-inline'` for styles (v0.17.0: 74 violations across the docs). Component CSS is no longer inlined as `<style>`: each page links one hashed stylesheet (`assets/page-<route>-<hash>.css`) holding the scoped CSS of the components it renders (imports first, then the page), a base rule for Sokudo's wrapper elements, and generated classes for inline styles. Static `style="…"` attributes compile to a class (`ps-<hash>`, declarations `!important` so they still win like an inline style), merged into the element's static or bound class. Style bindings write through CSSOM (`style.cssText`), which CSP allows; styles the server render produced become `pd-<hash>` classes that the binding drops after hydration. `pulse dev` and direct compiler use keep inline styles. Checked on all 30 docs pages and `examples/counter`: 0 violations, 0 `replaceWith`, interaction checks pass, rendering pixel-identical to inline styles.
+- **`pulse dev` works under `script-src 'self'`.** The dev page no longer uses inline scripts: hydration is an external module (`/__sokudo/hydrate.js?page=…`), the inline import map is gone (served modules import the runtime by `/runtime/*.js` URL), and the error page's reload script is external. All 30 docs pages hydrate in dev with 0 violations.
 
 ### Changed
 
-- A template expression that is not valid JavaScript now **fails the build** with `Pulse Error: cannot compile template expression {…}`. It used to fail at runtime in the browser.
+- A template expression that is not valid JavaScript now **fails the build** with `Sokudo Error: cannot compile template expression {…}`. It used to fail at runtime in the browser.
 - `mountPrimitives(container, exprs, primitives, templates)`: the second argument is now the compiler-generated expression table (`{ t, x }`) instead of a scope object. Compiled output is updated. Hand-written markup must reference closures (`each="t:0"`) instead of carrying code. Named delegated handlers on hand-written roots (`data-on-click="increment"` + `__pulseHandlers`) still work.
 - Compiled components no longer build the runtime `scope` object and its `__accessors` table, and no longer set `container.__pulseScope`. The expression table is set as `container.__px`.
 - List rows and Show branches parse their template once per List/Show and clone it for each row. They used to run `innerHTML` for every row.
@@ -41,7 +45,7 @@ Historical entries for **v0.6.0–v0.15.0** are reconstructed from the project's
 - **Component CSS was dropped for every component with a `<script>`.** The compiler put its `<style>` next to, not inside, the element the component returns, so only script-less components were ever styled (in dev and production; the landing page rendered unstyled). Production now links it; dev puts it inside the root.
 - Two components with the same file name in different folders no longer share a CSS scope (their styles leaked into each other).
 - The build no longer leaves old hashed `page-*` / `chunk-*` files and deleted pages in `dist`. Files the build did not write are never touched.
-- `bun run typecheck` works on a fresh clone (it needed `build:pulse` first for `packages/pulse/dist/*.d.ts`). Same time as before: 2.6 s for the app configs.
+- `bun run typecheck` works on a fresh clone (it needed `build:sokudo` first for `packages/sokudo/dist/*.d.ts`). Same time as before: 2.6 s for the app configs.
 - The VS Code extension no longer offers completions or hover docs for `Portal`, `Suspense` and `ErrorBoundary`, which do not exist. The docs no longer document a `<Portal>` primitive. The docs footer links to https://github.com/iam-mrkeyboard/pulse-js.
 
 ### Removed
@@ -80,11 +84,11 @@ Historical entries for **v0.6.0–v0.15.0** are reconstructed from the project's
 - Old islands compiler cascade: `bundler/compiler/component-compiler`, `code-generator`, `template-compiler`, `slots-compiler`, `component-resolver`, `template-optimizer`, `prop-inferencer`, `reactivity-transformer`, and `runtime/error-boundary` (only emitted by that codegen).
 - Orphans: `bundler/reactivity-analyzer`, `bundler/usage-detector`; dev-server members that were constructed but never used (`server/page-compiler`, `mount-script-generator`, `hot-reload`, `module-graph`); unused types and error classes.
 - Public exports of the removed classes (`RuntimeBuilder`, `CodeSplitter`, `EntryGenerator`, `Minifier`, `CodeGenerator`, `TemplateOptimizer`, `ReactivityAnalyzer`, bundler `ComponentCompiler`). `ComponentCompiler` / `TemplateTransformer` exported from `pulse` and `pulse/compiler` are the real compiler.
-- Scratch scripts (`test_*.ts` at the root and in the framework, `test-parser.ts`, `inspect_ultrahtml.ts`, extension `debug-tree.js`, `scripts/*`, `test-fixtures/`), stale configs (`pulse-framework/pulse.config.ts`, `pulse-app/index.ts`), the stale extension `package-lock.json`, and unused `ultrahtml` / `puppeteer` dependencies of the framework package.
+- Scratch scripts (`test_*.ts` at the root and in the framework, `test-parser.ts`, `inspect_ultrahtml.ts`, extension `debug-tree.js`, `scripts/*`, `test-fixtures/`), stale configs (`pulse-framework/sokudo.config.ts`, `pulse-app/index.ts`), the stale extension `package-lock.json`, and unused `ultrahtml` / `puppeteer` dependencies of the framework package.
 
 ### Changed
 
-- **Monorepo layout** (Bun workspaces): `packages/pulse` (was `pulse-framework/`), `packages/vscode-extension` (was `extension/`), `apps/docs` (was `pulse-app/`), `examples/counter` (new), `benchmarks/micro` (was `bench/`), `benchmarks/js-framework-benchmark`. Root `package.json` scripts: `build`, `test`, `typecheck`, `dev`, `bench`; shared `tsconfig.base.json`; one root `bun.lock`.
+- **Monorepo layout** (Bun workspaces): `packages/sokudo` (was `pulse-framework/`), `packages/vscode-extension` (was `extension/`), `apps/docs` (was `pulse-app/`), `examples/counter` (new), `benchmarks/micro` (was `bench/`), `benchmarks/js-framework-benchmark`. Root `package.json` scripts: `build`, `test`, `typecheck`, `dev`, `bench`; shared `tsconfig.base.json`; one root `bun.lock`.
 - Package name stays `pulse`; import specifiers unchanged (`pulse`, `pulse/runtime`, `pulse/runtime/dom|list|show`, `pulse/cli`). New: `pulse/compiler`, `pulse/runtime/hydration`, and `types` for every subpath export. The docs app package is now `@pulse/docs` and imports from `pulse` (legacy `pulse-framework/runtime*` specifiers still resolve).
 - Framework version lives in one place (`src/version.ts`, asserted equal to `package.json` by a test) instead of seven hard-coded strings.
 - Static components are serialized from the parsed template instead of a regex over the source.
@@ -185,7 +189,7 @@ Measured and rejected during PR #6: clearing via `textContent = ''` (slower than
 
 ## [0.15.0] - 2026-02-06
 
-Reconstructed from blog post *Pulse v0.15.0 Released* (“The Performance Update”).
+Reconstructed from blog post *Sokudo v0.15.0 Released* (“The Performance Update”).
 
 ### Added
 
@@ -203,7 +207,7 @@ Reconstructed from blog post *Pulse v0.15.0 Released* (“The Performance Update
 
 ## [0.14.0] - 2026-02-05
 
-Reconstructed from blog post *Pulse v0.14: The "Vibe Coding" Update*.
+Reconstructed from blog post *Sokudo v0.14: The "Vibe Coding" Update*.
 
 ### Added
 
@@ -221,7 +225,7 @@ Reconstructed from blog post *Pulse v0.14: The "Vibe Coding" Update*.
 
 ## [0.13.0] - 2026-01-25
 
-Reconstructed from blog post *Pulse v0.13.0 Released* (“The Performance Update”).
+Reconstructed from blog post *Sokudo v0.13.0 Released* (“The Performance Update”).
 
 ### Added
 
@@ -238,7 +242,7 @@ Reconstructed from blog post *Pulse v0.13.0 Released* (“The Performance Update
 
 ## [0.12.0] - 2026-01-25
 
-Reconstructed from blog post *Pulse v0.12.0 Released*.
+Reconstructed from blog post *Sokudo v0.12.0 Released*.
 
 ### Changed
 
@@ -255,7 +259,7 @@ Reconstructed from blog post *Pulse v0.12.0 Released*.
 
 ## [0.11.0] - 2025-01-24
 
-Reconstructed from blog post *Pulse v0.11.0: Signal Hydration & Two-Way Binding*.
+Reconstructed from blog post *Sokudo v0.11.0: Signal Hydration & Two-Way Binding*.
 
 ### Fixed
 
@@ -272,7 +276,7 @@ Reconstructed from blog post *Pulse v0.11.0: Signal Hydration & Two-Way Binding*
 
 ## [0.10.0] - 2025-01-24
 
-Reconstructed from blog post *Pulse v0.10.0: The Eval Exorcism*.
+Reconstructed from blog post *Sokudo v0.10.0: The Eval Exorcism*.
 
 ### Security
 
@@ -287,7 +291,7 @@ Reconstructed from blog post *Pulse v0.10.0: The Eval Exorcism*.
 
 ## [0.9.0] - 2025-01-24
 
-Reconstructed from blog post *Pulse v0.9 Released*.
+Reconstructed from blog post *Sokudo v0.9 Released*.
 
 ### Changed
 
@@ -298,7 +302,7 @@ Reconstructed from blog post *Pulse v0.9 Released*.
 
 ## [0.8.0] - 2025-01-24
 
-Reconstructed from blog post *Pulse v0.8 Released* (“The Strict Update”).
+Reconstructed from blog post *Sokudo v0.8 Released* (“The Strict Update”).
 
 ### Added
 
@@ -315,7 +319,7 @@ Reconstructed from blog post *Pulse v0.8 Released* (“The Strict Update”).
 
 ## [0.7.0] - 2025-01-20
 
-Reconstructed from blog post *Pulse v0.7 Update*.
+Reconstructed from blog post *Sokudo v0.7 Update*.
 
 ### Added
 
@@ -327,11 +331,11 @@ Reconstructed from blog post *Pulse v0.7 Update*.
 
 ## [0.6.0] - 2025-01-15
 
-Reconstructed from blog post *Pulse v0.6 Initial*.
+Reconstructed from blog post *Sokudo v0.6 Initial*.
 
 ### Added
 
-- First public preview of Pulse.
+- First public preview of Sokudo.
 - Bun-native toolchain (bundler, dev server, tests).
 - Signal-based fine-grained reactivity (`createSignal`).
 - `.pulse` single-file components (HTML + logic + scoped CSS).

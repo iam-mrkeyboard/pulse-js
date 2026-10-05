@@ -2,7 +2,7 @@
   import Navbar from '../../components/Navbar.pulse';
   
   const [todos, setTodos] = createSignal([
-    { id: 1, text: 'Learn Pulse Framework', done: true },
+    { id: 1, text: 'Learn Sokudo Framework', done: true },
     { id: 2, text: 'Build an amazing app', done: false },
     { id: 3, text: 'Deploy to production', done: false }
   ]);

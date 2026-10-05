@@ -1,7 +1,7 @@
 <script>
   import Navbar from '../../components/Navbar.pulse';
 
-  const [name, setName] = createSignal('Pulse User');
+  const [name, setName] = createSignal('Sokudo User');
   const [email, setEmail] = createSignal('');
   const [role, setRole] = createSignal('developer');
   const [notifications, setNotifications] = createSignal(true);
@@ -54,7 +54,7 @@
 <main class="page">
   <div class="header">
     <h1>Form Elements</h1>
-    <p>Demonstrating two-way binding and Pulse styling.</p>
+    <p>Demonstrating two-way binding and Sokudo styling.</p>
   </div>
 
   <div class="grid">

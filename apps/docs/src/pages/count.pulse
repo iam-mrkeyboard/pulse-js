@@ -32,6 +32,6 @@
 </style>
 
 <div class="app">
-  <h1>Welcome to Pulse v0.6.0</h1>
+  <h1>Welcome to Sokudo v0.6.0</h1>
   <Counter />
 </div>

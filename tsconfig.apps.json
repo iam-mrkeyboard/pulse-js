@@ -4,9 +4,16 @@
     "noEmit": true,
     "allowImportingTsExtensions": true,
     "paths": {
-      "pulse": ["./packages/pulse/src/index.ts"],
-      "pulse/*": ["./packages/pulse/src/*"]
+      "sokudo": [
+        "./packages/sokudo/src/index.ts"
+      ],
+      "sokudo/*": [
+        "./packages/sokudo/src/*"
+      ]
     }
   },
-  "include": ["apps/docs/pulse.config.ts", "examples/counter/pulse.config.ts"]
+  "include": [
+    "apps/docs/sokudo.config.ts",
+    "examples/counter/sokudo.config.ts"
+  ]
 }

@@ -7,7 +7,7 @@
 <main class="examples-page">
   <section class="hero">
     <h1>Examples</h1>
-    <p class="subtitle">Real-world examples showcasing Pulse features. Click any example to see the full code and live demo.</p>
+    <p class="subtitle">Real-world examples showcasing Sokudo features. Click any example to see the full code and live demo.</p>
   </section>
 
   <section class="examples-grid">

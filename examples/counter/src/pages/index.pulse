@@ -6,7 +6,7 @@
 </script>
 
 <main>
-  <h1>Pulse example</h1>
+  <h1>Sokudo example</h1>
   <p>This page has no reactive code, so the build emits zero JS for it.</p>
   <ul>
     <List each={links} as="link" key={link.id}>

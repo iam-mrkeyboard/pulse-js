@@ -9,10 +9,10 @@
       },
     },
     "apps/docs": {
-      "name": "@pulse/docs",
-      "version": "0.17.0",
+      "name": "@sokudo/docs",
+      "version": "0.18.0",
       "dependencies": {
-        "pulse": "workspace:*",
+        "sokudo": "workspace:*",
       },
       "devDependencies": {
         "@types/bun": "latest",
@@ -27,17 +27,24 @@
       },
     },
     "examples/counter": {
-      "name": "@pulse/example-counter",
-      "version": "0.17.0",
+      "name": "@sokudo/example-counter",
+      "version": "0.18.0",
       "dependencies": {
-        "pulse": "workspace:*",
+        "sokudo": "workspace:*",
       },
     },
-    "packages/pulse": {
-      "name": "pulse",
-      "version": "0.17.0",
+    "packages/create-sokudo": {
+      "name": "create-sokudo",
+      "version": "0.18.0",
       "bin": {
-        "pulse": "./bin/pulse.js",
+        "create-sokudo": "./bin/create-sokudo.js",
+      },
+    },
+    "packages/sokudo": {
+      "name": "sokudo",
+      "version": "0.18.0",
+      "bin": {
+        "sokudo": "./bin/sokudo.js",
       },
       "dependencies": {
         "@types/acorn": "^6.0.4",
@@ -98,11 +105,11 @@
 
     "@pulse/bench-micro": ["@pulse/bench-micro@workspace:benchmarks/micro"],
 
-    "@pulse/docs": ["@pulse/docs@workspace:apps/docs"],
-
-    "@pulse/example-counter": ["@pulse/example-counter@workspace:examples/counter"],
-
     "@puppeteer/browsers": ["@puppeteer/browsers@3.2.3", "", { "dependencies": { "modern-tar": "^0.8.4", "yargs": "^18.0.0" }, "peerDependencies": { "proxy-agent": ">=8.0.1", "yauzl": "^2.10.0 || ^3.4.0" }, "optionalPeers": ["proxy-agent", "yauzl"], "bin": { "browsers": "lib/main-cli.js" } }, "sha512-2Bt3m6dDAJqmZehn0wiXSYyQmuhyiHHZ7FjvrVaS1W2RoFGV6eCK71UvKYkNJjkwC1Q9nobjhvTMhLQztFVINA=="],
+
+    "@sokudo/docs": ["@sokudo/docs@workspace:apps/docs"],
+
+    "@sokudo/example-counter": ["@sokudo/example-counter@workspace:examples/counter"],
 
     "@types/acorn": ["@types/acorn@6.0.4", "", { "dependencies": { "acorn": "*" } }, "sha512-DafqcBAjbOOmgqIx3EF9EAdBKAKgspv00aQVIW3fVQ0TXo5ZPBeSRey1SboVAUzjw8Ucm7cd1gtTSlosYoEQLA=="],
 
@@ -135,6 +142,8 @@
     "cliui": ["cliui@9.0.1", "", { "dependencies": { "string-width": "^7.2.0", "strip-ansi": "^7.1.0", "wrap-ansi": "^9.0.0" } }, "sha512-k7ndgKhwoQveBL+/1tqGJYNz097I7WOvwbmmU2AR5+magtbjPWQTS1C5vzGkBC8Ym8UWRzfKUzUUqFLypY4Q+w=="],
 
     "commander": ["commander@2.20.3", "", {}, "sha512-GpVkmM8vF2vQUkj2LvZmD35JxeJOLCwJ9cUkugyk2nuhbv3+mJvpLYYt+0+USMxE+oj+ey/lJEnhZw75x/OMcQ=="],
+
+    "create-sokudo": ["create-sokudo@workspace:packages/create-sokudo"],
 
     "detect-libc": ["detect-libc@2.1.2", "", {}, "sha512-Btj2BOOO83o3WyH59e8MgXsxEQVcarkUOpEYrubB0urwnN10yQ364rsiByU11nZlqWYZm05i/of7io4mzihBtQ=="],
 
@@ -186,11 +195,11 @@
 
     "picocolors": ["picocolors@1.1.1", "", {}, "sha512-xceH2snhtb5M9liqDsmEw56le376mTZkEX/jEb/RxNFyegNul7eNslCXP9FDj/Lcu0X8KEyMceP2ntpaHrDEVA=="],
 
-    "pulse": ["pulse@workspace:packages/pulse"],
-
     "puppeteer": ["puppeteer@25.12.0", "", { "dependencies": { "@puppeteer/browsers": "3.2.3", "chromium-bidi": "17.0.2", "devtools-protocol": "0.0.1687809", "lilconfig": "^3.1.3", "puppeteer-core": "25.12.0", "typed-query-selector": "^2.12.2" }, "bin": { "puppeteer": "lib/puppeteer/node/cli.js" } }, "sha512-agM9cYcxbvmU17w9qtF17s7/Vv7Dhbyig6AWwIgvQQLR2dKZdPqNvRPanac7xH4iMPcNYOCfyCkwqCnR4nVOcA=="],
 
     "puppeteer-core": ["puppeteer-core@25.12.0", "", { "dependencies": { "@puppeteer/browsers": "3.2.3", "chromium-bidi": "17.0.2", "devtools-protocol": "0.0.1687809", "typed-query-selector": "^2.12.2", "webdriver-bidi-protocol": "0.4.3", "ws": "^8.21.3" } }, "sha512-z6LQUt5SH7jwGtGA+nMtJuEjZIsqPiwQ+EFHCYuVDQrJpvifNmmGuyDvTzAKPyFzihxgHc5f3aMzu2kn8Ps37A=="],
+
+    "sokudo": ["sokudo@workspace:packages/sokudo"],
 
     "source-map": ["source-map@0.6.1", "", {}, "sha512-UjgapumWlbMhkBgzT7Ykc5YXUT46F0iKu8SGXq0bcwP5dz/h0Plj6enJqjz1Zbq2l5WaqYnrVbwWOWMyF3F47g=="],
 

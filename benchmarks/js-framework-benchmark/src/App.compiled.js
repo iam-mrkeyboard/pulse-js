@@ -1,7 +1,7 @@
 
-import { createSignal, createEffect } from 'pulse/runtime';
-import { mountPrimitives as dom_mountPrimitives, walk } from 'pulse/runtime/dom';
-import { List } from 'pulse/runtime/list';
+import { createSignal, createEffect } from 'sokudo/runtime';
+import { mountPrimitives as dom_mountPrimitives, walk } from 'sokudo/runtime/dom';
+import { List } from 'sokudo/runtime/list';
 
 
 

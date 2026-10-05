@@ -67,7 +67,7 @@
 
       <div class="info-box">
         <h4>🔒 How Scoping Works</h4>
-        <p>Pulse adds a unique hash to each component's selectors (e.g., <code>.btn[data-p-abc123]</code>), preventing style conflicts between components.</p>
+        <p>Sokudo adds a unique hash to each component's selectors (e.g., <code>.btn[data-p-abc123]</code>), preventing style conflicts between components.</p>
       </div>
     </section>
 

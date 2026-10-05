@@ -4,7 +4,7 @@
 
 <nav class="navbar">
   <div class="container">
-    <a href="/" class="brand">Pulse</a>
+    <a href="/" class="brand">Sokudo</a>
     <div class="links">
       <a href="/">Home</a>
       <a href="/docs">Docs</a>

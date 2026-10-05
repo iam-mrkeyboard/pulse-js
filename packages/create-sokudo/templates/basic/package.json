@@ -1,0 +1,18 @@
+{
+  "name": "sokudo-app",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "sokudo dev",
+    "build": "sokudo build",
+    "preview": "sokudo preview"
+  },
+  "dependencies": {
+    "sokudo": "^0.18.0"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "typescript": "^5.3.3"
+  }
+}

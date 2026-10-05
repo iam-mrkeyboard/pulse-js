@@ -3,16 +3,16 @@
   "compilerOptions": {
     "noEmit": true,
     "paths": {
-      "pulse": [
-        "../../packages/pulse/src/index.ts"
+      "sokudo": [
+        "../../packages/sokudo/src/index.ts"
       ],
-      "pulse/*": [
-        "../../packages/pulse/src/*"
+      "sokudo/*": [
+        "../../packages/sokudo/src/*"
       ]
     },
     "allowImportingTsExtensions": true
   },
   "include": [
-    "pulse.config.ts"
+    "sokudo.config.ts"
   ]
 }

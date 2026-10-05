@@ -6,7 +6,7 @@ on:
   pull_request:
 
 jobs:
-  pulse:
+  sokudo:
     name: install / typecheck / test / build
     runs-on: ubuntu-24.04
     steps:
@@ -21,8 +21,8 @@ jobs:
       - name: Install dependencies (bun workspaces)
         run: bun install --frozen-lockfile
 
-      - name: Build framework (packages/pulse)
-        run: bun run build:pulse
+      - name: Build framework (packages/sokudo)
+        run: bun run build:sokudo
 
       - name: Typecheck
         run: bun run typecheck

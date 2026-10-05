@@ -6,7 +6,7 @@
   <div class="container">
     <div class="content">
       <div class="logo">⚡ Pulse</div>
-      <p class="copyright">© {year} Pulse Framework. Open Source.</p>
+      <p class="copyright">© {year} Sokudo Framework. Open Source.</p>
     </div>
     <div class="links">
         <a href="https://github.com/iam-mrkeyboard/pulse-js" target="_blank">GitHub</a>

@@ -1,8 +1,8 @@
 {
-  "name": "pulse-monorepo",
+  "name": "sokudo-monorepo",
   "version": "0.18.0",
   "private": true,
-  "description": "Pulse: a compile-to-DOM signals UI framework (monorepo).",
+  "description": "Sokudo: a compile-to-DOM signals UI framework (monorepo).",
   "type": "module",
   "license": "MIT",
   "repository": {
@@ -10,21 +10,22 @@
     "url": "git+https://github.com/iam-mrkeyboard/pulse-js.git"
   },
   "workspaces": [
-    "packages/pulse",
+    "packages/sokudo",
+    "packages/create-sokudo",
     "apps/*",
     "examples/*",
     "benchmarks/micro"
   ],
   "scripts": {
-    "build": "bun run build:pulse && bun run build:docs && bun run build:examples",
-    "build:pulse": "bun run --cwd packages/pulse build",
+    "build": "bun run build:sokudo && bun run build:docs && bun run build:examples",
+    "build:sokudo": "bun run --cwd packages/sokudo build",
     "build:docs": "bun run --cwd apps/docs build",
     "build:examples": "bun run --cwd examples/counter build",
     "dev": "bun run --cwd apps/docs dev",
     "test": "bun test",
-    "typecheck": "bun run --cwd packages/pulse typecheck && tsc -p tsconfig.apps.json",
+    "typecheck": "bun run --cwd packages/sokudo typecheck && tsc -p tsconfig.apps.json",
     "bench": "bun run --cwd benchmarks/micro bench",
-    "clean": "rm -rf packages/pulse/dist apps/docs/dist apps/docs/.pulse examples/*/dist examples/*/.pulse"
+    "clean": "rm -rf packages/sokudo/dist apps/docs/dist apps/docs/.sokudo examples/*/dist examples/*/.sokudo"
   },
   "devDependencies": {
     "@types/bun": "latest",

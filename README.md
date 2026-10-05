@@ -1,4 +1,4 @@
-# ⚡ Pulse
+# ⚡ Sokudo
 
 **A Bun-native web framework** with fine-grained signal reactivity and islands architecture.
 
@@ -9,9 +9,9 @@
 
 ## Status
 
-Pulse is **pre-1.0**. Public APIs may change between minor versions. See [CHANGELOG.md](CHANGELOG.md) and [ROADMAP.md](ROADMAP.md).
+Sokudo is **pre-1.0**. Public APIs may change between minor versions. See [CHANGELOG.md](CHANGELOG.md) and [ROADMAP.md](ROADMAP.md).
 
-**Runtime size (local measurement, 2026-09-26):** all client runtime modules (`core` + `dom` + `hydration` + SSR markers + `List`/`Show`) bundled into one file with `bun build --minify --target browser` (every export kept) are **18.0 KB** minified / **7.0 KB** gzip (`gzip -9`). A page only loads what it imports, and pages with no reactive code load **no JS at all**. Source lives in `packages/pulse/src/runtime`.
+**Runtime size (local measurement, 2026-09-26):** all client runtime modules (`core` + `dom` + `hydration` + SSR markers + `List`/`Show`) bundled into one file with `bun build --minify --target browser` (every export kept) are **18.0 KB** minified / **7.0 KB** gzip (`gzip -9`). A page only loads what it imports, and pages with no reactive code load **no JS at all**. Source lives in `packages/sokudo/src/runtime`.
 
 ---
 
@@ -27,9 +27,9 @@ Pulse is **pre-1.0**. Public APIs may change between minor versions. See [CHANGE
 
 ---
 
-## 🏝️ Architecture: Why Pulse?
+## 🏝️ Architecture: Why Sokudo?
 
-Most frameworks ship a large JavaScript bundle even for mostly static pages. Pulse uses **Islands Architecture**:
+Most frameworks ship a large JavaScript bundle even for mostly static pages. Sokudo uses **Islands Architecture**:
 
 1. **HTML First** — Pages render as static HTML on the server.
 2. **Selective Hydration** — Only interactive islands hydrate on the client.
@@ -39,18 +39,18 @@ Most frameworks ship a large JavaScript bundle even for mostly static pages. Pul
 
 ## 🚀 Quick Start
 
-There is no `create-pulse` scaffolder yet. Work from this repository (Bun workspaces):
+Scaffold a new app with `bun create sokudo my-app` (`create-sokudo`), or work from this repository (Bun workspaces):
 
 ```bash
 git clone https://github.com/iam-mrkeyboard/pulse-js.git
 cd pulse-js
 bun install            # installs every workspace
-bun run build:pulse    # builds packages/pulse (CLI + library + runtime)
+bun run build:sokudo    # builds packages/sokudo (CLI + library + runtime)
 bun run dev            # docs site (apps/docs) on http://localhost:3000
 ```
 
 Start your own app from [`examples/counter`](examples/counter): copy the folder, keep
-`"pulse": "workspace:*"` inside this repo (or depend on a built `pulse` package), then
+`"sokudo": "workspace:*"` inside this repo (or depend on a built `sokudo` package), then
 `bun run dev` / `bun run build`.
 
 ### Simple Component Example
@@ -86,14 +86,15 @@ subpath exports) with the tooling split out the way `solidjs/solid` and `vuejs/c
 
 ```text
 ├── packages/
-│   ├── pulse/               # the framework: runtime, compiler, dev server, build, CLI  → npm "pulse"
+│   ├── sokudo/              # the framework: runtime, compiler, dev server, build, CLI  → npm "sokudo"
+│   ├── create-sokudo/       # `bun create sokudo` scaffolder
 │   └── vscode-extension/    # VS Code extension (own bun.lock + vsce, own version, not a root workspace)
 ├── apps/
-│   └── docs/                # documentation / showcase site, built with Pulse
+│   └── docs/                # documentation / showcase site, built with Sokudo
 ├── examples/
 │   └── counter/             # minimal app: static page (0 JS) + hydrated counter
 ├── benchmarks/
-│   ├── js-framework-benchmark/  # Pulse keyed implementation for krausest/js-framework-benchmark
+│   ├── js-framework-benchmark/  # Sokudo keyed implementation for krausest/js-framework-benchmark
 │   └── micro/               # headless-Chrome microbenchmarks (signals, List, hydrate vs remount)
 ├── .github/                 # CI (workflows/ci.yml), issue & PR templates
 ├── package.json             # workspaces + root scripts (build, test, typecheck, dev, bench)
@@ -103,11 +104,11 @@ subpath exports) with the tooling split out the way `solidjs/solid` and `vuejs/c
 
 | Import | What it is |
 |--------|------------|
-| `pulse` | build API (`build`, `PulseBundler`, `createDefaultConfig`), compiler, runtime re-exports, dev server |
-| `pulse/runtime` | signals: `createSignal`, `createEffect`, `createMemo`, `batch`, … |
-| `pulse/runtime/dom`, `pulse/runtime/list`, `pulse/runtime/show`, `pulse/runtime/hydration` | DOM helpers, `List`, `Show`, hydration |
-| `pulse/compiler` | `.pulse` single-file-component compiler (`ComponentCompiler`, `TemplateTransformer`) |
-| `pulse/cli` | the `pulse` CLI (`pulse dev`, `pulse build`, `pulse preview`, `pulse analyze`) |
+| `sokudo` | build API (`build`, `SokudoBundler`, `createDefaultConfig`), compiler, runtime re-exports, dev server |
+| `sokudo/runtime` | signals: `createSignal`, `createEffect`, `createMemo`, `batch`, … |
+| `sokudo/runtime/dom`, `sokudo/runtime/list`, `sokudo/runtime/show`, `sokudo/runtime/hydration` | DOM helpers, `List`, `Show`, hydration |
+| `sokudo/compiler` | `.pulse` single-file-component compiler (`ComponentCompiler`, `TemplateTransformer`) |
+| `sokudo/cli` | the `sokudo` CLI (`sokudo dev`, `sokudo build`, `sokudo preview`, `sokudo analyze`) |
 
 Root scripts: `bun run build` (framework → docs → examples), `bun test`, `bun run typecheck`,
 `bun run dev`, `bun run bench`.
