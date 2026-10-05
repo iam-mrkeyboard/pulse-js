@@ -4,19 +4,28 @@
  * `pulse` to the package sources, never to dist.
  */
 import { test, expect } from 'bun:test';
+import fs from 'node:fs';
 import path from 'node:path';
 
 const repo = path.resolve(import.meta.dir, '../../..');
-const tsc = path.join(repo, 'node_modules/typescript/bin/tsc');
+const tscBin = path.join(repo, 'node_modules/.bin/tsc');
 
 test('tsconfig.apps.json (used by `bun run typecheck`) resolves pulse to sources, not dist', () => {
-  const r = Bun.spawnSync(['bun', tsc, '-p', path.join(repo, 'tsconfig.apps.json'), '--listFilesOnly'], { cwd: repo });
-  const files = r.stdout.toString().split('\n').map((f) => f.trim()).filter(Boolean).map((f) => path.resolve(repo, f));
+  // Prefer the .bin shim (what `tsc -p …` uses in CI). Spawning the typescript
+  // package entry via `bun <tsc.js>` can omit project root files from
+  // --listFilesOnly on some runners.
+  const cmd = fs.existsSync(tscBin)
+    ? [tscBin, '-p', 'tsconfig.apps.json', '--listFilesOnly']
+    : ['bun', path.join(repo, 'node_modules/typescript/bin/tsc'), '-p', 'tsconfig.apps.json', '--listFilesOnly'];
+  const r = Bun.spawnSync(cmd, { cwd: repo, stdout: 'pipe', stderr: 'pipe' });
+  const out = r.stdout.toString() + '\n' + r.stderr.toString();
+  const files = out.split('\n').map((f) => f.trim()).filter(Boolean).map((f) => path.resolve(repo, f));
   expect(r.exitCode).toBe(0);
-  expect(files).toContain(path.join(repo, 'apps/docs/pulse.config.ts'));
-  expect(files).toContain(path.join(repo, 'examples/counter/pulse.config.ts'));
-  expect(files).toContain(path.join(repo, 'packages/pulse/src/index.ts'));
-  expect(files.some((f) => f.includes(`${path.sep}packages${path.sep}pulse${path.sep}dist${path.sep}`))).toBe(false);
+  const has = (suffix: string) => files.some((f) => f.replace(/\\/g, '/').endsWith(suffix));
+  expect(has('apps/docs/pulse.config.ts')).toBe(true);
+  expect(has('examples/counter/pulse.config.ts')).toBe(true);
+  expect(has('packages/pulse/src/index.ts')).toBe(true);
+  expect(files.some((f) => /packages[\\/]pulse[\\/]dist[\\/]/.test(f))).toBe(false);
 }, 30000);
 
 for (const project of ['apps/docs', 'examples/counter']) {

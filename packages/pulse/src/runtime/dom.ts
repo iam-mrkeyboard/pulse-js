@@ -344,6 +344,8 @@ export function mountPrimitives(
   ctx: RowCtx | null = null
 ) {
   if (!container) return;
+  // Re-ensure defaults on the current document (idempotent).
+  delegate(DELEGATED_EVENTS);
   // Closure arguments for List each / Show when evaluated in this container.
   const cv = ctx ? ctx.v : undefined;
   const ci = ctx ? ctx.i : undefined;
@@ -575,6 +577,7 @@ const DELEGATED_EVENTS = ['click', 'input', 'change', 'submit', 'keydown', 'keyu
 const NON_BUBBLING = new Set(['focus', 'blur', 'mouseenter', 'mouseleave', 'pointerenter', 'pointerleave', 'load', 'error', 'scroll', 'toggle', 'invalid']);
 
 function handleEvent(event: Event) {
+  if ((globalThis as any).__PULSE_SSR__) return;
   let target = event.target as HTMLElement | null;
   if (target && target.nodeType !== 1) target = target.parentElement;
   const dataAttr = `data-on-${event.type.toLowerCase()}`;
@@ -619,16 +622,18 @@ function handleEvent(event: Event) {
   }
 }
 
-const canDelegate = () =>
-  typeof window !== 'undefined' && typeof document !== 'undefined' && !(globalThis as any).__PULSE_SSR__;
-
 /**
  * Listen for `names` at the document (once per type per document). Compiled
  * components call this with the event types their markup uses, so any
  * `on<event>` works, not only the default set.
+ *
+ * Registration is allowed even while `__PULSE_SSR__` is set (happy-dom during
+ * `renderPageStrict`): the first import of this module can happen during SSR in
+ * tests/builds, and skipping then would leave the shared document with no
+ * listeners after the flag clears. `handleEvent` no-ops under SSR instead.
  */
 export function delegate(names: string[]) {
-  if (!canDelegate()) return;
+  if (typeof window === 'undefined' || typeof document === 'undefined') return;
   const doc = document as any;
   const seen: Set<string> = doc.__pulseEvents || (doc.__pulseEvents = new Set());
   for (const evt of names) {

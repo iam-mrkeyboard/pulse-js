@@ -1,6 +1,6 @@
 
 import { describe, test, expect, beforeEach, afterEach } from 'bun:test';
-import { mountPrimitives } from '../src/runtime/dom';
+import { mountPrimitives, delegate } from '../src/runtime/dom';
 import { List } from '../src/runtime/primitives/list';
 import { Show } from '../src/runtime/primitives/show';
 import { createSignal, createEffect } from '../src/runtime/core';
@@ -60,6 +60,8 @@ describe('Pulse Integration Tests', () => {
   test('Should handle global event delegation', async () => {
     let clicked = false;
     const handleClick = () => { clicked = true; };
+    // Ensure listeners on this document (idempotent; covers import-during-SSR).
+    delegate(['click']);
 
     // Manual setup simulating compiler output
     const btn = document.createElement('button');
