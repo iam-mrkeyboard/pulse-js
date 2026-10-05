@@ -1,0 +1,5 @@
+<main>
+  <h1>Sokudo</h1>
+  <p>Edit <code>src/pages/index.pulse</code> and save to reload.</p>
+  <p><a href="/counter">Counter example →</a></p>
+</main>

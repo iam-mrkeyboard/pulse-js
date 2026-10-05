@@ -43,13 +43,13 @@
     <!-- Introduction -->
     <section id="introduction">
       <h1>Getting Started with Pulse</h1>
-      <p class="lead">Welcome to Pulse - the modern web framework designed for speed, simplicity, and developer experience. Built from the ground up for Bun, Pulse delivers blazing-fast development and production builds.</p>
+      <p class="lead">Welcome to Sokudo - the modern web framework designed for speed, simplicity, and developer experience. Built from the ground up for Bun, Sokudo delivers blazing-fast development and production builds.</p>
       
       <div class="info-box highlight">
         <div class="info-icon">🚀</div>
         <div>
-          <h4>Why Pulse?</h4>
-          <p>Pulse combines the best ideas from React, Svelte, and Solid into a cohesive framework with a tiny runtime (~0.8KB). Fine-grained reactivity means surgical DOM updates without virtual DOM overhead.</p>
+          <h4>Why Sokudo?</h4>
+          <p>Sokudo combines the best ideas from React, Svelte, and Solid into a cohesive framework with a tiny runtime (~0.8KB). Fine-grained reactivity means surgical DOM updates without virtual DOM overhead.</p>
         </div>
       </div>
     </section>

@@ -1,15 +1,15 @@
 {
-  "name": "@pulse/example-counter",
+  "name": "@sokudo/example-counter",
   "version": "0.18.0",
   "private": true,
-  "description": "Minimal Pulse app: one static page and one interactive counter page.",
+  "description": "Minimal Sokudo app: one static page and one interactive counter page.",
   "type": "module",
   "scripts": {
-    "dev": "pulse dev",
-    "build": "pulse build",
-    "preview": "pulse preview"
+    "dev": "sokudo dev",
+    "build": "sokudo build",
+    "preview": "sokudo preview"
   },
   "dependencies": {
-    "pulse": "workspace:*"
+    "sokudo": "workspace:*"
   }
 }

@@ -1,18 +1,18 @@
 {
-  "name": "@pulse/docs",
+  "name": "@sokudo/docs",
   "version": "0.18.0",
   "private": true,
-  "description": "Pulse documentation and example site (built with Pulse).",
+  "description": "Sokudo documentation and example site (built with Sokudo).",
   "type": "module",
   "scripts": {
-    "dev": "pulse dev",
-    "build": "pulse build",
-    "preview": "pulse preview",
-    "analyze": "pulse analyze",
-    "clean": "pulse clean"
+    "dev": "sokudo dev",
+    "build": "sokudo build",
+    "preview": "sokudo preview",
+    "analyze": "sokudo analyze",
+    "clean": "sokudo clean"
   },
   "dependencies": {
-    "pulse": "workspace:*"
+    "sokudo": "workspace:*"
   },
   "devDependencies": {
     "@types/bun": "latest",

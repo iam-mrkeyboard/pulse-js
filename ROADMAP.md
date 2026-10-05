@@ -1,6 +1,6 @@
 # Roadmap
 
-Pulse is **pre-1.0**. APIs may change. This file tracks near-term work; it is not a commitment calendar.
+Sokudo is **pre-1.0**. APIs may change. This file tracks near-term work; it is not a commitment calendar.
 
 ## Now
 
@@ -12,7 +12,7 @@ Pulse is **pre-1.0**. APIs may change. This file tracks near-term work; it is no
 
 ## Next
 
-- Publish a **`create-pulse`** scaffolder (the docs home page still shows `bun create pulse my-app`).
+- Ship a fuller **`create-sokudo`** scaffolder (minimal stub exists; expand templates).
 
 - Documented List behavior: **duplicate keys** collapse in the Map (last wins); development warns once per update.
 - Consider **`createElement` emit** vs template `cloneNode` for tiny rows (local bench: createElement slightly faster on that shape; SFC emit still cloneNode — documented tradeoff).
@@ -23,8 +23,8 @@ Pulse is **pre-1.0**. APIs may change. This file tracks near-term work; it is no
 ## Later
 
 - Router and documented global state patterns.
-- Pulse DevTools browser extension.
-- Native mobile via Pulse Bridge (aspirational; listed historically in README).
+- Sokudo DevTools browser extension.
+- Native mobile via Sokudo Bridge (aspirational; listed historically in README).
 - Ecosystem growth beyond the core compiler/runtime.
 
 ---
@@ -32,7 +32,7 @@ Pulse is **pre-1.0**. APIs may change. This file tracks near-term work; it is no
 ## Done in v0.18.0
 
 - CSP-safe runtime: `Show when`, `List each/key`, row bindings and all handlers compile to closures; `eval` / `new Function` removed from the runtime (pages work under `script-src 'self'`).
-- Strict `style-src`: production pages pass `default-src 'self'` (component CSS in a linked per-page stylesheet, static inline styles become classes); `pulse dev` uses no inline scripts.
+- Strict `style-src`: production pages pass `default-src 'self'` (component CSS in a linked per-page stylesheet, static inline styles become classes); `sokudo dev` uses no inline scripts.
 - Empty SSR text bindings, row context for all delegated events, evaluated `{expr}` component props, unique scope ids, stale build cleanup, fresh-clone typecheck, VS Code/docs hygiene.
 
 ## Done in v0.17.0
@@ -41,7 +41,7 @@ Pulse is **pre-1.0**. APIs may change. This file tracks near-term work; it is no
 - `{expr}` works in `<pre>`/`<code>`; `is:raw` for literal code samples; comments never render; HTML-style whitespace.
 - Source maps emitted when `build.sourcemap` is on.
 - Old bundler fallback compile path and the entry-generator build path removed (~20 files).
-- Monorepo layout: `packages/pulse`, `packages/vscode-extension`, `apps/docs`, `examples/counter`, `benchmarks/`.
+- Monorepo layout: `packages/sokudo`, `packages/vscode-extension`, `apps/docs`, `examples/counter`, `benchmarks/`.
 
 ## From code audit
 
@@ -50,7 +50,7 @@ Fixed in v0.16.0 (PR #6):
 1. Empty production runtime — `RuntimeBuilder` looked in the wrong directory after the file move and minified TypeScript with terser; it now resolves `src/runtime` / `dist/runtime` and transpiles TS first.
 2. Missing `dist/runtime/*.js` — `bun run build` emits browser ESM runtime files; `./runtime` package exports resolve.
 3. Runtime APIs not exported — `createSignal`, `createSelector`, `List`, `Show`, DOM helpers are on the package index.
-4. Compiler `/runtime/*.js` imports — compiled SFCs import `pulse/runtime` (import map + package exports).
+4. Compiler `/runtime/*.js` imports — compiled SFCs import `sokudo/runtime` (import map + package exports).
 5. List item class/attribute bindings hoisted or dropped — they stay in per-item `data-bindings`.
 6. Scope-unaware identifier rewrite — local `const data` is no longer rewritten to `get_data`.
 

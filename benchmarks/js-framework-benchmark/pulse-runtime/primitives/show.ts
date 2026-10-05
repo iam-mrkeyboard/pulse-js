@@ -49,7 +49,7 @@ export function Show(props: ShowProps) {
     try {
       condition = !!props.when();
     } catch (err) {
-      console.error('Pulse: Error evaluating Show "when":', err);
+      console.error('Sokudo: Error evaluating Show "when":', err);
     }
 
     if (isHydrating) {
@@ -79,7 +79,7 @@ export function Show(props: ShowProps) {
           }
           cachedTrueNodes = targetNodes;
         } catch (e) {
-          console.error('Pulse: Error rendering Show children:', e);
+          console.error('Sokudo: Error rendering Show children:', e);
         }
       }
     } else if (cachedFalseNodes) {
@@ -94,7 +94,7 @@ export function Show(props: ShowProps) {
         }
         cachedFalseNodes = targetNodes;
       } catch (e) {
-        console.error('Pulse: Error rendering Show fallback:', e);
+        console.error('Sokudo: Error rendering Show fallback:', e);
       }
     }
 

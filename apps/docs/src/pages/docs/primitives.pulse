@@ -17,7 +17,7 @@
   
   <article class="content">
     <h1>Built-in Primitives</h1>
-    <p class="lead">Pulse provides optimized UI primitives that handle common patterns like lists, conditionals, and portals with maximum efficiency.</p>
+    <p class="lead">Sokudo provides optimized UI primitives that handle common patterns like lists, conditionals, and portals with maximum efficiency.</p>
 
     <section id="list">
       <h2>List Primitive</h2>

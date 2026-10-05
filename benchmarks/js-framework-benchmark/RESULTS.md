@@ -1,4 +1,4 @@
-# Pulse vs js-framework-benchmark (local measurements)
+# Sokudo vs js-framework-benchmark (local measurements)
 
 **All numbers below are local measurements on this machine. Nothing is invented or copied from published leaderboards.**
 
@@ -68,7 +68,7 @@ Bundle: `dist/main.js` minified **~9.4 KB**.
 | CPU iterations | **10** per test |
 | Benchmarks | CPU only (`01_`–`09_`) |
 | Pulse entry | `frameworks/keyed/pulse` — runtime API (`createSignal` / `batch` / `createEffect` / `createSelector` / keyed `List`) |
-| Pulse version | 0.16.0 + this round's runtime |
+| Sokudo version | 0.16.0 + this round's runtime |
 | isKeyed | **PASSED** — keyed for run / remove / swap |
 | Date | 2026-09-24 (afternoon re-run) |
 
@@ -126,7 +126,7 @@ The table below is the first local run (Chrome 151, 10 iterations). Pulse ranked
 | CPU iterations | **10** per test (default is 15; reduced for wall-clock; labelled) |
 | Benchmarks | CPU only (`01_`–`09_`). Memory / startup / size **not run to completion** (stopped after steering request; partial `21_ready-memory` for pulse+solid only — omitted from ranking). |
 | Pulse entry | `frameworks/keyed/pulse` — **runtime API fallback** (see below) |
-| Pulse version | 0.16.0 (measured against a 0.15.0-era runtime snapshot — see note) |
+| Sokudo version | 0.16.0 (measured against a 0.15.0-era runtime snapshot — see note) |
 | Runtime snapshot | `pulse-runtime/` vendored from the `3770a68`-era tree, before the v0.16.0 host-mode hydration refinements (`ssr-markers`, List/Show host mode). This CPU bench creates rows fresh client-side (no SSR), so host-mode does not affect these numbers. |
 | isKeyed | **PASSED** — keyed for run / remove / swap |
 | Date | 2026-09-24 |

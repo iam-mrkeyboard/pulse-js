@@ -1,0 +1,30 @@
+{
+  "name": "create-sokudo",
+  "version": "0.18.0",
+  "description": "Scaffold a new Sokudo app (`bun create sokudo my-app`).",
+  "type": "module",
+  "license": "MIT",
+  "bin": {
+    "create-sokudo": "./bin/create-sokudo.js"
+  },
+  "files": [
+    "bin",
+    "templates",
+    "README.md"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/iam-mrkeyboard/pulse-js.git",
+    "directory": "packages/create-sokudo"
+  },
+  "keywords": [
+    "sokudo",
+    "create-sokudo",
+    "scaffolder",
+    "bun"
+  ],
+  "engines": {
+    "node": ">=18.0.0",
+    "bun": ">=1.0.0"
+  }
+}

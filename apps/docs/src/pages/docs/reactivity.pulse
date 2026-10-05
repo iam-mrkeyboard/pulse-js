@@ -18,11 +18,11 @@
   
   <article class="content">
     <h1>Reactivity System</h1>
-    <p class="lead">Pulse uses fine-grained reactivity with signals - the most efficient reactive primitive for surgical DOM updates.</p>
+    <p class="lead">Sokudo uses fine-grained reactivity with signals - the most efficient reactive primitive for surgical DOM updates.</p>
 
     <section id="signals">
       <h2>createSignal</h2>
-      <p>The foundation of Pulse reactivity. A signal holds a value and tracks all places that read it.</p>
+      <p>The foundation of Sokudo reactivity. A signal holds a value and tracks all places that read it.</p>
       
       <div class="code-block">
         <div class="code-header">
@@ -41,7 +41,7 @@ setCount(c => c + 1);  // Updater function</code></pre>
 
       <div class="info-box">
         <h4>💡 Why Call the Getter?</h4>
-        <p>Unlike React's useState, signals are functions. This enables fine-grained tracking - Pulse knows exactly which DOM nodes depend on which signals.</p>
+        <p>Unlike React's useState, signals are functions. This enables fine-grained tracking - Sokudo knows exactly which DOM nodes depend on which signals.</p>
       </div>
 
       <h3>Signal Types</h3>

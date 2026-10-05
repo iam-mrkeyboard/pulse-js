@@ -1,6 +1,6 @@
-# Contributing to Pulse
+# Contributing to Sokudo
 
-Thanks for helping improve Pulse. This guide covers local setup, repo layout, tests, commits, PRs, and releases.
+Thanks for helping improve Sokudo. This guide covers local setup, repo layout, tests, commits, PRs, and releases.
 
 ## Requirements
 
@@ -15,25 +15,26 @@ Thanks for helping improve Pulse. This guide covers local setup, repo layout, te
 git clone https://github.com/iam-mrkeyboard/pulse-js.git
 cd pulse-js
 bun install            # one install for every workspace (root bun.lock)
-bun run build:pulse    # build packages/pulse (apps use its dist/ CLI and types)
+bun run build:sokudo    # build packages/sokudo (apps use its dist/ CLI and types)
 ```
 
 ## Repo layout
 
 ```text
 ├── packages/
-│   ├── pulse/               # framework: runtime, compiler, SSR, dev server, build, CLI, tests
+│   ├── sokudo/              # framework: runtime, compiler, SSR, dev server, build, CLI, tests
+│   ├── create-sokudo/       # bun create sokudo scaffolder
 │   └── vscode-extension/    # VS Code extension (own bun.lock + vsce; not a root workspace)
 ├── apps/docs/               # docs / showcase site (.pulse pages, blog)
 ├── examples/counter/        # minimal example app
 ├── benchmarks/
-│   ├── js-framework-benchmark/  # keyed Pulse implementation + results
+│   ├── js-framework-benchmark/  # keyed Sokudo implementation + results
 │   └── micro/               # headless-Chrome microbenchmarks
 ├── tsconfig.base.json       # shared TypeScript options (packages extend it)
 └── .github/                 # CI (workflows/ci.yml), issue & PR templates
 ```
 
-Workspaces: `packages/pulse`, `apps/*`, `examples/*`, `benchmarks/micro`. Apps depend on
+Workspaces: `packages/sokudo`, `packages/create-sokudo`, `apps/*`, `examples/*`, `benchmarks/micro`. Apps depend on
 the framework with `"pulse": "workspace:*"`.
 
 ## Running tests, typecheck, build, bench
@@ -42,15 +43,15 @@ From the repository root:
 
 ```bash
 bun test               # framework test suite (happy-dom preload; see bunfig.toml)
-bun run typecheck      # tsc for packages/pulse, apps/docs and examples
-bun run build          # packages/pulse → apps/docs → examples
+bun run typecheck      # tsc for packages/sokudo, apps/docs and examples
+bun run build          # packages/sokudo → apps/docs → examples
 bun run dev            # docs site dev server
 bun run bench          # microbenchmarks (needs Chrome)
 ```
 
-Per package: `cd packages/pulse && bun test` / `bun run build`; `cd apps/docs && bun run dev`.
+Per package: `cd packages/sokudo && bun test` / `bun run build`; `cd apps/docs && bun run dev`.
 
-After changing `packages/pulse/src/runtime`, refresh the vendored copy used by the
+After changing `packages/sokudo/src/runtime`, refresh the vendored copy used by the
 js-framework-benchmark implementation: `cd benchmarks/js-framework-benchmark && bun run sync-runtime`.
 
 VS Code extension:
@@ -70,7 +71,7 @@ feat: add adopt-and-bind hydration markers
 fix: restore state setters on the reactive façade
 docs: reconstruct CHANGELOG from blog posts
 bench: record hydrate vs remount local medians
-chore: bump pulse to 0.17.0
+chore: bump sokudo to 0.18.0
 test: cover List keyed adopt after hydrate
 ```
 
@@ -82,7 +83,7 @@ Scopes are optional (`fix(runtime): …`). Breaking changes: add `!` after the t
 2. Keep PRs focused; include a short “why” and how you verified (`bun test`, `bun run build`, bench if relevant).
 3. Do not force-push shared long-lived branches (`master`, integration branches) without maintainer agreement.
 4. Fill out the PR template. Link related issues when applicable.
-5. Wait for CI to pass: `bun install`, build `packages/pulse`, `bun run typecheck`, `bun test`,
+5. Wait for CI to pass: `bun install`, build `packages/sokudo`, `bun run typecheck`, `bun test`,
    then build `apps/docs` and `examples/*`. The workflow is `.github/workflows/ci.yml`.
 
 ## How releases are cut
@@ -90,7 +91,7 @@ Scopes are optional (`fix(runtime): …`). Breaking changes: add `!` after the t
 1. Land the release PR into the integration branch / `master`.
 2. Ensure `CHANGELOG.md` has a dated `[x.y.z]` section and package versions match.
 3. Tag `vX.Y.Z` on the release commit and create a GitHub Release from that tag (notes from the changelog).
-4. Publish packages only when the maintainer is ready (`packages/pulse` → npm `pulse`; the extension has its own cadence).
+4. Publish packages only when the maintainer is ready (`packages/sokudo` → npm `sokudo`; `packages/create-sokudo` → npm `create-sokudo`; the extension has its own cadence).
 
 Until you are asked otherwise: **do not** create tags or GitHub Releases from contributor PRs—only from the maintainer after merge.
 

@@ -226,7 +226,7 @@ function mountFreshComponents(root: ParentNode, components: Record<string, any> 
           el.replaceWith(componentNode);
         }
       } catch (e) {
-        console.error(`Pulse: Failed to mount component ${componentName}:`, e);
+        console.error(`Sokudo: Failed to mount component ${componentName}:`, e);
       }
     }
   });
@@ -275,7 +275,7 @@ export function mountPrimitives(
             if (typeof result === 'function') result = result();
             return Array.isArray(result) ? result : [];
           } catch (e) {
-            console.error('Pulse: Failed to evaluate List each:', e);
+            console.error('Sokudo: Failed to evaluate List each:', e);
             return [];
           }
         };
@@ -445,11 +445,11 @@ export function mountPrimitives(
       try {
         const result = Component({ ...props, _hydrationNode: el });
         if (result && result !== el && result instanceof Node) {
-          console.warn(`[Pulse] Hydration mismatch in <${componentName}>: component returned a new tree.`);
+          console.warn(`[Sokudo] Hydration mismatch in <${componentName}>: component returned a new tree.`);
           el.replaceWith(result);
         }
       } catch (e) {
-        console.error(`Pulse: Failed to hydrate component ${componentName}:`, e);
+        console.error(`Sokudo: Failed to hydrate component ${componentName}:`, e);
       }
     });
   }
@@ -495,7 +495,7 @@ function handleEvent(event: Event) {
           return;
         }
       }
-      console.warn(`Pulse: Handler '${ref}' not found`, target);
+      console.warn(`Sokudo: Handler '${ref}' not found`, target);
     }
     target = target.parentElement as HTMLElement | null;
   }
@@ -518,7 +518,7 @@ export function hydrateDOM(Component: any, container: HTMLElement) {
 if (
   typeof window !== 'undefined' &&
   typeof document !== 'undefined' &&
-  !(globalThis as any).__PULSE_SSR__ &&
+  !(globalThis as any).__SOKUDO_SSR__ &&
   !(document as any).__pulseDelegation
 ) {
   (document as any).__pulseDelegation = true;

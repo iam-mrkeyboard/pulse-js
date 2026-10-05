@@ -43,14 +43,14 @@
       </div>
       
       <div class="hero-code">
-        <pre><code>bun create pulse my-app
+        <pre><code>bun create sokudo my-app
 cd my-app
 bun run dev</code></pre>
       </div>
     </div>
   </section>
 
-  <!-- Why Pulse -->
+  <!-- Why Sokudo -->
   <section class="why-section">
     <h2>Why Developers Love Pulse</h2>
     <div class="features-grid">
@@ -81,7 +81,7 @@ bun run dev</code></pre>
       <div class="feature-card">
         <div class="feature-icon">🔒</div>
         <h3>Secure by Default</h3>
-        <p>No eval(), no new Function(), no CSP violations. Pulse uses AST-based compilation that produces clean, minifiable code that passes the strictest security audits.</p>
+        <p>No eval(), no new Function(), no CSP violations. Sokudo uses AST-based compilation that produces clean, minifiable code that passes the strictest security audits.</p>
       </div>
       
       <div class="feature-card">
@@ -129,13 +129,13 @@ bun run dev</code></pre>
 
   <!-- Comparison -->
   <section class="comparison-section">
-    <h2>How Pulse Stacks Up</h2>
+    <h2>How Sokudo Stacks Up</h2>
     <div class="table-wrapper">
       <table>
         <thead>
           <tr>
             <th>Feature</th>
-            <th class="pulse-col">Pulse</th>
+            <th class="pulse-col">Sokudo</th>
             <th>React</th>
             <th>Vue</th>
             <th>Svelte</th>
@@ -214,7 +214,7 @@ bun run dev</code></pre>
   <!-- CTA -->
   <section class="cta-section">
     <h2>Ready to Build Something Amazing?</h2>
-    <p>Get started with Pulse in seconds. No configuration required.</p>
+    <p>Get started with Sokudo in seconds. No configuration required.</p>
     <div class="cta-actions">
       <a href="/docs" class="btn-primary">Read the Docs →</a>
       <a href="/examples" class="btn-outline">See Examples</a>

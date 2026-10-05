@@ -3,7 +3,7 @@ const state = {
 };
 
 function updateName() {
-  state.name = 'Pulse User';
+  state.name = 'Sokudo User';
 }
 
 <div class="user-profile" style="border: 1px solid #ccc; padding: 20px; border-radius: 8px;">
